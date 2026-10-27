@@ -44,6 +44,11 @@ const seo = buildSeo({ ...rest, path: Astro.url.pathname });
     <meta name="twitter:image" content={seo.image} />
 
     <Analytics />
+    <!-- Content is hidden for the scroll reveal only when the script below can show it again. -->
+    <script is:inline>
+      if ("IntersectionObserver" in window && !matchMedia("(prefers-reduced-motion: reduce)").matches)
+        document.documentElement.classList.add("js");
+    </script>
     <slot name="head" />
   </head>
   <body>
@@ -53,5 +58,37 @@ const seo = buildSeo({ ...rest, path: Astro.url.pathname });
       <slot />
     </main>
     <Footer />
+    <script>
+      // Fade each block up as it scrolls into view; items inside a grid follow one after another.
+      const root = document.documentElement;
+      if (root.classList.contains("js")) {
+        const groups = ".grid, .deliverables, .types, .posts, .list";
+        const blocks: Element[] = [];
+        document.querySelectorAll("main .section .wrap > *, main .page-body > *").forEach((el) => {
+          if (!el.matches(groups)) return void blocks.push(el);
+          Array.from(el.children).forEach((child, i) => {
+            (child as HTMLElement).style.setProperty("--stagger", `${Math.min(i, 5) * 0.08}s`);
+            blocks.push(child);
+          });
+        });
+        const seen = new IntersectionObserver(
+          (entries) => {
+            for (const e of entries) {
+              if (!e.isIntersecting) continue;
+              const el = e.target as HTMLElement;
+              el.classList.add("in");
+              seen.unobserve(el);
+              // Hand the element back to its own styles once it has arrived.
+              setTimeout(() => el.classList.remove("reveal"), 900);
+            }
+          },
+          { rootMargin: "0px 0px -8% 0px" },
+        );
+        for (const el of blocks) {
+          el.classList.add("reveal");
+          seen.observe(el);
+        }
+      }
+    </script>
   </body>
 </html>

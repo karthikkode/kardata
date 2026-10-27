@@ -9,6 +9,7 @@ import PostCard from "../components/PostCard.astro";
 import { getPosts } from "../lib/collection";
 import { readingMinutes } from "../lib/posts";
 import FounderCard from "../components/FounderCard.astro";
+import SystemsMap from "../components/SystemsMap.astro";
 
 const latest = (await getPosts()).slice(0, 3);
 
@@ -52,12 +53,13 @@ const faq = [
   },
   {
     q: "What if you find nothing worth fixing?",
-    a: "You still keep the report.",
+    a: "It's a fixed price, paid upfront, and the report is yours either way. If the gaps are small, it says so, with the numbers.",
   },
 ];
 ---
 <Base>
   <section class="hero">
+    <div class="grid-bg" aria-hidden="true"></div>
     <div class="glow" aria-hidden="true"></div>
     <div class="wrap hero-inner">
       <h1>Your brand runs on multiple systems. <span class="grad">The time and money leak between them.</span></h1>
@@ -68,6 +70,7 @@ const faq = [
       <div class="hero-cta">
         <BookButton label={CALL_LABEL} size="lg" />
       </div>
+      <SystemsMap />
     </div>
   </section>
 
@@ -178,6 +181,19 @@ const faq = [
       radial-gradient(ellipse 70% 55% at 50% -5%, rgba(79, 156, 249, 0.16), transparent 65%),
       radial-gradient(ellipse 40% 35% at 85% 20%, rgba(79, 156, 249, 0.07), transparent 70%);
   }
+  /* Faint graph-paper grid behind the hero, fading out towards the edges. */
+  .grid-bg {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(121, 184, 255, 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(121, 184, 255, 0.06) 1px, transparent 1px);
+    background-size: 48px 48px;
+    background-position: center top;
+    -webkit-mask-image: radial-gradient(ellipse 70% 75% at 50% 30%, #000 30%, transparent 75%);
+    mask-image: radial-gradient(ellipse 70% 75% at 50% 30%, #000 30%, transparent 75%);
+  }
   .hero-inner {
     position: relative;
     display: flex;
@@ -194,10 +210,17 @@ const faq = [
     letter-spacing: -0.03em;
   }
   .grad {
-    background: linear-gradient(90deg, var(--accent), var(--accent-bright));
+    background: linear-gradient(90deg, var(--accent), var(--accent-bright), var(--accent));
+    background-size: 200% 100%;
+    animation: sheen 8s ease-in-out infinite;
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+  }
+  @keyframes sheen {
+    50% {
+      background-position: 100% 0;
+    }
   }
   .hero .lead {
     margin: 1.75rem auto 0;
@@ -286,6 +309,12 @@ const faq = [
     height: 2px;
     top: -1.5px;
     background: linear-gradient(90deg, var(--accent), var(--accent-bright));
+    box-shadow: 0 0 12px rgba(79, 156, 249, 0.6);
+    transition: width 1.2s var(--ease) 0.2s;
+  }
+  /* With motion on, the line starts empty and fills to each step's share once it scrolls into view. */
+  :global(.js) .steps:not(.in) li::before {
+    width: 0;
   }
   .step-t {
     font-size: 1.35rem;
