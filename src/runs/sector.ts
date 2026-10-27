@@ -570,7 +570,7 @@ export async function startPipeline(
       continue;
     }
     try {
-      await startCompanyJob(db, { companyId: member.companyId, defer: true });
+      await startCompanyJob(db, { companyId: member.companyId, sectorId, defer: true });
       created += 1;
       haveJob.add(member.companyId);
     } catch (err) {

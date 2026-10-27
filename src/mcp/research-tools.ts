@@ -1076,11 +1076,13 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         maxModelSteps: z.number().int().optional().describe("Model step cap (default 100)"),
         brief: z.string().optional().describe("Extra owner instructions (at most 2 KB)"),
         promptVersion: z.string().optional().describe("Prompt version (default: latest)"),
+        sectorId: z.string().optional().describe("Sector UUID (each company must be in it; resolved per company when omitted)"),
       },
     },
-    async ({ companyIds, areas, recollectIfOlderThanDays, maxMinutes, maxModelSteps, brief, promptVersion }) =>
+    async ({ companyIds, areas, recollectIfOlderThanDays, maxMinutes, maxModelSteps, brief, promptVersion, sectorId }) =>
       wrap(async () => {
         const batch = await researchStart(db, {
+          sectorId: sectorId ?? undefined,
           companyIds,
           areas: areas ?? undefined,
           recollectIfOlderThanDays: recollectIfOlderThanDays ?? undefined,
@@ -1360,11 +1362,15 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
     "company_job_start",
     {
       description: "Operator: run the full pipeline (preflight, collect, research, extraction) for one company. One active job per company.",
-      inputSchema: { companyId, budget: jobBudget },
+      inputSchema: {
+        companyId,
+        sectorId: z.string().optional().describe("Sector UUID (resolved from the company's only sector when omitted)"),
+        budget: jobBudget,
+      },
     },
-    async ({ companyId: id, budget }) =>
+    async ({ companyId: id, sectorId, budget }) =>
       wrap(async () => {
-        const result = await startCompanyJob(db, { companyId: id, budget: budget ?? undefined });
+        const result = await startCompanyJob(db, { companyId: id, sectorId: sectorId ?? undefined, budget: budget ?? undefined });
         return { summary: `company job ${result.jobId} started`, data: result };
       }),
   );

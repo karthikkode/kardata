@@ -783,6 +783,7 @@ export const companyJobs = pgTable(
     companyId: uuid("company_id")
       .notNull()
       .references(() => companies.id, { onDelete: "cascade" }),
+    sectorId: uuid("sector_id").references(() => sectors.id, { onDelete: "set null" }),
     status: text("status", { enum: COMPANY_JOB_STATUSES }).notNull().default("created"),
     currentStage: companyJobStage("current_stage"),
     errorStreak: integer("error_streak").notNull().default(0),

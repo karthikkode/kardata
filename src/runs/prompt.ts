@@ -116,6 +116,8 @@ function templateValues(ctx: PromptContext): Record<string, string> {
   const effective = toEffectiveCompany(ctx.company);
   const briefSection =
     ctx.brief && ctx.brief.trim() !== "" ? `## Owner brief\n\n${ctx.brief.trim()}\n\n` : "";
+  const hints = ctx.sectorProfile?.promptHints;
+  const none = "none listed for this sector";
   return {
     runId: ctx.run.id,
     companyId: ctx.company.id,
@@ -127,6 +129,10 @@ function templateValues(ctx: PromptContext): Record<string, string> {
     industry: display(effective.industry),
     apolloSummary: apolloSummary(ctx),
     briefSection,
+    "sector.retailerExamples": hints?.retailerExamples ?? none,
+    "sector.priceTiers": hints?.priceTiers ?? none,
+    "sector.productClaims": hints?.productClaims ?? none,
+    "sector.positioningStory": hints?.positioningStory ?? none,
   };
 }
 
@@ -150,17 +156,13 @@ function renderVersioned(version: string, ctx: PromptContext): string {
   return substitute(assembled, templateValues(ctx));
 }
 
-export function templatePath(): string {
-  return join(promptsDir(), "research-v0.md");
-}
-
 /**
- * Render the run's stored prompt version (pre-versioning runs render v0).
- * research_start resolves the default at creation, so this never picks latest
- * for a stored run.
+ * Render the run's stored prompt version. research_start resolves the
+ * default at creation, so this never picks latest for a stored run.
  */
 export function buildResearchPrompt(ctx: PromptContext): string {
-  const version = ctx.run.promptVersion ?? "v0";
+  if (!ctx.run.promptVersion) throw new DomainError("invalid_input", "pre-versioning run; cannot re-render");
+  const version = ctx.run.promptVersion;
   assertPromptVersion(version);
   if (existsSync(join(promptsDir(), `research-${version}.md`))) return renderSingleFile(version, ctx);
   return renderVersioned(version, ctx);

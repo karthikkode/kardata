@@ -9,6 +9,7 @@ import {
   area,
   areaStatuses,
   companies,
+  companyJobs,
   documents,
   researchRuns,
   runEvents,
@@ -18,6 +19,7 @@ import {
   type Company,
   type ResearchRun,
 } from "../db/schema.js";
+import { getProfileOrNull, type SectorProfile } from "../domain/sector-preflight/profile.js";
 import {
   RESEARCH_MUSE_ARGS,
   dockerMuseHarness,
@@ -104,6 +106,7 @@ export interface PromptContext {
   run: ResearchRun;
   company: Company;
   brief: string | undefined;
+  sectorProfile: SectorProfile | null;
 }
 
 export type PromptBuilder = (ctx: PromptContext) => string | Promise<string>;
@@ -434,7 +437,12 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
       noteResearching();
       const [company] = await db.select().from(companies).where(eq(companies.id, run.companyId));
       if (!company) throw new Error(`company not found: ${run.companyId}`);
-      const prompt = await buildPrompt({ run, company, brief: options.brief });
+      let sectorProfile: SectorProfile | null = null;
+      if (run.companyJobId) {
+        const [job] = await db.select({ sectorId: companyJobs.sectorId }).from(companyJobs).where(eq(companyJobs.id, run.companyJobId));
+        if (job?.sectorId) sectorProfile = await getProfileOrNull(db, job.sectorId);
+      }
+      const prompt = await buildPrompt({ run, company, brief: options.brief, sectorProfile });
       // Dispatch capture: the exact turn-1 prompt. Never blocks the launch.
       let dispatchId: number | null = null;
       try {

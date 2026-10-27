@@ -96,11 +96,11 @@ describe("researchStart", () => {
     const a = await makeCompany("A Co");
     const b = await makeCompany("B Co");
     await researchStart(handle.db, { companyIds: [a] });
-    await researchStart(handle.db, { companyIds: [b], promptVersion: "v0" });
+    await researchStart(handle.db, { companyIds: [b], promptVersion: "v1" });
     const [runA] = await handle.db.select().from(researchRuns).where(eq(researchRuns.companyId, a));
     const [runB] = await handle.db.select().from(researchRuns).where(eq(researchRuns.companyId, b));
     expect(runA?.promptVersion).toBe(latestPromptVersion());
-    expect(runB?.promptVersion).toBe("v0");
+    expect(runB?.promptVersion).toBe("v1");
     await expect(researchStart(handle.db, { companyIds: [a], promptVersion: "v9" })).rejects.toThrow(
       /unknown prompt version/,
     );

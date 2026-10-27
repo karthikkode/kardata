@@ -88,6 +88,7 @@ const TRANSIENT_AUTO_RETRY = new Set(["stall", "usage_limit", "all_blocked", "no
 
 export interface StartCompanyJobInput {
   companyId: string;
+  sectorId?: string;
   budget?: JobBudget;
   /** Stay created (the feeder promotes it at company concurrency) instead of scheduling now. */
   defer?: boolean;
@@ -99,12 +100,26 @@ export async function startCompanyJob(db: Db, input: StartCompanyJobInput): Prom
     .from(companies)
     .where(eq(companies.id, input.companyId));
   if (!company) throw new DomainError("not_found", `company not found: ${input.companyId}`);
+  // A job may run sector-less (older flows); with sectors present the
+  // company's only sector is used, and several sectors must be named.
+  let sectorId: string | null = input.sectorId ?? null;
+  if (!sectorId) {
+    const memberships = await db
+      .select({ sectorId: sectorCompanies.sectorId })
+      .from(sectorCompanies)
+      .where(eq(sectorCompanies.companyId, input.companyId));
+    if (memberships.length === 1 && memberships[0]) sectorId = memberships[0].sectorId;
+    else if (memberships.length > 1) {
+      throw new DomainError("invalid_input", `company is in ${memberships.length} sectors; pass sectorId`);
+    }
+  }
   const { maxTokens, maxHours } = checkBudget(input.budget);
   const jobId = randomUUID();
   try {
     await db.insert(companyJobs).values({
       id: jobId,
       companyId: input.companyId,
+      sectorId,
       status: "created",
       maxInputTokens: maxTokens,
       maxHours,
