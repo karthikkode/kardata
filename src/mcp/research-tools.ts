@@ -1,6 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Db } from "../db/client.js";
+import { eq } from "drizzle-orm";
+import { sectors } from "../db/schema.js";
 import { recordEvent } from "../collect/db.js";
 import { fetchUrl } from "../collect/fetch.js";
 import { FACT_BATCH_MAX, addFacts } from "../domain/research/facts.js";
@@ -37,7 +39,7 @@ import {
   recordVerdicts,
   sectorTierSummary,
 } from "../domain/tiering.js";
-import { resolveCompanySector } from "../domain/sectors.js";
+import { resolveCompanySector, sectorSlug } from "../domain/sectors.js";
 import { companyJobLive } from "../domain/company-jobs/live.js";
 import {
   estimateInflightBurn,
@@ -1328,7 +1330,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
     "company_sheet_export",
     {
       description:
-        "Operator: write var/analysis/companies-<date>.csv for manual outreach tracking: contactable companies only (D-55 tiers), one block per tier, by layer then score, with company id, signals met, the ICP check's observations (date, URL), tech team flag, buyer order by staff size (roles only), and blank tracking columns. includeAll also writes companies-<date>-all.csv: every checked company with its status and why.",
+        "Operator: write var/sectors/<sector-slug>/analysis/companies-<date>.csv for manual outreach tracking: contactable companies only (D-55 tiers), one block per tier, by layer then score, with company id, signals met, the ICP check's observations (date, URL), tech team flag, buyer order by staff size (roles only), and blank tracking columns. includeAll also writes companies-<date>-all.csv: every checked company with its status and why.",
       inputSchema: {
         sectorId: z.string().describe("Sector UUID"),
         includeAll: z.boolean().optional().describe("Also write every checked company with status and exclusion reason"),
@@ -1340,7 +1342,8 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         const { join } = await import("node:path");
         const rows = await outreachSheetRows(db, sectorId);
         const date = new Date().toISOString().slice(0, 10);
-        const dir = join(process.cwd(), "var", "analysis");
+        const [sectorRow] = await db.select({ name: sectors.name }).from(sectors).where(eq(sectors.id, sectorId));
+        const dir = join(process.cwd(), "var", "sectors", sectorSlug(sectorRow?.name ?? "sector"), "analysis");
         await mkdir(dir, { recursive: true });
         const path = join(dir, `companies-${date}.csv`);
         await writeFile(path, outreachCsv(rows), "utf8");

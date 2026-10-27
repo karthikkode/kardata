@@ -221,3 +221,8 @@ export async function resolveCompanySector(db: Db, companyId: string, sectorId?:
   if (rows.length === 1 && rows[0]) return rows[0].sectorId;
   throw new DomainError("invalid_input", `company is in ${rows.length} sectors; pass sectorId`);
 }
+
+/** Filesystem slug for a sector name: lower-cased, non-alphanumerics as dashes. */
+export function sectorSlug(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "sector";
+}

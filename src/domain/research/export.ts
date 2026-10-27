@@ -8,8 +8,10 @@ import {
   factKeys,
   facts,
   records,
+  sectors,
 } from "../../db/schema.js";
 import { DomainError } from "../errors.js";
+import { resolveCompanySector, sectorSlug } from "../sectors.js";
 
 function csvCell(value: unknown): string {
   if (value === null || value === undefined) return "";
@@ -43,7 +45,9 @@ export async function exportCompany(db: Db, companyId: string): Promise<ExportRe
   if (!company) throw new DomainError("not_found", `company not found: ${companyId}`);
 
   const slug = `${(company.name ?? "company").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "company"}-${company.id.slice(0, 8)}`;
-  const dir = join("var", "exports", slug);
+  const sectorId = await resolveCompanySector(db, companyId);
+  const [sector] = await db.select({ name: sectors.name }).from(sectors).where(eq(sectors.id, sectorId));
+  const dir = join("var", "sectors", sectorSlug(sector?.name ?? "sector"), "exports", slug);
   await mkdir(dir, { recursive: true });
   const skipped: string[] = [];
 
