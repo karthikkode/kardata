@@ -137,7 +137,7 @@ describe("runIcpCheck", () => {
     // The stale job post never reached the judge.
     expect(prompts[0]).not.toContain("Inventory Planner");
     const [verdict] = await handle.db.select().from(companyVerdicts).where(eq(companyVerdicts.companyId, s.companyId));
-    expect(verdict).toMatchObject({ score: 2, status: "contactable", source: `icp-v1:${out.checkId}` });
+    expect(verdict).toMatchObject({ score: 2, status: "contactable", source: `icp-v2:${out.checkId}` });
     expect(verdict?.signals).toMatchObject({ channels: true, tool_sprawl: true, hiring: false });
     const check = await latestIcpCheck(handle.db, s.companyId);
     expect(check?.evidence).toHaveLength(2);
@@ -158,7 +158,7 @@ describe("runIcpCheck", () => {
     expect(rows).toHaveLength(2);
     expect(first.checkId).not.toBe(second.checkId);
     const [verdict] = await handle.db.select().from(companyVerdicts).where(eq(companyVerdicts.companyId, s.companyId));
-    expect(verdict?.source).toBe(`icp-v1:${second.checkId}`);
+    expect(verdict?.source).toBe(`icp-v2:${second.checkId}`);
   });
 
   it("keeps a manual override verdict", async () => {

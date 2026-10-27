@@ -21,7 +21,7 @@ import {
  * and decides the score and status. The model never sets the score.
  */
 
-export const ICP_PROMPT_VERSION = "icp-v1";
+export const ICP_PROMPT_VERSION = "icp-v2";
 
 function promptsDir(): string {
   const here = dirname(fileURLToPath(import.meta.url));
