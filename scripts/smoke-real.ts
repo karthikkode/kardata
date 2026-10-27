@@ -18,6 +18,26 @@ const PATHS = (process.env.SMOKE_CSV_PATHS ?? "")
 
 const SECTOR = "smoke-real";
 
+function cliArg(name: string): string {
+  const i = process.argv.indexOf(name);
+  const value = i >= 0 ? process.argv[i + 1] : undefined;
+  if (!value) {
+    console.error(`usage: smoke-real --expect <n> --search a,b,c (SMOKE_CSV_PATHS=...)`);
+    process.exit(2);
+  }
+  return value;
+}
+const EXPECT = Number(cliArg("--expect"));
+if (!Number.isInteger(EXPECT) || EXPECT < 1) {
+  console.error("--expect must be a positive integer");
+  process.exit(2);
+}
+const SEARCHES = cliArg("--search").split(",").map((s) => s.trim()).filter((s) => s !== "");
+if (SEARCHES.length === 0) {
+  console.error("--search needs at least one term");
+  process.exit(2);
+}
+
 interface ToolResult {
   isError?: boolean;
   structuredContent?: Record<string, unknown>;
@@ -102,17 +122,17 @@ async function main(): Promise<void> {
     }
     const sum = (pick: (i: NonNullable<FileResult["import"]>) => number): number =>
       created.imports.reduce((n, r) => n + (r.ok && r.import ? pick(r.import) : 0), 0);
-    check(sum((i) => i.rowsRead) === 2559, `rows read = ${sum((i) => i.rowsRead)} (want 2559)`, failures);
+    check(sum((i) => i.rowsRead) === EXPECT, `rows read = ${sum((i) => i.rowsRead)} (want EXPECT)`, failures);
     check(
-      sum((i) => i.createdCount) === 2559,
-      `created = ${sum((i) => i.createdCount)} (want 2559)`,
+      sum((i) => i.createdCount) === EXPECT,
+      `created = ${sum((i) => i.createdCount)} (want EXPECT)`,
       failures,
     );
 
     const list0 = (await call("company_list", { sectorId, pageSize: 50 })) as unknown as {
       total: number;
     };
-    check(list0.total === 2559, `companies = ${list0.total} (want 2559)`, failures);
+    check(list0.total === EXPECT, `companies = ${list0.total} (want EXPECT)`, failures);
 
     let noDomain = 0;
     let seen = 0;
@@ -127,7 +147,7 @@ async function main(): Promise<void> {
       noDomain += chunk.items.filter((c) => c.domain === null).length;
       if (page * 200 >= chunk.total) break;
     }
-    check(seen === 2559, `paged companies = ${seen} (want 2559)`, failures);
+    check(seen === EXPECT, `paged companies = ${seen} (want EXPECT)`, failures);
     check(noDomain === 28, `companies with no domain = ${noDomain} (want 28)`, failures);
 
     const shared = (await call("company_list", {
@@ -151,26 +171,21 @@ async function main(): Promise<void> {
       failures,
     );
     check(
-      resum((i) => i.updatedCount) === 2559,
-      `re-import updated = ${resum((i) => i.updatedCount)} (want 2559)`,
+      resum((i) => i.updatedCount) === EXPECT,
+      `re-import updated = ${resum((i) => i.updatedCount)} (want EXPECT)`,
       failures,
     );
     const list1 = (await call("company_list", { sectorId, pageSize: 50 })) as unknown as {
       total: number;
     };
-    check(list1.total === 2559, `companies after re-import = ${list1.total} (want 2559)`, failures);
+    check(list1.total === EXPECT, `companies after re-import = ${list1.total} (want EXPECT)`, failures);
 
     const fac = (await call("company_facets", { sectorId })) as unknown as {
       countries: { value: string }[];
       industries: { value: string }[];
       technologies: { value: string }[];
     };
-    const combos: Record<string, unknown>[] = [
-      { search: "skin" },
-      { search: "beauty" },
-      { search: "lab" },
-      { search: "glow" },
-    ];
+    const combos: Record<string, unknown>[] = SEARCHES.map((search) => ({ search }));
     if (fac.countries[0]) combos.push({ country: [fac.countries[0].value] });
     if (fac.countries[1]) combos.push({ country: [fac.countries[1].value] });
     if (fac.countries[0] && fac.countries[1]) {

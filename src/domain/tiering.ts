@@ -6,10 +6,9 @@ import {
   factsCurrent,
   revenueConfirmations,
   sectorCompanies,
-  sources,
 } from "../db/schema.js";
 import { DomainError } from "./errors.js";
-import { addFacts } from "./research/facts.js";
+import { getProfileOrNull } from "./sector-preflight/profile.js";
 
 /**
  * D-55 revenue truth and tier/layer (Stage 5.3 Step 4).
@@ -81,30 +80,21 @@ const VENDOR_BACKSTOP = [
   "bold.pro",
 ];
 
-/** Known editorial outlets. Anything else fails closed to vendor_estimate. */
-const PRESS_BACKSTOP = [
-  "wwd",
-  "women's wear daily",
-  "beautymatter",
-  "beauty independent",
-  "glossy",
+/** Generic editorial outlets kept in code. Sector press lives in the profile. */
+export const GENERIC_PRESS_SOURCES = [
   "forbes",
-  "businesscloud",
-  "happi",
   "fast company",
-  "premium beauty",
-  "cosmeticsbusiness",
-  "cosmetics business",
+  "businesscloud",
+  "glossy",
   "fierce biotech",
   "stocktitan",
-  "little pink book",
-  "body+soul",
   "acuity",
 ];
 
 export function classifyRevenueSourceKind(
   sourceName: string,
   storedKind?: string | null,
+  pressSources: string[] = [],
 ): RevenueSourceKind {
   if (storedKind && (SOURCE_KINDS as string[]).includes(storedKind)) {
     return storedKind as RevenueSourceKind;
@@ -122,7 +112,8 @@ export function classifyRevenueSourceKind(
     return "filing";
   }
   if (name.includes("podcast") || name.includes("interview")) return "interview";
-  if (PRESS_BACKSTOP.some((v) => name.includes(v))) return "press";
+  const press = [...GENERIC_PRESS_SOURCES, ...pressSources.map((s) => s.toLowerCase())];
+  if (press.some((v) => name.includes(v))) return "press";
   if (name.includes("investor page") || name.includes("investor relations")) {
     return "company_statement";
   }
@@ -150,6 +141,7 @@ export interface StaffCount {
 }
 
 export interface RevenueTruthInput {
+  tiering?: { apolloMinPerStaff: number; staffEstimatePerHead: number; publicCheckPerStaff: number };
   publicRevenue: {
     amount: number;
     sourceName: string;
@@ -199,11 +191,18 @@ export function pickStaff(candidates: StaffCount[]): StaffCount | null {
   return candidates[0] ?? null;
 }
 
+/** Lowest revenue that earns a tier; below it a company is not contacted. */
+export const REVENUE_FLOOR = 500_000;
+
+export function belowFloorReason(): string {
+  return `below $${REVENUE_FLOOR / 1000}k revenue: not contacted`;
+}
+
 export function tierForRevenue(revenue: number | null): Tier {
   if (revenue === null) return null;
   if (revenue >= 10_000_000) return "A";
   if (revenue >= 2_000_000) return "B";
-  if (revenue >= 500_000) return "C";
+  if (revenue >= REVENUE_FLOOR) return "C";
   return null;
 }
 
@@ -221,7 +220,7 @@ export function computeRevenueTruth(input: RevenueTruthInput): RevenueTruth {
   if (input.publicRevenue && input.publicRevenue.amount > 0) {
     const pub = input.publicRevenue;
     const perStaff = staff && staff.count > 0 ? pub.amount / staff.count : null;
-    const flagged = perStaff !== null && perStaff > PUBLIC_CHECK_PER_STAFF;
+    const flagged = perStaff !== null && perStaff > (input.tiering?.publicCheckPerStaff ?? PUBLIC_CHECK_PER_STAFF);
     if (!flagged) {
       revenueUsed = pub.amount;
       revenueSource = "public";
@@ -258,7 +257,7 @@ export function computeRevenueTruth(input: RevenueTruthInput): RevenueTruth {
   if (!used && input.vendorRevenue !== null && input.vendorRevenue.amount > 0) {
     const perStaff =
       staff && staff.count > 0 ? input.vendorRevenue.amount / staff.count : null;
-    if (perStaff !== null && perStaff >= APOLLO_MIN_PER_STAFF) {
+    if (perStaff !== null && perStaff >= (input.tiering?.apolloMinPerStaff ?? APOLLO_MIN_PER_STAFF)) {
       revenueUsed = input.vendorRevenue.amount;
       revenueSource = input.vendorRevenue.sourceName.toLowerCase().startsWith("apollo")
         ? "apollo"
@@ -272,13 +271,13 @@ export function computeRevenueTruth(input: RevenueTruthInput): RevenueTruth {
         reason: "rejected: below $75k per staff",
       };
       if (staff && staff.count > 0) {
-        revenueUsed = staff.count * STAFF_ESTIMATE_PER_HEAD;
+        revenueUsed = staff.count * (input.tiering?.staffEstimatePerHead ?? STAFF_ESTIMATE_PER_HEAD);
         revenueSource = "staff_estimate";
       }
     }
   }
   if (!used && revenueUsed === null && staff && staff.count > 0) {
-    revenueUsed = staff.count * STAFF_ESTIMATE_PER_HEAD;
+    revenueUsed = staff.count * (input.tiering?.staffEstimatePerHead ?? STAFF_ESTIMATE_PER_HEAD);
     revenueSource = "staff_estimate";
   }
 
@@ -302,7 +301,7 @@ export function computeRevenueTruth(input: RevenueTruthInput): RevenueTruth {
     status = "watchlist";
   } else if (revenueUsed !== null && tier === null) {
     status = "excluded";
-    exclusionReason = "below $500k revenue: not contacted";
+    exclusionReason = belowFloorReason();
   } else {
     status = "contactable";
   }
@@ -353,9 +352,8 @@ export async function recordVerdicts(db: Db, verdicts: VerdictInput[]): Promise<
         source: v.source,
       })
       .onConflictDoUpdate({
-        target: companyVerdicts.companyId,
+        target: [companyVerdicts.companyId, companyVerdicts.sectorId],
         set: {
-          sectorId: v.sectorId,
           score: v.score,
           signals: v.signals,
           status: v.status,
@@ -367,90 +365,6 @@ export async function recordVerdicts(db: Db, verdicts: VerdictInput[]): Promise<
     recorded += 1;
   }
   return { recorded };
-}
-
-/**
- * Stamp the source kind onto stored revenue figures that lack one, writing a
- * superseding fact through the standard fact path. The kind comes from the
- * backstop classifier; the extractor's judgement (source_kind) always wins
- * where it is already stored.
- */
-export async function sectorRevenueReclassify(
-  db: Db,
-  sectorId: string,
-): Promise<{ stamped: number; alreadyStamped: number; noRevenueFact: number; byKind: Record<string, number> }> {
-  const members = await db
-    .select({ companyId: sectorCompanies.companyId })
-    .from(sectorCompanies)
-    .where(eq(sectorCompanies.sectorId, sectorId));
-  let stamped = 0;
-  let alreadyStamped = 0;
-  let noRevenueFact = 0;
-  const byKind: Record<string, number> = {};
-  for (const m of members) {
-    const [row] = await db
-      .select()
-      .from(factsCurrent)
-      .where(
-        and(
-          eq(factsCurrent.companyId, m.companyId),
-          eq(factsCurrent.key, "financials.revenue_estimate"),
-        ),
-      );
-    if (!row) {
-      noRevenueFact += 1;
-      continue;
-    }
-    const qualifiers = (row.qualifiers ?? {}) as Record<string, unknown>;
-    const source = typeof qualifiers["source"] === "string" ? (qualifiers["source"] as string) : "";
-    if (source === "") {
-      noRevenueFact += 1;
-      continue;
-    }
-    const kind = classifyRevenueSourceKind(source);
-    if (typeof qualifiers["source_kind"] === "string") {
-      // Extractor-stamped kinds are judgement and stay. Kinds we stamped
-      // ourselves are recomputed, so a stricter classifier re-stamps them.
-      const ours = row.createdBy === "reclassify:stage-5.3";
-      if (!ours || qualifiers["source_kind"] === kind) {
-        alreadyStamped += 1;
-        continue;
-      }
-    }
-    byKind[kind] = (byKind[kind] ?? 0) + 1;
-    const amount = factAmount(row);
-    const citedIds = row.sourceIds ?? [];
-    const existingSources =
-      citedIds.length > 0
-        ? await db
-            .select({ id: sources.id })
-            .from(sources)
-            .where(inArray(sources.id, citedIds))
-        : [];
-    const validSourceIds = existingSources.map((s) => s.id);
-    const results = await addFacts(db, {
-      companyId: m.companyId,
-      createdBy: "reclassify:stage-5.3",
-      facts: [
-        {
-          key: "financials.revenue_estimate",
-          value:
-            amount !== null
-              ? { amount, currency: row.currency ?? "USD" }
-              : (row.valueJson ?? row.valueText ?? row.valueNum),
-          qualifiers: {
-            ...qualifiers,
-            source_kind: kind,
-            ...(kind === "vendor_estimate" ? { estimate_kind: "vendor" } : {}),
-          },
-          sourceIds: validSourceIds,
-          confidence: row.confidence ?? "medium",
-        },
-      ],
-    });
-    if (results[0]?.ok) stamped += 1;
-  }
-  return { stamped, alreadyStamped, noRevenueFact, byKind };
 }
 
 /** Record the human verdict on a flagged public figure for one company. */
@@ -487,9 +401,11 @@ function factAmount(row: { valueNum: unknown; valueJson: unknown }): number | nu
   return null;
 }
 
-export async function companyRevenueTruth(db: Db, companyId: string): Promise<RevenueTruth & { companyId: string }> {
+export async function companyRevenueTruth(db: Db, companyId: string, sectorId: string): Promise<RevenueTruth & { companyId: string }> {
   const [company] = await db.select({ id: companies.id }).from(companies).where(eq(companies.id, companyId));
   if (!company) throw new DomainError("not_found", `company not found: ${companyId}`);
+  const profile = await getProfileOrNull(db, sectorId);
+  const pressSources = profile?.tiering.pressSources ?? [];
   const rows = await db
     .select()
     .from(factsCurrent)
@@ -518,7 +434,7 @@ export async function companyRevenueTruth(db: Db, companyId: string): Promise<Re
       const storedKind =
         typeof qualifiers["source_kind"] === "string" ? (qualifiers["source_kind"] as string) : null;
       if (source !== "") {
-        const kind = classifyRevenueSourceKind(source, storedKind);
+        const kind = classifyRevenueSourceKind(source, storedKind, pressSources);
         if (isPublicKind(kind)) {
           publicRevenue = { amount, sourceName: source, kind };
         } else {
@@ -546,7 +462,7 @@ export async function companyRevenueTruth(db: Db, companyId: string): Promise<Re
   const [verdict] = await db
     .select()
     .from(companyVerdicts)
-    .where(eq(companyVerdicts.companyId, companyId));
+    .where(and(eq(companyVerdicts.companyId, companyId), eq(companyVerdicts.sectorId, sectorId)));
 
   const [confirmation] = await db
     .select()
@@ -561,6 +477,7 @@ export async function companyRevenueTruth(db: Db, companyId: string): Promise<Re
   }
 
   const truth = computeRevenueTruth({
+    tiering: profile?.tiering,
     publicRevenue,
     vendorRevenue,
     staff: pickStaff(staffCandidates),
@@ -605,7 +522,7 @@ export async function sectorSheetRows(db: Db, sectorId: string): Promise<SheetRo
     .where(eq(sectorCompanies.sectorId, sectorId));
   const rows: SheetRow[] = [];
   for (const m of members) {
-    const truth = await companyRevenueTruth(db, m.companyId);
+    const truth = await companyRevenueTruth(db, m.companyId, sectorId);
     if (truth.status !== "contactable" || !truth.tier || truth.layer === null) continue;
     rows.push({
       companyId: m.companyId,
@@ -689,10 +606,10 @@ export async function sectorTierSummary(db: Db, sectorId: string): Promise<Secto
     const verdicts = await db
       .select({ companyId: companyVerdicts.companyId })
       .from(companyVerdicts)
-      .where(inArray(companyVerdicts.companyId, batch));
+      .where(and(inArray(companyVerdicts.companyId, batch), eq(companyVerdicts.sectorId, sectorId)));
     withVerdicts += verdicts.length;
     for (const v of verdicts) {
-      const truth = await companyRevenueTruth(db, v.companyId);
+      const truth = await companyRevenueTruth(db, v.companyId, sectorId);
       byStatus[truth.status] = (byStatus[truth.status] ?? 0) + 1;
       if (truth.revenueSource) {
         byRevenueSource[truth.revenueSource] = (byRevenueSource[truth.revenueSource] ?? 0) + 1;

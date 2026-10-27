@@ -35,12 +35,11 @@ Status: locked (sector order is open, see decisions.md) · Last updated: 2026-10
 ## Sectors
 
 - **The practice covers many sectors.** Each sector is a starting point, not the identity.
-- **Current sector: D2C skincare,** in English-speaking markets (US, UK, CA, AU).
+- **Current sector:** see docs/sectors/skincare/.
   - **Who qualifies:** a D2C brand (so public data exists) with enough revenue to pay, about $500k a year or more.
     The store platform doesn't matter.
   - **Tiers** group companies by annual revenue and set the offer (A $10M+, B $2–10M, C $500k–2M). **Layers** set priority inside
     a tier by signal score (Layer 1 = highest). Full rules are in `icp.md`.
-  - We have deep research on 753 companies (research wave 1) and 156 more in wave 2.
 - **Sector rule:** research one sector deeply, prove the method, then move to the next. Research stays **one sector
   ahead of sending, never more.**
 - **Known risk for D2C:** margins are thinner than in software. A $3k retainer is about 18% of a $2M brand's profit

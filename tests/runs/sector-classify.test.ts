@@ -16,7 +16,13 @@ import {
   readableChars,
   type ClassifierCall,
 } from "../../src/runs/sector-classify.js";
-import { SKINCARE_PROFILE, setProfile } from "../../src/domain/sector-preflight/profile.js";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { parseSectorProfile, setProfile } from "../../src/domain/sector-preflight/profile.js";
+
+const TEST_PROFILE = parseSectorProfile(
+  JSON.parse(readFileSync(resolve("tests/fixtures/sector-profile.json"), "utf8")),
+);
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
 import { restoreHostDelay, shrinkHostDelay } from "../collect/helpers.js";
 import { sendJson, sendText, startFakeSite, type FakeSite } from "../collect/fake-site.js";
@@ -52,7 +58,7 @@ async function makeSector(name: string): Promise<string> {
     .values({ id: randomUUID(), name })
     .returning({ id: sectors.id });
   if (!row) throw new Error("no sector row");
-  await setProfile(handle.db, row.id, SKINCARE_PROFILE);
+  await setProfile(handle.db, row.id, TEST_PROFILE);
   return row.id;
 }
 
@@ -91,7 +97,7 @@ describe("classifyCompany", () => {
     site.routes.set("/about", (_req, res) => sendText(res, "<html><body>Our story since 2019</body></html>"));
     site.routes.set("/shop", (_req, res) => sendText(res, "<html><body>Shop all serums</body></html>"));
     site.routes.set("/products.json", (_req, res, url) => sendJson(res, { products: url.searchParams.has("limit") ? [{ title: "Serum" }] : [] }));
-    const sectorId = await makeSector("Skincare");
+    const sectorId = await makeSector("Sample Sector");
     const companyId = await makeCompany("Acme", site.baseUrl);
     const prompts: string[] = [];
     const call: ClassifierCall = async ({ runId, prompt }) => {
@@ -102,7 +108,7 @@ describe("classifyCompany", () => {
       return {
         json: {
           business_type: "dtc_brand",
-          primary_category: "skincare",
+          primary_category: "widgets",
           sells_own_products: true,
           has_online_store: true,
           ships_to: ["Australia"],
@@ -141,7 +147,7 @@ describe("classifyCompany", () => {
 
   it("marks quote_mismatch when the quote is not in the cited source", async () => {
     site.routes.set("/", (_req, res) => sendText(res, homePage()));
-    const sectorId = await makeSector("Skincare");
+    const sectorId = await makeSector("Sample Sector");
     const companyId = await makeCompany("Acme", site.baseUrl);
     const call: ClassifierCall = async ({ runId }) => {
       const rows = await handle.db.select().from(sources).where(eq(sources.runId, runId));
@@ -150,7 +156,7 @@ describe("classifyCompany", () => {
       return {
         json: {
           business_type: "dtc_brand",
-          primary_category: "skincare",
+          primary_category: "widgets",
           sells_own_products: true,
           has_online_store: true,
           ships_to: [],
@@ -170,7 +176,7 @@ describe("classifyCompany", () => {
   it("hands a blocked site to Muse's web tools and keeps its verdict ungrounded", async () => {
     // 403, not robots: the fetcher caches robots.txt per fake-site host across tests.
     site.routes.set("/", (_req, res) => sendText(res, "denied", 403));
-    const sectorId = await makeSector("Skincare");
+    const sectorId = await makeSector("Sample Sector");
     const companyId = await makeCompany("Blocked Co", site.baseUrl);
     const seen: { web?: boolean; prompt: string }[] = [];
     const webCall = (quote: string | null): ClassifierCall => async ({ prompt, web }) => {
@@ -178,7 +184,7 @@ describe("classifyCompany", () => {
       return {
         json: {
           business_type: "dtc_brand",
-          primary_category: "skincare",
+          primary_category: "widgets",
           sells_own_products: true,
           has_online_store: true,
           ships_to: [],
@@ -222,7 +228,7 @@ describe("classifyCompany", () => {
     site.routes.set("/", (_req, res) =>
       sendText(res, `<html><head><script>window.app = {};</script></head><body><div id="root"></div></body></html>`),
     );
-    const sectorId = await makeSector("Skincare");
+    const sectorId = await makeSector("Sample Sector");
     const companyId = await makeCompany("Shell Co", site.baseUrl);
     const seen: (boolean | undefined)[] = [];
     const call: ClassifierCall = async ({ web }) => {
@@ -252,7 +258,7 @@ describe("classifyCompany", () => {
 
   it("falls back to the Apollo-only verdict when Muse's web read stalls", async () => {
     site.routes.set("/", (_req, res) => sendText(res, "denied", 403));
-    const sectorId = await makeSector("Skincare");
+    const sectorId = await makeSector("Sample Sector");
     const companyId = await makeCompany("Hang Co", site.baseUrl);
     const seen: (boolean | undefined)[] = [];
     const call: ClassifierCall = async ({ web, prompt }) => {
@@ -289,7 +295,7 @@ describe("classifyCompany", () => {
 
   it("forceWeb sends Muse to the live site on top of the pages our server fetched", async () => {
     site.routes.set("/", (_req, res) => sendText(res, homePage()));
-    const sectorId = await makeSector("Skincare");
+    const sectorId = await makeSector("Sample Sector");
     const companyId = await makeCompany("Readable Co", site.baseUrl);
     const seen: { web?: boolean; prompt: string }[] = [];
     const call: ClassifierCall = async ({ web, prompt }) => {
@@ -297,7 +303,7 @@ describe("classifyCompany", () => {
       return {
         json: {
           business_type: "dtc_brand",
-          primary_category: "skincare",
+          primary_category: "widgets",
           sells_own_products: true,
           has_online_store: true,
           ships_to: [],
@@ -321,7 +327,7 @@ describe("classifyCompany", () => {
   });
 
   it("classifies a company without any website from Apollo only and requires low confidence", async () => {
-    const sectorId = await makeSector("Skincare");
+    const sectorId = await makeSector("Sample Sector");
     const companyId = await makeCompany("No Site Co", null);
     const seen: (boolean | undefined)[] = [];
     const callWith = (confidence: string): ClassifierCall => async ({ prompt, web }) => {
@@ -354,12 +360,12 @@ describe("classifyCompany", () => {
 
   it("reclassifying upserts the latest classification", async () => {
     site.routes.set("/", (_req, res) => sendText(res, homePage()));
-    const sectorId = await makeSector("Skincare");
+    const sectorId = await makeSector("Sample Sector");
     const companyId = await makeCompany("Acme", null);
     const callFor = (businessType: string): ClassifierCall => async () => ({
       json: {
         business_type: businessType,
-        primary_category: "skincare",
+        primary_category: "widgets",
         sells_own_products: true,
         has_online_store: true,
         ships_to: [],
@@ -382,7 +388,7 @@ describe("classifyCompany", () => {
 
   it("fails the run on an invalid classification", async () => {
     site.routes.set("/", (_req, res) => sendText(res, homePage()));
-    const sectorId = await makeSector("Skincare");
+    const sectorId = await makeSector("Sample Sector");
     const companyId = await makeCompany("Acme", site.baseUrl);
     const call: ClassifierCall = async () => ({ json: { business_type: "cult" }, usage: USAGE });
     await expect(classifyCompany(handle.db, { sectorId, companyId, call, fetchOptions: ALLOW })).rejects.toThrow(

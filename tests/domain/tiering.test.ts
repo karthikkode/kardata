@@ -156,7 +156,8 @@ describe("D-55 revenue truth (pure)", () => {
     expect(classifyRevenueSourceKind("Apollo.io")).toBe("vendor_estimate");
     expect(classifyRevenueSourceKind("Gold award entry (brand-submitted)")).toBe("award_entry");
     expect(classifyRevenueSourceKind("Companies House accounts 2025")).toBe("filing");
-    expect(classifyRevenueSourceKind("WWD")).toBe("press");
+    expect(classifyRevenueSourceKind("WWD", null, ["wwd"])).toBe("press");
+    expect(classifyRevenueSourceKind("WWD")).toBe("vendor_estimate");
     expect(classifyRevenueSourceKind("Anything", "vendor_estimate")).toBe("vendor_estimate");
     expect(classifyRevenueSourceKind("ZoomInfo", "press")).toBe("press");
   });
@@ -171,7 +172,7 @@ describe("D-55 revenue truth (pure)", () => {
     expect(classifyRevenueSourceKind("Buzzfile")).toBe("vendor_estimate");
     expect(classifyRevenueSourceKind("Bold.pro CV")).toBe("vendor_estimate");
     // Known editorial names still read as press.
-    expect(classifyRevenueSourceKind("BeautyMatter")).toBe("press");
+    expect(classifyRevenueSourceKind("Example Trade Press", null, ["example trade press"])).toBe("press");
     expect(classifyRevenueSourceKind("Glossy (founder statement)")).toBe("press");
     expect(classifyRevenueSourceKind("Forbes Asia")).toBe("press");
   });

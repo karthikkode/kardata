@@ -239,6 +239,27 @@
       "when": 1792950008000,
       "tag": "0033_icp_checks",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1792950009000,
+      "tag": "0034_drop_eligibility_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1792950010000,
+      "tag": "0035_verdicts_per_sector",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1792950011000,
+      "tag": "0036_company_job_sector",
+      "breakpoints": true
     }
   ]
 }

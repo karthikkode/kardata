@@ -1,6 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Db } from "../db/client.js";
+import { eq } from "drizzle-orm";
+import { sectors } from "../db/schema.js";
 import { recordEvent } from "../collect/db.js";
 import { fetchUrl } from "../collect/fetch.js";
 import { FACT_BATCH_MAX, addFacts } from "../domain/research/facts.js";
@@ -35,9 +37,9 @@ import {
   companyRevenueTruth,
   recordRevenueConfirmation,
   recordVerdicts,
-  sectorRevenueReclassify,
   sectorTierSummary,
 } from "../domain/tiering.js";
+import { resolveCompanySector, sectorSlug } from "../domain/sectors.js";
 import { companyJobLive } from "../domain/company-jobs/live.js";
 import {
   estimateInflightBurn,
@@ -49,17 +51,6 @@ import {
 import { ADAPTERS } from "../collect/adapters.js";
 import { quotaSnapshotGet } from "../runs/quota-monitor.js";
 import { researchStart } from "../runs/agent.js";
-import {
-  jobCancel,
-  jobList,
-  jobPause,
-  jobResume,
-  jobRetryFailed,
-  jobStatus,
-  startCollectSectorJob,
-  startResearchSectorJob,
-  startResearchShortlistJob,
-} from "../runs/bulk.js";
 import {
   companyJobCancel,
   companyJobList,
@@ -75,7 +66,6 @@ import {
 } from "../runs/company.js";
 import { extractRun } from "../runs/extract.js";
 import { cancelRun, getOrCreateManualRun, startCollect } from "../runs/queue.js";
-import { backfillBatchStatus, enqueueReviewsOnsiteBackfill } from "../collect/backfill.js";
 import {
   checkpointSet,
   collectSettingsGet,
@@ -104,11 +94,9 @@ import {
   sectorPreflightSummary,
 } from "../runs/sector.js";
 import {
-  applySectorScope,
   eligibilityCounts,
-  getRubric,
+  rederiveSectorScope,
   setOverride,
-  setRubric,
 } from "../domain/sector-preflight/eligibility.js";
 import {
   getProfileOrNull,
@@ -187,73 +175,6 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         const batch = await startCollect(db, companyIds, areas ?? undefined, undefined, adapters ?? undefined);
         const queued = batch.runs.filter((r) => r.status === "queued").length;
         return { summary: `batch ${batch.batchId}: ${queued} queued, ${batch.runs.length - queued} already running`, data: batch };
-      }),
-  );
-
-  registerTool(server, db, auth,
-    "reviews_onsite_backfill",
-    {
-      description: "Operator: queue on-site review backfill runs for completed Shopify companies skipped by the old plan ordering (deterministic, onsite adapter only, cursor pages; the collect worker drains the queue).",
-      inputSchema: {
-        limit: z.number().int().optional().describe("Companies per batch (1..100, default 25)"),
-        cursor: z.string().nullable().optional().describe("nextCursor from the previous batch"),
-      },
-    },
-    async ({ limit, cursor }) =>
-      wrap(async () => {
-        const result = await enqueueReviewsOnsiteBackfill(db, { limit: limit ?? undefined, cursor: cursor ?? null });
-        return {
-          summary: `onsite backfill: batch ${result.batchId ?? "none"}: ${result.queued.length} queued, ${result.alreadyRunning.length} already running, cursor ${result.nextCursor ?? "done"}`,
-          data: result,
-        };
-      }),
-  );
-
-  registerTool(server, db, auth,
-    "reviews_onsite_backfill_status",
-    {
-      description: "Operator: per-company outcomes for one onsite backfill batch (collected reviews, still-none reasons).",
-      inputSchema: { batchId: z.string().describe("Batch UUID from reviews_onsite_backfill") },
-    },
-    async ({ batchId }) =>
-      wrap(async () => {
-        const result = await backfillBatchStatus(db, batchId);
-        const done = result.results.filter((r) => r.status === "done").length;
-        return {
-          summary: `backfill batch ${batchId}: ${done}/${result.results.length} collected, ${result.ingestedReviews} reviews`,
-          data: result,
-        };
-      }),
-  );
-
-  registerTool(server, db, auth,
-    "collect_sector",
-    {
-      description: "Operator: collect every live company in a sector as a DB-backed job (employees desc, skips fresh collects by default). Feeds the queue as slots free up. Never run on a full sector without the owner's go.",
-      inputSchema: {
-        sectorId: z.string().describe("Sector UUID"),
-        onlyStale: z.boolean().optional().describe("Skip fresh collects (default true)"),
-        staleDays: z.number().optional().describe("Freshness window in days (default 14)"),
-        maxCompanies: z.number().int().optional().describe("Cap the job at this many companies"),
-        budget: z.object({
-          maxTokens: z.number().int().optional(),
-          maxHours: z.number().optional(),
-        }).optional().describe("Pause the job when a budget is reached"),
-      },
-    },
-    async ({ sectorId, onlyStale, staleDays, maxCompanies, budget }) =>
-      wrap(async () => {
-        const result = await startCollectSectorJob(db, {
-          sectorId,
-          onlyStale: onlyStale ?? undefined,
-          staleDays: staleDays ?? undefined,
-          maxCompanies: maxCompanies ?? undefined,
-          budget: budget ?? undefined,
-        });
-        return {
-          summary: `collect job ${result.jobId} started (${result.items} companies${result.capped ? ", capped" : ""})`,
-          data: result,
-        };
       }),
   );
 
@@ -1077,11 +998,13 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         maxModelSteps: z.number().int().optional().describe("Model step cap (default 100)"),
         brief: z.string().optional().describe("Extra owner instructions (at most 2 KB)"),
         promptVersion: z.string().optional().describe("Prompt version (default: latest)"),
+        sectorId: z.string().optional().describe("Sector UUID (each company must be in it; resolved per company when omitted)"),
       },
     },
-    async ({ companyIds, areas, recollectIfOlderThanDays, maxMinutes, maxModelSteps, brief, promptVersion }) =>
+    async ({ companyIds, areas, recollectIfOlderThanDays, maxMinutes, maxModelSteps, brief, promptVersion, sectorId }) =>
       wrap(async () => {
         const batch = await researchStart(db, {
+          sectorId: sectorId ?? undefined,
           companyIds,
           areas: areas ?? undefined,
           recollectIfOlderThanDays: recollectIfOlderThanDays ?? undefined,
@@ -1198,140 +1121,6 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   }).optional().describe("Pause the job when a budget is reached");
 
   registerTool(server, db, auth,
-    "research_sector",
-    {
-      description: "Operator: research every company in a sector (optionally screened) as a DB-backed job. Feeds the queue as slots free up; each company gets collect + agent research + extraction.",
-      inputSchema: {
-        sectorId: z.string().describe("Sector UUID"),
-        criteria: z.array(screenCriterion).max(20).optional().describe("ANDed screen criteria (default: all live companies)"),
-        sort: screenSort.optional().describe("Order (default: employees desc)"),
-        maxCompanies: z.number().int().optional().describe("Cap the job at this many companies"),
-        skipIfRecentDays: z.number().int().optional().describe("Skip companies researched within this window (default 30, 0 disables)"),
-        promptVersion: z.string().optional().describe("Research prompt version"),
-        budget: jobBudget,
-      },
-    },
-    async ({ sectorId, criteria, sort, maxCompanies, skipIfRecentDays, promptVersion, budget }) =>
-      wrap(async () => {
-        const result = await startResearchSectorJob(db, {
-          sectorId,
-          criteria: criteria ?? undefined,
-          sort: sort ?? undefined,
-          maxCompanies: maxCompanies ?? undefined,
-          skipIfRecentDays: skipIfRecentDays ?? undefined,
-          promptVersion: promptVersion ?? undefined,
-          budget: budget ?? undefined,
-        });
-        return { summary: `research job ${result.jobId} started (${result.items} companies${result.capped ? ", capped" : ""})`, data: result };
-      }),
-  );
-
-  registerTool(server, db, auth,
-    "research_shortlist",
-    {
-      description: "Operator: research every company in a shortlist (in list order) as a DB-backed job. Feeds the queue as slots free up.",
-      inputSchema: {
-        shortlistId: z.string().describe("Shortlist UUID"),
-        maxCompanies: z.number().int().optional().describe("Cap the job at this many companies"),
-        skipIfRecentDays: z.number().int().optional().describe("Skip companies researched within this window (default 30, 0 disables)"),
-        promptVersion: z.string().optional().describe("Research prompt version"),
-        budget: jobBudget,
-      },
-    },
-    async ({ shortlistId, maxCompanies, skipIfRecentDays, promptVersion, budget }) =>
-      wrap(async () => {
-        const result = await startResearchShortlistJob(db, {
-          shortlistId,
-          maxCompanies: maxCompanies ?? undefined,
-          skipIfRecentDays: skipIfRecentDays ?? undefined,
-          promptVersion: promptVersion ?? undefined,
-          budget: budget ?? undefined,
-        });
-        return { summary: `research job ${result.jobId} started (${result.items} companies${result.capped ? ", capped" : ""})`, data: result };
-      }),
-  );
-
-  registerTool(server, db, auth,
-    "job_status",
-    {
-      description: "Operator: job progress, counts, active runs, tokens, average minutes per company, ETA and per-company outcomes.",
-      inputSchema: { jobId },
-    },
-    async ({ jobId: id }) =>
-      wrap(async () => {
-        const view = await jobStatus(db, id);
-        const done = view.counts.succeeded + view.counts.failed + view.counts.skipped + view.counts.cancelled;
-        const total = done + view.counts.queued + view.counts.running + view.counts.extracting;
-        return { summary: `job ${id}: ${view.job.status}, ${done}/${total} terminal`, data: view };
-      }),
-  );
-
-  registerTool(server, db, auth,
-    "job_list",
-    {
-      description: "Operator: recent jobs with per-status counts.",
-      inputSchema: { limit: z.number().int().optional().describe("Default 20, max 100") },
-    },
-    async ({ limit }) =>
-      wrap(async () => {
-        const jobs = await jobList(db, limit ?? undefined);
-        return { summary: `${jobs.length} jobs`, data: { jobs } };
-      }),
-  );
-
-  registerTool(server, db, auth,
-    "job_pause",
-    {
-      description: "Operator: pause a job (running companies finish; nothing new starts).",
-      inputSchema: { jobId },
-    },
-    async ({ jobId: id }) =>
-      wrap(async () => {
-        await jobPause(db, id);
-        return { summary: `job ${id} paused`, data: { jobId: id } };
-      }),
-  );
-
-  registerTool(server, db, auth,
-    "job_resume",
-    {
-      description: "Operator: resume a paused job.",
-      inputSchema: { jobId },
-    },
-    async ({ jobId: id }) =>
-      wrap(async () => {
-        await jobResume(db, id);
-        return { summary: `job ${id} resumed`, data: { jobId: id } };
-      }),
-  );
-
-  registerTool(server, db, auth,
-    "job_cancel",
-    {
-      description: "Operator: cancel a job. Running agents are stopped unless stopRunning is false (then they finish).",
-      inputSchema: { jobId, stopRunning: z.boolean().optional().describe("Stop running agents too (default true)") },
-    },
-    async ({ jobId: id, stopRunning }) =>
-      wrap(async () => {
-        await jobCancel(db, id, { stopRunning: stopRunning ?? undefined });
-        return { summary: `job ${id} cancelled`, data: { jobId: id } };
-      }),
-  );
-
-  registerTool(server, db, auth,
-    "job_retry_failed",
-    {
-      description: "Operator: re-queue a job's failed companies and resume it.",
-      inputSchema: { jobId },
-    },
-    async ({ jobId: id }) =>
-      wrap(async () => {
-        const result = await jobRetryFailed(db, id);
-        return { summary: `job ${id}: ${result.retried} companies re-queued`, data: { jobId: id, retried: result.retried } };
-      }),
-  );
-
-  registerTool(server, db, auth,
     "harness_settings_get",
     {
       description: "Operator: effective harness settings (agent concurrency) and where each value comes from.",
@@ -1361,11 +1150,15 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
     "company_job_start",
     {
       description: "Operator: run the full pipeline (preflight, collect, research, extraction) for one company. One active job per company.",
-      inputSchema: { companyId, budget: jobBudget },
+      inputSchema: {
+        companyId,
+        sectorId: z.string().optional().describe("Sector UUID (resolved from the company's only sector when omitted)"),
+        budget: jobBudget,
+      },
     },
-    async ({ companyId: id, budget }) =>
+    async ({ companyId: id, sectorId, budget }) =>
       wrap(async () => {
-        const result = await startCompanyJob(db, { companyId: id, budget: budget ?? undefined });
+        const result = await startCompanyJob(db, { companyId: id, sectorId: sectorId ?? undefined, budget: budget ?? undefined });
         return { summary: `company job ${result.jobId} started`, data: result };
       }),
   );
@@ -1454,11 +1247,12 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         "Operator (read-only): D-55 revenue truth for one company: revenue used, its source, any rejected figure and why, staff and its source, tier, score, layer or watchlist/excluded, and flags.",
       inputSchema: {
         companyId: z.string().describe("Company UUID"),
+        sectorId: z.string().optional().describe("Sector UUID (resolved from the company's only sector when omitted)"),
       },
     },
-    async ({ companyId }) =>
+    async ({ companyId, sectorId }) =>
       wrap(async () => {
-        const truth = await companyRevenueTruth(db, companyId);
+        const truth = await companyRevenueTruth(db, companyId, await resolveCompanySector(db, companyId, sectorId));
         return {
           summary: `tier ${truth.tier ?? "-"} layer ${truth.layer ?? "-"} (${truth.status})`,
           data: truth,
@@ -1533,26 +1327,10 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   );
 
   registerTool(server, db, auth,
-    "sector_revenue_reclassify",
-    {
-      description:
-        "Operator: stamp source_kind onto stored revenue figures that lack one (filing, press, interview, company_statement, vendor_estimate, award_entry), so vendor estimates stop counting as public. Writes superseding facts through the standard fact path.",
-      inputSchema: {
-        sectorId: z.string().describe("Sector UUID"),
-      },
-    },
-    async ({ sectorId }) =>
-      wrap(async () => {
-        const result = await sectorRevenueReclassify(db, sectorId);
-        return { summary: `${result.stamped} revenue figures stamped`, data: result };
-      }),
-  );
-
-  registerTool(server, db, auth,
     "company_sheet_export",
     {
       description:
-        "Operator: write var/analysis/companies-<date>.csv for manual outreach tracking: contactable companies only (D-55 tiers), one block per tier, by layer then score, with company id, signals met, the ICP check's observations (date, URL), tech team flag, buyer order by staff size (roles only), and blank tracking columns. includeAll also writes companies-<date>-all.csv: every checked company with its status and why.",
+        "Operator: write var/sectors/<sector-slug>/analysis/companies-<date>.csv for manual outreach tracking: contactable companies only (D-55 tiers), one block per tier, by layer then score, with company id, signals met, the ICP check's observations (date, URL), tech team flag, buyer order by staff size (roles only), and blank tracking columns. includeAll also writes companies-<date>-all.csv: every checked company with its status and why.",
       inputSchema: {
         sectorId: z.string().describe("Sector UUID"),
         includeAll: z.boolean().optional().describe("Also write every checked company with status and exclusion reason"),
@@ -1564,7 +1342,8 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         const { join } = await import("node:path");
         const rows = await outreachSheetRows(db, sectorId);
         const date = new Date().toISOString().slice(0, 10);
-        const dir = join(process.cwd(), "var", "analysis");
+        const [sectorRow] = await db.select({ name: sectors.name }).from(sectors).where(eq(sectors.id, sectorId));
+        const dir = join(process.cwd(), "var", "sectors", sectorSlug(sectorRow?.name ?? "sector"), "analysis");
         await mkdir(dir, { recursive: true });
         const path = join(dir, `companies-${date}.csv`);
         await writeFile(path, outreachCsv(rows), "utf8");
@@ -2019,11 +1798,14 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
     {
       description:
         "Operator (read-only): a company's latest ICP check: each signal, exclusion and flag with its verdict, cited evidence (quote, date, URL) and observation, plus today's tier, layer and status.",
-      inputSchema: { companyId },
+      inputSchema: {
+        companyId,
+        sectorId: z.string().optional().describe("Sector UUID (resolved from the company's only sector when omitted)"),
+      },
     },
-    async ({ companyId: id }) =>
+    async ({ companyId: id, sectorId }) =>
       wrap(async () => {
-        const view = await companyIcpView(db, id);
+        const view = await companyIcpView(db, id, await resolveCompanySector(db, id, sectorId));
         return {
           summary: view.check
             ? `score ${view.check.score}, ${view.status}, tier ${view.tier ?? "-"} layer ${view.layer ?? "-"}`
@@ -2081,7 +1863,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
     "sector_profile_set",
     {
       description:
-        "Operator: validate and store a sector's preflight profile. If the profile includes a rubric, it is stored through the same validated path as sector_rules_set. Changing category keys after classifications exist is refused unless reclassify is true (marks them pending).",
+        "Operator: validate and store a sector's preflight profile (the single sector config: categories, scope, tiering, prompt hints). Changing category keys after classifications exist is refused unless reclassify is true (marks them pending). Returns before/after eligibility counts and the changed top-level fields.",
       inputSchema: {
         sectorId: z.string().describe("Sector UUID"),
         profile: z.unknown().describe("Full profile JSON (see the sector profile schema)"),
@@ -2092,38 +1874,9 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       wrap(async () => {
         const result = await setProfile(db, sectorId, profile, { reclassify: reclassify ?? false });
         return {
-          summary: `profile stored (${result.profile.categories.length} categories, ${result.reclassifyPending} pending${result.rubricApplied ? ", rubric applied" : ""})`,
+          summary: `profile stored (${result.profile.categories.length} categories, ${result.reclassifyPending} pending; changed: ${result.changedFields.join(", ") || "none"})`,
           data: result,
         };
-      }),
-  );
-
-  registerTool(server, db, auth,
-    "sector_rules_get",
-    {
-      description: "Operator: view a sector's stored eligibility rubric.",
-      inputSchema: { sectorId: z.string().describe("Sector UUID") },
-    },
-    async ({ sectorId }) =>
-      wrap(async () => {
-        const result = await getRubric(db, sectorId);
-        return {
-          summary: result.isDefault ? "legacy skincare default rubric (nothing stored)" : "sector rubric",
-          data: result,
-        };
-      }),
-  );
-
-  registerTool(server, db, auth,
-    "sector_rules_set",
-    {
-      description: "Operator: replace a sector's eligibility rubric; re-derives every membership instantly.",
-      inputSchema: { sectorId: z.string().describe("Sector UUID"), rules: z.unknown().describe("Full rubric JSON (see sector_rules_get)") },
-    },
-    async ({ sectorId, rules }) =>
-      wrap(async () => {
-        const result = await setRubric(db, sectorId, rules);
-        return { summary: "rubric updated", data: result };
       }),
   );
 
@@ -2149,12 +1902,12 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
     "sector_scope_apply",
     {
       description:
-        "Operator: resolve every classified, non-overridden membership to the binary sector scope (eligible/ineligible).",
+        "Operator: re-apply the stored profile's scope to every membership (override, then scope). Refused when the sector has no profile.",
       inputSchema: { sectorId: z.string().describe("Sector UUID") },
     },
     async ({ sectorId }) =>
       wrap(async () => {
-        const result = await applySectorScope(db, sectorId);
+        const result = await rederiveSectorScope(db, sectorId);
         const counts = await eligibilityCounts(db, sectorId);
         return {
           summary: `${result.eligible} eligible, ${result.ineligible} ineligible (${result.skippedOverride} overrides, ${result.skippedPending} pending kept)`,

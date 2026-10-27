@@ -49,7 +49,7 @@ Business rules live in `docs/business/icp.md`. This file only gives the order.
 
 - The tier comes from revenue (D-55: A $10M+, B $2–10M, C $500k–2M, under $500k not contacted). Source order: public
   figure, then Apollo, then staff estimate. Flagged public figures need `company_revenue_confirm`.
-- Layer = 7 − signal score. Score 0–1 is the watchlist and is never contacted.
+- Layer = 7 − signal score. Score 1 is Layer 6, a discovery call (D-64); score 0 is the watchlist and is never contacted.
 - `company_sheet_export` writes `var/analysis/companies-<date>.csv` (gitignored): contactable companies by tier, then
   layer, with observations and blank tracking columns. The owner imports it into the Google Sheet. All outreach is
   manual.

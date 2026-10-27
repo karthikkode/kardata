@@ -28,7 +28,13 @@ import {
   sectorPreflightSettingsGet,
   sectorPreflightSettingsSet,
 } from "../../src/runs/settings.js";
-import { profileHash, resolveProfileForSector } from "../../src/domain/sector-preflight/profile.js";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { getProfile, parseSectorProfile, profileHash, setProfile } from "../../src/domain/sector-preflight/profile.js";
+
+const TEST_PROFILE = parseSectorProfile(
+  JSON.parse(readFileSync(resolve("tests/fixtures/sector-profile.json"), "utf8")),
+);
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
 
 let handle: DbHandle;
@@ -52,6 +58,7 @@ async function makeSector(name: string): Promise<string> {
     .values({ id: randomUUID(), name })
     .returning({ id: sectors.id });
   if (!row) throw new Error("no sector row");
+  await setProfile(handle.db, row.id, TEST_PROFILE);
   return row.id;
 }
 
@@ -83,7 +90,7 @@ function succeedCall(patch: Record<string, unknown> = {}) {
       companyId,
       runId,
       businessType: "dtc_brand",
-      primaryCategory: "skincare",
+      primaryCategory: "widgets",
       sellsOwnProducts: true,
       hasOnlineStore: true,
       confidence: "high",
@@ -116,7 +123,7 @@ async function settle(): Promise<void> {
 
 describe("startSectorPreflight", () => {
   it("creates one item per member and skips classified ones when onlyPending", async () => {
-    const sectorId = await makeSector("Skincare");
+    const sectorId = await makeSector("Sample Sector");
     const a = await addCompany(sectorId, "A Co");
     const b = await addCompany(sectorId, "B Co");
     await handle.db.insert(sectorPreflight).values({
@@ -124,7 +131,7 @@ describe("startSectorPreflight", () => {
       sectorId,
       companyId: a,
       businessType: "dtc_brand",
-      primaryCategory: "skincare",
+      primaryCategory: "widgets",
       sellsOwnProducts: true,
       hasOnlineStore: true,
       confidence: "high",
@@ -141,7 +148,7 @@ describe("startSectorPreflight", () => {
   });
 
   it("re-classifies only low-confidence companies with onlyLowConfidence", async () => {
-    const sectorId = await makeSector("Skincare");
+    const sectorId = await makeSector("Sample Sector");
     const sure = await addCompany(sectorId, "A Co");
     const unsure = await addCompany(sectorId, "B Co");
     await addCompany(sectorId, "C Co");
@@ -150,7 +157,7 @@ describe("startSectorPreflight", () => {
       sectorId,
       companyId,
       businessType: "dtc_brand",
-      primaryCategory: "skincare",
+      primaryCategory: "widgets",
       sellsOwnProducts: true,
       hasOnlineStore: true,
       confidence,
@@ -167,7 +174,7 @@ describe("startSectorPreflight", () => {
   });
 
   it("runs a review pass: only review companies, with forceWeb carried to the classifier", async () => {
-    const sectorId = await makeSector("Skincare");
+    const sectorId = await makeSector("Sample Sector");
     const a = await addCompany(sectorId, "A Co");
     const b = await addCompany(sectorId, "B Co");
     await handle.db
@@ -200,7 +207,7 @@ describe("startSectorPreflight", () => {
   });
 
   it("starts a subset by companyIds and rejects outsiders", async () => {
-    const sectorId = await makeSector("Skincare");
+    const sectorId = await makeSector("Sample Sector");
     const a = await addCompany(sectorId, "A Co");
     await addCompany(sectorId, "B Co");
     const subset = await startSectorPreflight(handle.db, { sectorId, companyIds: [a] });
@@ -218,7 +225,7 @@ describe("startSectorPreflight", () => {
 
 describe("sector runner", () => {
   it("feeds at the pool size and finalizes successes with derivation", async () => {
-    const sectorId = await makeSector("Skincare");
+    const sectorId = await makeSector("Sample Sector");
     await addCompany(sectorId, "A Co");
     await addCompany(sectorId, "B Co");
     const { jobId } = await startSectorPreflight(handle.db, { sectorId });
@@ -240,7 +247,7 @@ describe("sector runner", () => {
   });
 
   it("auto-pauses on 3 same-class failures", async () => {
-    const sectorId = await makeSector("Skincare");
+    const sectorId = await makeSector("Sample Sector");
     await addCompany(sectorId, "A Co");
     await addCompany(sectorId, "B Co");
     await addCompany(sectorId, "C Co");
@@ -258,7 +265,7 @@ describe("sector runner", () => {
   });
 
   it("pauses on budget and resumes", async () => {
-    const sectorId = await makeSector("Skincare");
+    const sectorId = await makeSector("Sample Sector");
     await addCompany(sectorId, "A Co");
     await addCompany(sectorId, "B Co");
     const { jobId } = await startSectorPreflight(handle.db, { sectorId, budget: { maxTokens: 50 } });
@@ -276,7 +283,7 @@ describe("sector runner", () => {
   });
 
   it("relaunches restart orphans with a fresh run", async () => {
-    const sectorId = await makeSector("Skincare");
+    const sectorId = await makeSector("Sample Sector");
     await addCompany(sectorId, "A Co");
     const { jobId } = await startSectorPreflight(handle.db, { sectorId });
     // The first worker's drive blocks mid-flight, like a killed process.
@@ -307,7 +314,7 @@ describe("sector runner", () => {
   });
 
   it("classify runs coexist with an active company run for the same company", async () => {
-    const sectorId = await makeSector("Skincare");
+    const sectorId = await makeSector("Sample Sector");
     const companyId = await addCompany(sectorId, "Busy Co");
     await handle.db.insert(researchRuns).values({ id: randomUUID(), companyId, kind: "agent", status: "running" });
     const { jobId } = await startSectorPreflight(handle.db, { sectorId });
@@ -329,7 +336,7 @@ describe("sector runner", () => {
   });
 
   it("marks launch failures failed and keeps feeding the rest", async () => {
-    const sectorId = await makeSector("Skincare");
+    const sectorId = await makeSector("Sample Sector");
     const bad = await addCompany(sectorId, "Bad Co");
     await addCompany(sectorId, "Good Co");
     const { jobId } = await startSectorPreflight(handle.db, { sectorId });
@@ -358,7 +365,7 @@ describe("sector runner", () => {
   });
 
   it("holds launches when memory is low and counts the hold", async () => {
-    const sectorId = await makeSector("Skincare");
+    const sectorId = await makeSector("Sample Sector");
     await addCompany(sectorId, "A Co");
     const { jobId } = await startSectorPreflight(handle.db, { sectorId });
     const held = createSectorRunner(handle.db, {
@@ -381,7 +388,7 @@ describe("sector runner", () => {
   });
 
   it("pause stops feeding; cancel stops runs; retry re-queues failures", async () => {
-    const sectorId = await makeSector("Skincare");
+    const sectorId = await makeSector("Sample Sector");
     await addCompany(sectorId, "A Co");
     await addCompany(sectorId, "B Co");
     const { jobId } = await startSectorPreflight(handle.db, { sectorId });
@@ -406,7 +413,7 @@ describe("sector runner", () => {
 
 describe("sectorPreflightStatus", () => {
   it("reports counts, spend, ETA and null quota", async () => {
-    const sectorId = await makeSector("Skincare");
+    const sectorId = await makeSector("Sample Sector");
     await addCompany(sectorId, "A Co");
     await addCompany(sectorId, "B Co");
     const { jobId } = await startSectorPreflight(handle.db, { sectorId });
@@ -425,7 +432,7 @@ describe("sectorPreflightStatus", () => {
 
 describe("sectorPreflightSummary", () => {
   it("buckets by type x category x eligibility with examples", async () => {
-    const sectorId = await makeSector("Skincare");
+    const sectorId = await makeSector("Sample Sector");
     const a = await addCompany(sectorId, "A Co");
     const b = await addCompany(sectorId, "B Co");
     const runner = createSectorRunner(handle.db, {
@@ -454,7 +461,7 @@ describe("sectorPreflightSummary", () => {
 
 describe("sectorPreflightCompanies", () => {
   it("lists per-company classifications with filters and paging", async () => {
-    const sectorId = await makeSector("Skincare");
+    const sectorId = await makeSector("Sample Sector");
     const a = await addCompany(sectorId, "A Co");
     const b = await addCompany(sectorId, "B Co");
     await addCompany(sectorId, "C Co");
@@ -484,7 +491,7 @@ describe("sectorPreflightCompanies", () => {
     expect((await sectorPreflightCompanies(handle.db, { sectorId, confidence: ["low"] })).total).toBe(0);
     await expect(sectorPreflightCompanies(handle.db, { sectorId, limit: 0 })).rejects.toThrow(/limit/);
     // Rows carry no hash of the current profile here, so every row is stale.
-    const current = profileHash(await resolveProfileForSector(handle.db, sectorId));
+    const current = profileHash(await getProfile(handle.db, sectorId));
     await handle.db
       .update(sectorPreflight)
       .set({ profileHash: current })
@@ -496,7 +503,7 @@ describe("sectorPreflightCompanies", () => {
 
 describe("startPipeline", () => {
   it("creates jobs for eligible companies only", async () => {
-    const sectorId = await makeSector("Skincare");
+    const sectorId = await makeSector("Sample Sector");
     const a = await addCompany(sectorId, "A Co");
     const b = await addCompany(sectorId, "B Co");
     const c = await addCompany(sectorId, "C Co");
@@ -528,10 +535,10 @@ describe("startPipeline", () => {
   });
 
   it("launches only the given categories when filtered", async () => {
-    const sectorId = await makeSector("Skincare");
+    const sectorId = await makeSector("Sample Sector");
     const a = await addCompany(sectorId, "A Co");
     const b = await addCompany(sectorId, "B Co");
-    for (const [id, category] of [[a, "skincare"], [b, "haircare"]] as const) {
+    for (const [id, category] of [[a, "widgets"], [b, "gadgets"]] as const) {
       await handle.db.insert(sectorPreflight).values({
         id: randomUUID(),
         sectorId,
@@ -548,7 +555,7 @@ describe("startPipeline", () => {
       .update(sectorCompanies)
       .set({ eligibility: "eligible" })
       .where(eq(sectorCompanies.sectorId, sectorId));
-    const filtered = await startPipeline(handle.db, sectorId, { categories: ["skincare"] });
+    const filtered = await startPipeline(handle.db, sectorId, { categories: ["widgets"] });
     expect(filtered).toEqual({ created: 1, skipped: 0, eligible: 1 });
     const all = await startPipeline(handle.db, sectorId);
     expect(all).toEqual({ created: 1, skipped: 1, eligible: 2 });

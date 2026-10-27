@@ -171,7 +171,7 @@ describe("buildStagePromptForRun", () => {
         companyId,
         kind: "agent",
         status: "queued",
-        promptVersion: "v0",
+        promptVersion: "v1.5",
         companyJobId: jobId,
         stage,
       })
@@ -186,21 +186,21 @@ describe("buildStagePromptForRun", () => {
     await fileReport(jobId, companyId);
     await collectSubjob(jobId, companyId);
     const ctx = await ctxFor("research", jobId);
-    const withBrief = await buildStagePromptForRun(handle.db, { ...ctx, brief: undefined });
+    const withBrief = await buildStagePromptForRun(handle.db, { ...ctx, brief: undefined, sectorProfile: null });
     expect(withBrief).toContain("Pipeline context");
-    expect(withBrief.startsWith(buildStagePrompt({ ...ctx, brief: undefined }))).toBe(true);
+    expect(withBrief.startsWith(buildStagePrompt({ ...ctx, brief: undefined, sectorProfile: null }))).toBe(true);
   });
 
   it("leaves legacy and preflight prompts untouched", async () => {
     const legacy = await ctxFor(null, null);
-    await expect(buildStagePromptForRun(handle.db, { ...legacy, brief: undefined })).resolves.toBe(
-      buildStagePrompt({ ...legacy, brief: undefined }),
+    await expect(buildStagePromptForRun(handle.db, { ...legacy, brief: undefined, sectorProfile: null })).resolves.toBe(
+      buildStagePrompt({ ...legacy, brief: undefined, sectorProfile: null }),
     );
     const companyId = await makeCompany("Pre Co");
     const { jobId } = await startCompanyJob(handle.db, { companyId });
     const preflight = await ctxFor("preflight", jobId);
-    await expect(buildStagePromptForRun(handle.db, { ...preflight, brief: undefined })).resolves.toBe(
-      buildStagePrompt({ ...preflight, brief: undefined }),
+    await expect(buildStagePromptForRun(handle.db, { ...preflight, brief: undefined, sectorProfile: null })).resolves.toBe(
+      buildStagePrompt({ ...preflight, brief: undefined, sectorProfile: null }),
     );
   });
 });

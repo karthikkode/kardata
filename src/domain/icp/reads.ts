@@ -51,16 +51,16 @@ export interface CompanyIcpView {
   revenueSource: string | null;
 }
 
-export async function companyIcpView(db: Db, companyId: string): Promise<CompanyIcpView> {
+export async function companyIcpView(db: Db, companyId: string, sectorId: string): Promise<CompanyIcpView> {
   const [company] = await db.select({ id: companies.id }).from(companies).where(eq(companies.id, companyId));
   if (!company) throw new DomainError("not_found", `company not found: ${companyId}`);
   const [check, [count], truth] = await Promise.all([
-    latestIcpCheck(db, companyId),
+    latestIcpCheck(db, companyId, sectorId),
     db
       .select({ n: sql<number>`count(*)` })
       .from(companyIcpChecks)
       .where(eq(companyIcpChecks.companyId, companyId)),
-    companyRevenueTruth(db, companyId),
+    companyRevenueTruth(db, companyId, sectorId),
   ]);
   return {
     companyId,
@@ -125,7 +125,7 @@ export async function sectorIcpCompanies(
     .orderBy(companyIcpChecks.companyId, desc(companyIcpChecks.createdAt));
   const rows: SectorIcpCompanyRow[] = [];
   for (const c of checks) {
-    const truth = await companyRevenueTruth(db, c.check.companyId);
+    const truth = await companyRevenueTruth(db, c.check.companyId, input.sectorId);
     rows.push({
       companyId: c.check.companyId,
       name: c.name,

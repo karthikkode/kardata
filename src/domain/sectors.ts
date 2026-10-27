@@ -1,10 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { asc, count, desc, eq, sql } from "drizzle-orm";
-import { imports, sectorCompanies, sectors, type Import } from "../db/schema.js";
+import { companies, imports, sectorCompanies, sectors, type Import } from "../db/schema.js";
 import type { Db, DbLike } from "../db/client.js";
 import { getImportDirs } from "../lib/env.js";
 import { DomainError, isUniqueViolation } from "./errors.js";
-import { parseEligibilityRubric } from "./sector-preflight/eligibility.js";
 import { parseSectorProfile } from "./sector-preflight/profile.js";
 import { checkImportPaths, importOneFile, MAX_FILES, type FileImportResult } from "./imports.js";
 
@@ -79,10 +78,6 @@ export async function createSector(
   }
   await checkImportPaths(paths, opts.importDirs ?? getImportDirs());
   const profile = input.profile !== undefined ? parseSectorProfile(input.profile) : null;
-  // A rubric included in the profile is stored through the same validated
-  // path as sector_rules_set (checked against the profile up front).
-  const rubric =
-    profile && profile.rubric !== undefined ? parseEligibilityRubric(profile.rubric, profile) : null;
   return db.transaction(async (tx) => {
     if (await existingByName(tx, name)) {
       throw new DomainError("conflict", `sector already exists: ${name}`);
@@ -96,7 +91,6 @@ export async function createSector(
           name,
           description,
           profile: profile as Record<string, unknown> | null,
-          eligibilityRules: rubric as Record<string, unknown> | null,
         })
         .returning({ id: sectors.id });
       if (!row) throw new Error("insert returned no row");
@@ -210,4 +204,25 @@ export async function listSectors(db: Db): Promise<SectorSummary[]> {
 
 export async function getSector(db: Db, id: string): Promise<SectorDetail> {
   return detailOf(db, id);
+}
+
+/**
+ * The sector a company-scoped call should use: the given sector, else the
+ * company's only sector. Anything else is ambiguous and refused.
+ */
+export async function resolveCompanySector(db: Db, companyId: string, sectorId?: string): Promise<string> {
+  if (sectorId) return sectorId;
+  const [company] = await db.select({ id: companies.id }).from(companies).where(eq(companies.id, companyId));
+  if (!company) throw new DomainError("not_found", `company not found: ${companyId}`);
+  const rows = await db
+    .select({ sectorId: sectorCompanies.sectorId })
+    .from(sectorCompanies)
+    .where(eq(sectorCompanies.companyId, companyId));
+  if (rows.length === 1 && rows[0]) return rows[0].sectorId;
+  throw new DomainError("invalid_input", `company is in ${rows.length} sectors; pass sectorId`);
+}
+
+/** Filesystem slug for a sector name: lower-cased, non-alphanumerics as dashes. */
+export function sectorSlug(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "sector";
 }

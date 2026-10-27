@@ -1,20 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { DbHandle } from "../../src/db/client.js";
-import { eq } from "drizzle-orm";
 import {
   companies,
   facts,
-  researchRuns,
   sectors,
   sectorCompanies,
-  sources,
 } from "../../src/db/schema.js";
 import {
   companyRevenueTruth,
   recordRevenueConfirmation,
   recordVerdicts,
-  sectorRevenueReclassify,
   sectorSheetRows,
   sectorTierSummary,
   sheetCsv,
@@ -44,8 +40,19 @@ async function seedCompany(name: string): Promise<string> {
 
 async function seedSector(): Promise<string> {
   const id = randomUUID();
-  await handle.db.insert(sectors).values({ id, name: "test-sector" });
+  await handle.db.insert(sectors).values({ id, name: `test-sector-${id.slice(0, 8)}` });
   return id;
+}
+
+async function seedSectorPress(sectorId: string): Promise<void> {
+  const { readFileSync } = await import("node:fs");
+  const { resolve } = await import("node:path");
+  const { parseSectorProfile, setProfile } = await import("../../src/domain/sector-preflight/profile.js");
+  const raw = JSON.parse(readFileSync(resolve("tests/fixtures/sector-profile.json"), "utf8"));
+  await setProfile(handle.db, sectorId, parseSectorProfile({
+    ...raw,
+    tiering: { ...raw.tiering, pressSources: ["wwd"] },
+  }));
 }
 
 async function seedFact(
@@ -104,7 +111,7 @@ describe("tiering against stored facts and verdicts", () => {
       },
     ]);
 
-    const truth = await companyRevenueTruth(handle.db, companyId);
+    const truth = await companyRevenueTruth(handle.db, companyId, sectorId);
     expect(truth.revenueUsed).toBe(17 * 175000);
     expect(truth.revenueSource).toBe("staff_estimate");
     expect(truth.rejected?.reason).toBe("rejected: below $75k per staff");
@@ -126,66 +133,10 @@ describe("tiering against stored facts and verdicts", () => {
     expect(csv).toContain("Tier,Layer,Score,Company,Domain,Country,Revenue used,Revenue source,Flags");
   });
 
-  it("reclassifies a vendor figure so it stops counting as public", async () => {
-    const sectorId = await seedSector();
-    const companyId = await seedCompany("Vendor Co");
-    await handle.db
-      .insert(sectorCompanies)
-      .values({ sectorId, companyId, addedVia: "manual" });
-    // A vendor estimate stored the old way: named source, no kind.
-    await seedFact(
-      companyId,
-      "financials.revenue_estimate",
-      { json: { amount: 12000000 }, currency: "USD" },
-      { source: "ZoomInfo" },
-    );
-    // Point the seeded fact at a real source row, as stored facts have.
-    const runId = randomUUID();
-    await handle.db.insert(researchRuns).values({ id: runId, companyId, kind: "manual" });
-    const sourceId = randomUUID();
-    await handle.db.insert(sources).values({
-      id: sourceId,
-      companyId,
-      runId,
-      url: "https://example.invalid/vendor",
-      finalUrl: "https://example.invalid/vendor",
-      collector: "test",
-      status: "ok",
-    });
-    await handle.db
-      .update(facts)
-      .set({ sourceIds: [sourceId] })
-      .where(eq(facts.companyId, companyId));
-    await seedFact(companyId, "financials.employees", { num: 10 }, { source: "apollo" });
-    await recordVerdicts(handle.db, [
-      {
-        companyId,
-        sectorId,
-        score: 4,
-        signals: { S1: true },
-        status: "contactable",
-        source: "test-check",
-      },
-    ]);
-
-    const before = await companyRevenueTruth(handle.db, companyId);
-    // The backstop already keeps it out of "public" at read time.
-    expect(before.revenueSource).toBe("vendor");
-    expect(before.tier).toBe("A");
-
-    const result = await sectorRevenueReclassify(handle.db, sectorId);
-    expect(result.stamped).toBe(1);
-    expect(result.byKind).toEqual({ vendor_estimate: 1 });
-
-    const after = await companyRevenueTruth(handle.db, companyId);
-    // $12M over 10 staff passes the $75k check, but as a vendor figure.
-    expect(after.revenueSource).toBe("vendor");
-    expect(after.revenueKind).toBe("vendor_estimate");
-    expect(after.tier).toBe("A");
-  });
 
   it("a flagged public figure waits for confirmation before setting the tier", async () => {
     const sectorId = await seedSector();
+    await seedSectorPress(sectorId);
     const companyId = await seedCompany("Flagged Co");
     await handle.db
       .insert(sectorCompanies)
@@ -208,7 +159,7 @@ describe("tiering against stored facts and verdicts", () => {
       },
     ]);
 
-    const waiting = await companyRevenueTruth(handle.db, companyId);
+    const waiting = await companyRevenueTruth(handle.db, companyId, sectorId);
     expect(waiting.revenueSource).toBe("staff_estimate");
     expect(waiting.tier).toBe("B");
     expect(waiting.flaggedFigure?.amount).toBe(50000000);
@@ -218,7 +169,7 @@ describe("tiering against stored facts and verdicts", () => {
       decision: "confirm",
       reason: "founder stated the brand's own figure in the interview",
     });
-    const confirmed = await companyRevenueTruth(handle.db, companyId);
+    const confirmed = await companyRevenueTruth(handle.db, companyId, sectorId);
     expect(confirmed.revenueSource).toBe("public");
     expect(confirmed.tier).toBe("A");
 
@@ -227,8 +178,51 @@ describe("tiering against stored facts and verdicts", () => {
       decision: "reject",
       reason: "parent-company figure",
     });
-    const rejected = await companyRevenueTruth(handle.db, companyId);
+    const rejected = await companyRevenueTruth(handle.db, companyId, sectorId);
     expect(rejected.revenueSource).toBe("staff_estimate");
     expect(rejected.flaggedFigure?.reason).toBe("parent-company figure");
+  });
+});
+
+describe("verdicts per sector (Stage 5.6 B4)", () => {
+  it("keeps one verdict per sector for the same company and reads the sector's own", async () => {
+    const sectorA = await seedSector();
+    const sectorB = await seedSector();
+    const companyId = await seedCompany("Two Sector Co");
+    await handle.db.insert(sectorCompanies).values({ sectorId: sectorA, companyId, addedVia: "manual" });
+    await handle.db.insert(sectorCompanies).values({ sectorId: sectorB, companyId, addedVia: "manual" });
+    await seedFact(companyId, "financials.employees", { num: 20 }, { source: "apollo" });
+    await recordVerdicts(handle.db, [
+      { companyId, sectorId: sectorA, score: 5, signals: {}, status: "contactable", source: "test" },
+      { companyId, sectorId: sectorB, score: 0, signals: {}, status: "watchlist", source: "test" },
+    ]);
+    const a = await companyRevenueTruth(handle.db, companyId, sectorA);
+    const b = await companyRevenueTruth(handle.db, companyId, sectorB);
+    expect(a.score).toBe(5);
+    expect(a.status).toBe("contactable");
+    expect(b.score).toBe(0);
+    expect(b.status).toBe("watchlist");
+    // Re-recording one sector leaves the other untouched.
+    await recordVerdicts(handle.db, [
+      { companyId, sectorId: sectorA, score: 3, signals: {}, status: "contactable", source: "test" },
+    ]);
+    expect((await companyRevenueTruth(handle.db, companyId, sectorA)).score).toBe(3);
+    expect((await companyRevenueTruth(handle.db, companyId, sectorB)).score).toBe(0);
+  });
+
+  it("resolveCompanySector uses a given sector, the only sector, else refuses", async () => {
+    const { resolveCompanySector } = await import("../../src/domain/sectors.js");
+    const sectorA = await seedSector();
+    const sectorB = await seedSector();
+    const solo = await seedCompany("Solo Co");
+    const dual = await seedCompany("Dual Co");
+    const none = await seedCompany("No Sector Co");
+    await handle.db.insert(sectorCompanies).values({ sectorId: sectorA, companyId: solo, addedVia: "manual" });
+    await handle.db.insert(sectorCompanies).values({ sectorId: sectorA, companyId: dual, addedVia: "manual" });
+    await handle.db.insert(sectorCompanies).values({ sectorId: sectorB, companyId: dual, addedVia: "manual" });
+    await expect(resolveCompanySector(handle.db, solo)).resolves.toBe(sectorA);
+    await expect(resolveCompanySector(handle.db, dual, sectorB)).resolves.toBe(sectorB);
+    await expect(resolveCompanySector(handle.db, dual)).rejects.toThrow(/company is in 2 sectors; pass sectorId/);
+    await expect(resolveCompanySector(handle.db, none)).rejects.toThrow(/company is in 0 sectors; pass sectorId/);
   });
 });

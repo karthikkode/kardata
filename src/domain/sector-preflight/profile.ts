@@ -4,12 +4,8 @@ import { z } from "zod";
 import type { Db } from "../../db/client.js";
 import { sectorCompanies, sectorPreflight, sectors } from "../../db/schema.js";
 import { DomainError } from "../errors.js";
-import { BUSINESS_TYPES, PRIMARY_CATEGORIES } from "./classify.js";
-import {
-  eligibilityCounts,
-  type EligibilityCounts,
-  type EligibilityRubric,
-} from "./eligibility.js";
+import { BUSINESS_TYPES } from "./classify.js";
+import { eligibilityCounts, type EligibilityCounts } from "./eligibility.js";
 
 /**
  * Sector profile (Stage 5.4 Step 1): everything sector-specific about the
@@ -27,7 +23,6 @@ export const sectorProfileSchema = z
   .object({
     name: z.string().min(1).max(120).optional(),
     description: z.string().max(2000).optional(),
-    rubric: z.unknown().optional(),
     categories: z
       .array(
         z
@@ -45,6 +40,9 @@ export const sectorProfileSchema = z
         coreCategories: z.array(categoryKey).max(20),
         adjacentCategories: z.array(categoryKey).max(20),
         scopeKeywords: z.array(z.string().min(1).max(120)).max(200),
+        businessTypes: z.array(z.string().min(1)).min(1).max(30),
+        requireSellsOwnProducts: z.boolean(),
+        requireHasOnlineStore: z.boolean(),
       })
       .strict(),
     classifierHints: z
@@ -52,6 +50,22 @@ export const sectorProfileSchema = z
         serviceExamples: z.string().max(500),
         retailerExamples: z.string().max(500),
         supplierExamples: z.string().max(500),
+      })
+      .strict(),
+    tiering: z
+      .object({
+        apolloMinPerStaff: z.number().positive(),
+        staffEstimatePerHead: z.number().positive(),
+        publicCheckPerStaff: z.number().positive(),
+        pressSources: z.array(z.string().min(1).max(120)).max(50),
+      })
+      .strict(),
+    promptHints: z
+      .object({
+        retailerExamples: z.string().max(300),
+        priceTiers: z.string().max(300),
+        productClaims: z.string().max(300),
+        positioningStory: z.string().max(300),
       })
       .strict(),
   })
@@ -100,6 +114,11 @@ export function parseSectorProfile(value: unknown): SectorProfile {
       `invalid sector profile: categories in both core and adjacent scope: ${overlap.join(", ")}`,
     );
   }
+  for (const type of profile.scope.businessTypes) {
+    if (!(BUSINESS_TYPES as readonly string[]).includes(type)) {
+      throw new DomainError("invalid_input", `invalid sector profile: scope lists unknown business_type "${type}"`);
+    }
+  }
   return profile;
 }
 
@@ -111,53 +130,6 @@ export function categoryKeys(profile: SectorProfile): string[] {
 export function profileHash(profile: SectorProfile): string {
   return createHash("sha256").update(categoryKeys(profile).join(",")).digest("hex").slice(0, 16);
 }
-
-/** Rubric categories and business types must exist in the profile / enum. */
-export function validateRubricAgainstProfile(rubric: EligibilityRubric, profile: SectorProfile): void {
-  const known = new Set(categoryKeys(profile));
-  for (const key of [...rubric.eligible.primaryCategories, ...rubric.review.primaryCategories]) {
-    if (!known.has(key)) {
-      throw new DomainError("invalid_input", `rubric lists unknown category "${key}" for this sector's profile`);
-    }
-  }
-  for (const type of [...rubric.eligible.businessTypes, ...rubric.review.businessTypes]) {
-    if (!(BUSINESS_TYPES as readonly string[]).includes(type)) {
-      throw new DomainError("invalid_input", `rubric lists unknown business_type "${type}"`);
-    }
-  }
-}
-
-/** The skincare profile: today's constants, field for field. */
-export const SKINCARE_PROFILE: SectorProfile = {
-  categories: [
-    { key: "skincare", label: "Skincare", description: "Skin care products: cleansers, serums, moisturisers, SPF, treatments." },
-    { key: "haircare", label: "Haircare", description: "Hair care products: shampoo, conditioner, styling, treatments." },
-    { key: "cosmetics_makeup", label: "Cosmetics & makeup", description: "Colour cosmetics and makeup." },
-    { key: "body_bath", label: "Body & bath", description: "Body care, bath, hand and foot care." },
-    { key: "fragrance", label: "Fragrance", description: "Perfume, fragrance, home scent." },
-    { key: "supplements_wellness", label: "Supplements & wellness", description: "Supplements and wellness products and devices." },
-    { key: "mens_grooming", label: "Men's grooming", description: "Men's grooming and shaving products." },
-    { key: "other", label: "Other", description: OTHER_CATEGORY.description },
-  ],
-  scope: {
-    coreCategories: ["skincare", "body_bath", "mens_grooming"],
-    adjacentCategories: ["haircare", "cosmetics_makeup", "fragrance", "supplements_wellness"],
-    scopeKeywords: [
-      "skin", "derma", "dermat", "collagen", "elastin", "retinol", "retinoid", "tretinoin",
-      "hyaluron", "niacinamide", "peptid", "ceramid", "moisturiz", "moisturis", "serum",
-      "acne", "eczema", "psoriasis", "rosacea", "sunscreen", "sun screen", "suncare",
-      "sun care", "spf", "exfoliat", "cleanser", "facial", "face wash", "facewash",
-      "toner", "lotion", "night cream", "day cream", "eye cream", "vitamin c", "glycolic",
-      "salicylic", "azelaic", "kojic", "anti-ag", "antiag", "wrinkle", "dark spot",
-      "hyperpigment", "melasma", "skin barrier",
-    ],
-  },
-  classifierHints: {
-    serviceExamples: "spa, salon, barbershop, beauty services without own product line",
-    retailerExamples: "beauty store, pharmacy chain, marketplace selling other brands",
-    supplierExamples: "raw ingredients, packaging, or equipment supplier",
-  },
-};
 
 async function loadSectorRow(db: Db, sectorId: string) {
   const [sector] = await db.select().from(sectors).where(eq(sectors.id, sectorId));
@@ -182,32 +154,16 @@ export async function getProfileOrNull(db: Db, sectorId: string): Promise<Sector
   return sector.profile ? parseSectorProfile(sector.profile) : null;
 }
 
-/**
- * Profile for reading paths (scope, pipeline): the stored profile, or the
- * skincare seed for the sector named skincare (migration 0030 seeds it in
- * real data; this keeps older rows and tests working). Any other sector
- * without a profile is refused in plain words.
- */
-export async function resolveProfileForSector(db: Db, sectorId: string): Promise<SectorProfile> {
-  const sector = await loadSectorRow(db, sectorId);
-  if (sector.profile) return parseSectorProfile(sector.profile);
-  if (sector.name.trim().toLowerCase() === "skincare") return SKINCARE_PROFILE;
-  throw new DomainError(
-    "invalid_input",
-    `sector "${sector.name}" has no profile; set one with sector_profile_set before running the preflight`,
-  );
-}
-
 export interface SetProfileResult {
   profile: SectorProfile;
   before: EligibilityCounts;
   after: EligibilityCounts;
   reclassifyPending: number;
-  rubricApplied: boolean;
+  changedFields: string[];
 }
 
 /**
- * Store a profile. Scope/rubric-only edits re-derive instantly. Changing
+ * Store a profile. Scope-only edits re-derive instantly. Changing
  * category keys after classifications exist is refused unless
  * `reclassify: true`, which marks classified memberships pending again.
  */
@@ -219,25 +175,25 @@ export async function setProfile(
 ): Promise<SetProfileResult> {
   const sector = await loadSectorRow(db, sectorId);
   const profile = parseSectorProfile(value);
-  // A rubric included in the profile goes through the same validated path
-  // as sector_rules_set, checked against the new categories up front so a
-  // bad rubric stores nothing.
-  const { eligibilityRubricSchema, parseEligibilityRubric, setRubric } = await import("./eligibility.js");
-  const includedRubric =
-    profile.rubric !== undefined ? parseEligibilityRubric(profile.rubric, profile) : null;
-  const rubricParsed = sector.eligibilityRules
-    ? eligibilityRubricSchema.safeParse(sector.eligibilityRules)
-    : null;
-  if (rubricParsed && !rubricParsed.success) {
-    throw new DomainError("invalid_input", "stored rubric is invalid; set it again");
-  }
-  // Only a stored rubric constrains the new profile (and only when the call
-  // does not replace it in the same step); a sector without one gets its
-  // rubric validated when the rubric itself is set.
-  if (rubricParsed?.data && !includedRubric) validateRubricAgainstProfile(rubricParsed.data, profile);
 
   const before = await eligibilityCounts(db, sectorId);
-  const existing = sector.profile ? parseSectorProfile(sector.profile) : null;
+  let existing: SectorProfile | null = null;
+  if (sector.profile) {
+    try {
+      existing = parseSectorProfile(sector.profile);
+    } catch {
+      existing = null;
+    }
+  }
+  const changedFields: string[] = [];
+  if (existing) {
+    const topKeys = ["name", "description", "categories", "scope", "classifierHints", "tiering", "promptHints"] as const;
+    for (const key of topKeys) {
+      if (JSON.stringify(existing[key] ?? null) !== JSON.stringify(profile[key] ?? null)) changedFields.push(key);
+    }
+  } else {
+    changedFields.push("categories", "scope", "classifierHints", "tiering", "promptHints");
+  }
   const keysChanged =
     existing !== null &&
     JSON.stringify([...categoryKeys(existing)].sort()) !== JSON.stringify([...categoryKeys(profile)].sort());
@@ -259,7 +215,6 @@ export async function setProfile(
     .update(sectors)
     .set({ profile: profile as unknown as Record<string, unknown> })
     .where(eq(sectors.id, sectorId));
-  if (includedRubric) await setRubric(db, sectorId, includedRubric);
   if (reclassifyPending > 0) {
     // Pending marking wins over any re-derivation above: the stored
     // classifications were made with the old category keys.
@@ -273,11 +228,10 @@ export async function setProfile(
       .where(eq(sectorCompanies.sectorId, sectorId));
   } else if (classified.length > 0) {
     // Scope edits re-derive instantly (no LLM), like rubric edits.
-    const { applySectorScope } = await import("./eligibility.js");
-    await applySectorScope(db, sectorId);
+    const { rederiveSectorScope } = await import("./eligibility.js");
+    await rederiveSectorScope(db, sectorId);
   }
   const after = await eligibilityCounts(db, sectorId);
-  return { profile, before, after, reclassifyPending, rubricApplied: includedRubric !== null };
+  return { profile, before, after, reclassifyPending, changedFields };
 }
 
-export { PRIMARY_CATEGORIES };

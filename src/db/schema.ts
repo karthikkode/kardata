@@ -40,7 +40,6 @@ export const sectors = pgTable(
     id: uuid("id").primaryKey(),
     name: text("name").notNull(),
     description: text("description").notNull().default(""),
-    eligibilityRules: jsonb("eligibility_rules").$type<Record<string, unknown> | null>(),
     profile: jsonb("profile").$type<Record<string, unknown> | null>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -784,6 +783,7 @@ export const companyJobs = pgTable(
     companyId: uuid("company_id")
       .notNull()
       .references(() => companies.id, { onDelete: "cascade" }),
+    sectorId: uuid("sector_id").references(() => sectors.id, { onDelete: "set null" }),
     status: text("status", { enum: COMPANY_JOB_STATUSES }).notNull().default("created"),
     currentStage: companyJobStage("current_stage"),
     errorStreak: integer("error_streak").notNull().default(0),
@@ -1013,23 +1013,27 @@ export type SectorPreflightItem = typeof sectorPreflightItems.$inferSelect;
 
 // ---- Stage 5.3: ICP verdicts (signal score + contact status per company) ----
 
-export const companyVerdicts = pgTable("company_verdicts", {
-  companyId: uuid("company_id")
-    .primaryKey()
-    .references(() => companies.id, { onDelete: "cascade" }),
-  sectorId: uuid("sector_id")
-    .notNull()
-    .references(() => sectors.id, { onDelete: "cascade" }),
-  score: integer("score").notNull(),
-  signals: jsonb("signals").notNull().default({}),
-  status: text("status").notNull().default("watchlist"),
-  exclusionReason: text("exclusion_reason"),
-  source: text("source").notNull().default(""),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow()
-    .$onUpdate(() => new Date()),
-});
+export const companyVerdicts = pgTable(
+  "company_verdicts",
+  {
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    sectorId: uuid("sector_id")
+      .notNull()
+      .references(() => sectors.id, { onDelete: "cascade" }),
+    score: integer("score").notNull(),
+    signals: jsonb("signals").notNull().default({}),
+    status: text("status").notNull().default("watchlist"),
+    exclusionReason: text("exclusion_reason"),
+    source: text("source").notNull().default(""),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [primaryKey({ columns: [t.companyId, t.sectorId] })],
+);
 export type CompanyVerdict = typeof companyVerdicts.$inferSelect;
 
 // ---- Stage 5.5: ICP checks (append-only; the latest one writes the verdict) ----

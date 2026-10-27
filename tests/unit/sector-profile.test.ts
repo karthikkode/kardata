@@ -1,17 +1,10 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { PRIMARY_CATEGORIES } from "../../src/domain/sector-preflight/classify.js";
 import {
-  DEFAULT_SKINCARE_RUBRIC,
-  SCOPE_ADJACENT_CATEGORIES,
-  SCOPE_CORE_CATEGORIES,
-  SKIN_KEYWORDS,
-} from "../../src/domain/sector-preflight/eligibility.js";
-import {
-  SKINCARE_PROFILE,
   categoryKeys,
   parseSectorProfile,
   profileHash,
-  validateRubricAgainstProfile,
 } from "../../src/domain/sector-preflight/profile.js";
 
 const gardenInput = {
@@ -19,7 +12,9 @@ const gardenInput = {
     { key: "growing", label: "Growing", description: "Seeds, bulbs, plants, compost." },
     { key: "tools_watering", label: "Tools & watering", description: "Tools, hoses, irrigation." },
   ],
-  scope: { coreCategories: ["growing"], adjacentCategories: [], scopeKeywords: [] },
+  scope: { coreCategories: ["growing"], adjacentCategories: [], scopeKeywords: [], businessTypes: ["dtc_brand"], requireSellsOwnProducts: true, requireHasOnlineStore: true },
+  tiering: { apolloMinPerStaff: 75000, staffEstimatePerHead: 175000, publicCheckPerStaff: 1000000, pressSources: [] },
+  promptHints: { retailerExamples: "example retailers", priceTiers: "example tiers", productClaims: "example claims", positioningStory: "example story" },
   classifierHints: {
     serviceExamples: "landscaping, garden design",
     retailerExamples: "garden centres, DIY chains",
@@ -37,7 +32,7 @@ describe("parseSectorProfile", () => {
     expect(() =>
       parseSectorProfile({
         ...gardenInput,
-        scope: { coreCategories: ["nope"], adjacentCategories: [], scopeKeywords: [] },
+        scope: { ...gardenInput.scope, coreCategories: ["nope"] },
       }),
     ).toThrowError(/unknown category "nope"/);
   });
@@ -46,7 +41,7 @@ describe("parseSectorProfile", () => {
     expect(() =>
       parseSectorProfile({
         ...gardenInput,
-        scope: { coreCategories: ["growing"], adjacentCategories: ["growing"], scopeKeywords: [] },
+        scope: { ...gardenInput.scope, adjacentCategories: ["growing"] },
       }),
     ).toThrowError(/both core and adjacent/);
     expect(() =>
@@ -73,58 +68,47 @@ describe("parseSectorProfile", () => {
   });
 });
 
-describe("rubric validation against the profile", () => {
-  it("accepts the skincare rubric against the skincare profile", () => {
-    expect(() => validateRubricAgainstProfile(DEFAULT_SKINCARE_RUBRIC, SKINCARE_PROFILE)).not.toThrow();
+describe("profile v2 fields", () => {
+  it("rejects a business type outside BUSINESS_TYPES and an over-long prompt hint", () => {
+    expect(() =>
+      parseSectorProfile({
+        ...gardenInput,
+        scope: { ...gardenInput.scope, businessTypes: ["not_a_type"] },
+      }),
+    ).toThrowError(/invalid sector profile/);
+    expect(() =>
+      parseSectorProfile({
+        ...gardenInput,
+        promptHints: { ...gardenInput.promptHints, priceTiers: "x".repeat(301) },
+      }),
+    ).toThrowError(/invalid sector profile/);
   });
 
-  it("rejects rubric categories the profile does not declare", () => {
-    const profile = parseSectorProfile(gardenInput);
-    expect(() => validateRubricAgainstProfile(DEFAULT_SKINCARE_RUBRIC, profile)).toThrowError(
-      /unknown category "skincare"/,
-    );
+  it("rejects a profile carrying the removed rubric field", () => {
+    expect(() => parseSectorProfile({ ...gardenInput, rubric: {} })).toThrowError(/invalid sector profile/);
+  });
+
+  it("profileHash covers category keys only", () => {
+    const a = parseSectorProfile(gardenInput);
+    const b = parseSectorProfile({
+      ...gardenInput,
+      promptHints: { ...gardenInput.promptHints, priceTiers: "different tiers" },
+      tiering: { ...gardenInput.tiering, apolloMinPerStaff: 1 },
+    });
+    expect(profileHash(a)).toBe(profileHash(b));
   });
 });
 
-describe("SKINCARE_PROFILE matches the old constants field for field", () => {
-  it("equals the pre-5.4 constants exactly: categories, scope, keywords, hints", () => {
-    expect(SKINCARE_PROFILE).toEqual({
-      categories: [
-        { key: "skincare", label: "Skincare", description: "Skin care products: cleansers, serums, moisturisers, SPF, treatments." },
-        { key: "haircare", label: "Haircare", description: "Hair care products: shampoo, conditioner, styling, treatments." },
-        { key: "cosmetics_makeup", label: "Cosmetics & makeup", description: "Colour cosmetics and makeup." },
-        { key: "body_bath", label: "Body & bath", description: "Body care, bath, hand and foot care." },
-        { key: "fragrance", label: "Fragrance", description: "Perfume, fragrance, home scent." },
-        { key: "supplements_wellness", label: "Supplements & wellness", description: "Supplements and wellness products and devices." },
-        { key: "mens_grooming", label: "Men's grooming", description: "Men's grooming and shaving products." },
-        { key: "other", label: "Other", description: "A real business whose main lane is none of the listed categories." },
-      ],
-      scope: {
-        coreCategories: ["skincare", "body_bath", "mens_grooming"],
-        adjacentCategories: ["haircare", "cosmetics_makeup", "fragrance", "supplements_wellness"],
-        scopeKeywords: [
-          "skin", "derma", "dermat", "collagen", "elastin", "retinol", "retinoid", "tretinoin",
-          "hyaluron", "niacinamide", "peptid", "ceramid", "moisturiz", "moisturis", "serum",
-          "acne", "eczema", "psoriasis", "rosacea", "sunscreen", "sun screen", "suncare",
-          "sun care", "spf", "exfoliat", "cleanser", "facial", "face wash", "facewash",
-          "toner", "lotion", "night cream", "day cream", "eye cream", "vitamin c", "glycolic",
-          "salicylic", "azelaic", "kojic", "anti-ag", "antiag", "wrinkle", "dark spot",
-          "hyperpigment", "melasma", "skin barrier",
-        ],
-      },
-      classifierHints: {
-        serviceExamples: "spa, salon, barbershop, beauty services without own product line",
-        retailerExamples: "beauty store, pharmacy chain, marketplace selling other brands",
-        supplierExamples: "raw ingredients, packaging, or equipment supplier",
-      },
-    });
-    // And against the surviving pre-5.4 constants themselves, not just literals.
-    expect(categoryKeys(SKINCARE_PROFILE)).toEqual([...PRIMARY_CATEGORIES]);
-    expect(SKINCARE_PROFILE.scope.coreCategories).toEqual([...SCOPE_CORE_CATEGORIES]);
-    expect(SKINCARE_PROFILE.scope.adjacentCategories).toEqual([...SCOPE_ADJACENT_CATEGORIES]);
-    expect(SKINCARE_PROFILE.scope.scopeKeywords).toEqual([...SKIN_KEYWORDS]);
-    expect(SKINCARE_PROFILE.scope.coreCategories).toEqual(DEFAULT_SKINCARE_RUBRIC.eligible.primaryCategories);
-    expect(SKINCARE_PROFILE.scope.adjacentCategories).toEqual(DEFAULT_SKINCARE_RUBRIC.review.primaryCategories);
-    expect(profileHash(SKINCARE_PROFILE)).toHaveLength(16);
+describe("neutral fixture profile", () => {
+  it("parses tests/fixtures/sector-profile.json with invented categories", () => {
+    const profile = parseSectorProfile(
+      JSON.parse(readFileSync(resolve("tests/fixtures/sector-profile.json"), "utf8")),
+    );
+    expect(categoryKeys(profile)).toEqual(["widgets", "gadgets", "other"]);
+    expect(profile.scope.coreCategories).toEqual(["widgets"]);
+    expect(profile.scope.adjacentCategories).toEqual(["gadgets"]);
+    expect(profile.scope.businessTypes).toEqual(["dtc_brand"]);
+    expect(profile.tiering.pressSources).toEqual(["example trade press"]);
+    expect(profileHash(profile)).toHaveLength(16);
   });
 });

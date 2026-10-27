@@ -20,8 +20,7 @@ The reader should come away sure that this person:
 
 ## Who it is for, and how we know it works (D-41)
 
-- **Audience: D2C brand owners only, in any category (D-52).** Skincare is only the first research sector; examples
-  should work for any D2C brand. Owners who can pay $1–6k: about $1M–20M revenue, selling through more than one
+- **Audience: D2C brand owners only, in any category (D-52).** Examples should work for any D2C brand. Owners who can pay $1–6k: about $1M–20M revenue, selling through more than one
   channel or system, owner still close to operations. Not learners, not other consultants, not other sectors.
 - **What we count:**
   - owners who reply to a post or send a DM;

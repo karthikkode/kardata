@@ -5,10 +5,13 @@ import {
   parseClassification,
   type ClassifierInput,
 } from "../../src/domain/sector-preflight/classify.js";
-import {
-  SKINCARE_PROFILE,
-  parseSectorProfile,
-} from "../../src/domain/sector-preflight/profile.js";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { parseSectorProfile } from "../../src/domain/sector-preflight/profile.js";
+
+const sample = parseSectorProfile(
+  JSON.parse(readFileSync(resolve("tests/fixtures/sector-profile.json"), "utf8")),
+);
 
 const company = {
   id: "00000000-0000-0000-0000-000000000001",
@@ -34,7 +37,9 @@ const garden = parseSectorProfile({
     { key: "tools_watering", label: "Tools & watering", description: "Tools, hoses and irrigation." },
     { key: "outdoor_decor", label: "Outdoor decor", description: "Decor, furniture, lighting." },
   ],
-  scope: { coreCategories: ["growing"], adjacentCategories: [], scopeKeywords: [] },
+  scope: { coreCategories: ["growing"], adjacentCategories: [], scopeKeywords: [], businessTypes: ["dtc_brand"], requireSellsOwnProducts: true, requireHasOnlineStore: true },
+  tiering: { apolloMinPerStaff: 75000, staffEstimatePerHead: 175000, publicCheckPerStaff: 1000000, pressSources: [] },
+  promptHints: { retailerExamples: "example retailers", priceTiers: "example tiers", productClaims: "example claims", positioningStory: "example story" },
   classifierHints: {
     serviceExamples: "landscaping, garden design",
     retailerExamples: "garden centres",
@@ -51,17 +56,17 @@ describe("classifier prompt and schema from a profile", () => {
     expect(prompt).not.toContain("{{");
   });
 
-  it("renders skincare exactly as before (v1 categories present)", () => {
-    const prompt = buildClassifierPrompt(input(), SKINCARE_PROFILE);
-    for (const key of ["skincare", "haircare", "cosmetics_makeup", "body_bath"]) {
+  it("renders the sample-sector categories from the fixture profile", () => {
+    const prompt = buildClassifierPrompt(input(), sample);
+    for (const key of ["widgets", "gadgets", "other"]) {
       expect(prompt).toContain(`\`${key}\``);
     }
     expect(prompt).not.toContain("{{");
-    const schema = JSON.parse(classifierSchemaFor(SKINCARE_PROFILE)) as {
+    const schema = JSON.parse(classifierSchemaFor(sample)) as {
       properties: { primary_category: { enum: string[] } };
     };
-    expect(schema.properties.primary_category.enum).toContain("skincare");
-    expect(schema.properties.primary_category.enum).toHaveLength(8);
+    expect(schema.properties.primary_category.enum).toContain("widgets");
+    expect(schema.properties.primary_category.enum).toHaveLength(3);
   });
 
   it("generates a runtime enum and rejects undeclared categories", () => {
@@ -75,7 +80,7 @@ describe("classifier prompt and schema from a profile", () => {
       parseClassification(
         {
           business_type: "dtc_brand",
-          primary_category: "skincare",
+          primary_category: "widgets",
           sells_own_products: true,
           has_online_store: true,
           ships_to: [],

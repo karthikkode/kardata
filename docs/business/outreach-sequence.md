@@ -15,7 +15,7 @@ decides what to say and writes every word.
 
 | Channel | Role | Notes |
 |---|---|---|
-| LinkedIn | Warms up the contact, and credibility through posts | Strongest where owners are active (D2C, skincare founders) |
+| LinkedIn | Warms up the contact, and credibility through posts | Strongest where owners are active (D2C) |
 | Cold calls | Discovery and the fastest learning | Strongest where owners rarely use LinkedIn (trades, clinics, bakeries) |
 | Cold email | Scale, and buyers without phone numbers | Goal is a reply, not a meeting. The reply is where discovery starts |
 

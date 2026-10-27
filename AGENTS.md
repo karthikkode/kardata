@@ -9,13 +9,14 @@ The owner reviews every stage. Plans live in `docs/plans/`, and the current stag
 | Folder | What it holds | Who edits it |
 |---|---|---|
 | `docs/plans/` | Stage plans (the spec) and `roadmap.md` | Owner / Claude |
+| `docs/sectors/` | Per-sector profile, decisions, results, log | Owner / Claude |
 | `docs/plans/website/` | Website plans (their own spec, separate from the server stages) | Owner / Claude |
 | `docs/reviews/` | Your stage reviews | You, at the end of a stage |
 | `docs/sources/` | How-tos for the code (for example, onboarding a source adapter) | You, when the plan says so |
 | `docs/business/` | **Business context:** strategy, offer, ICP, problem bar, evidence rules, outreach, funnel, decisions. Start at `docs/business/README.md` | **Owner / Claude only.** You read it, never edit it |
 
-**Finding the current stage:** exactly one file in `docs/plans/` has `Status: current` as its first line.
-That file is the spec. All other plans and all of `docs/reviews/` are history. Website work has its own
+**Finding the current stage:** exactly one file in `docs/plans/` (ignoring `docs/plans/archive/`) has `Status: current` as its first line.
+That file is the spec. All other plans and all of `docs/reviews/` are history. New reviews go in `docs/reviews/` (not the archive). Website work has its own
 current plan: the one file in `docs/plans/website/` with `Status: current`. Its reviews go in `docs/reviews/website/`.
 
 **Analysis, briefs, screens or outreach work on company data must follow `docs/business/`.**
@@ -82,6 +83,7 @@ Ask the owner only for:
 - Run destructive database commands (drop, truncate, reset) against anything except the dev or test database.
 - Push, merge, deploy or change GitHub settings without a go for that action. The owner has given a standing go
   for `kardata-server` work once CI passes (D-65). Website pushes and deploys still need their own go.
+- Put sector-specific nouns (product categories, retailers, trade press) in src/, prompts/ or docs/business/ — they belong in docs/sectors/<slug>/. A test enforces this for code.
 - Add frameworks, services or dependencies the plan doesn't name. If one seems needed, propose it in the
   review instead.
 - Write long docs, catalogues, hash manifests or "evidence metadata". Code and tests are the deliverable.

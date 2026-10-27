@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import type { Db } from "../db/client.js";
-import { area, companies, researchRuns, type AgentOptions, type ResearchRun } from "../db/schema.js";
+import { area, companies, researchRuns, sectorCompanies, type AgentOptions, type ResearchRun } from "../db/schema.js";
 import { DomainError, isUniqueViolation } from "../domain/errors.js";
 import { resolvePromptVersion } from "./prompt.js";
 
@@ -25,6 +25,7 @@ export interface ResearchStartInput {
   maxModelSteps?: number;
   brief?: string;
   promptVersion?: string;
+  sectorId?: string;
   /** Stage 5: tag the run as a company-job subjob at creation (avoids a claim race). */
   companyJobId?: string;
   stage?: NonNullable<ResearchRun["stage"]>;
@@ -92,6 +93,17 @@ export async function researchStart(db: Db, input: ResearchStartInput): Promise<
   const missing = unique.filter((id) => !found.some((f) => f.id === id));
   if (missing.length > 0) {
     throw new DomainError("invalid_input", `unknown companies: ${missing.join(", ")}`);
+  }
+  if (input.sectorId) {
+    const memberRows = await db
+      .select({ companyId: sectorCompanies.companyId })
+      .from(sectorCompanies)
+      .where(eq(sectorCompanies.sectorId, input.sectorId));
+    const members = new Set(memberRows.map((r) => r.companyId));
+    const outside = unique.filter((id) => !members.has(id));
+    if (outside.length > 0) {
+      throw new DomainError("invalid_input", `${outside.length} companies are not in this sector`);
+    }
   }
 
   const batchId = randomUUID();
