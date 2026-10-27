@@ -132,6 +132,8 @@ const EXPECTED_TOOLS = [
   "sector_rules_set",
   "company_eligibility_override",
   "sector_scope_apply",
+  "sector_profile_get",
+  "sector_profile_set",
   "pipeline_start",
   "sector_preflight_concurrency_get",
   "sector_preflight_concurrency_set",

@@ -44,11 +44,15 @@ export function registerTools(server: McpServer, db: Db, auth: AuthContext): voi
           .array(z.string())
           .optional()
           .describe("Absolute CSV paths to import (must sit inside KARDATA_IMPORT_DIRS)"),
+        profile: z
+          .unknown()
+          .optional()
+          .describe("Sector profile JSON (categories, scope, classifierHints); required before preflight"),
       },
     },
-    async ({ name, description, csvPaths }) =>
+    async ({ name, description, csvPaths, profile }) =>
       wrap(async () => {
-        const { sector, imports } = await createSector(db, { name, description, csvPaths });
+        const { sector, imports } = await createSector(db, { name, description, csvPaths, profile });
         const done = imports.filter((r) => r.ok).length;
         const failed = imports.length - done;
         const files = imports.length > 0 ? `, ${done} file(s) ok, ${failed} failed` : "";

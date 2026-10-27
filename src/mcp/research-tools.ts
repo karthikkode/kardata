@@ -111,6 +111,10 @@ import {
   setRubric,
 } from "../domain/sector-preflight/eligibility.js";
 import {
+  getProfileOrNull,
+  setProfile,
+} from "../domain/sector-preflight/profile.js";
+import {
   SCREEN_FIELDS,
   SCREEN_OPS,
   getShortlist,
@@ -1912,15 +1916,55 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   );
 
   registerTool(server, db, auth,
+    "sector_profile_get",
+    {
+      description: "Operator: view a sector's preflight profile (categories, scope, classifier hints).",
+      inputSchema: { sectorId: z.string().describe("Sector UUID") },
+    },
+    async ({ sectorId }) =>
+      wrap(async () => {
+        const profile = await getProfileOrNull(db, sectorId);
+        return {
+          summary: profile ? `${profile.categories.length} categories` : "no profile set for this sector",
+          data: { profile },
+        };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_profile_set",
+    {
+      description:
+        "Operator: validate and store a sector's preflight profile. Changing category keys after classifications exist is refused unless reclassify is true (marks them pending).",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+        profile: z.unknown().describe("Full profile JSON (see the sector profile schema)"),
+        reclassify: z.boolean().optional().describe("Allow a category-key change; marks classifications pending"),
+      },
+    },
+    async ({ sectorId, profile, reclassify }) =>
+      wrap(async () => {
+        const result = await setProfile(db, sectorId, profile, { reclassify: reclassify ?? false });
+        return {
+          summary: `profile stored (${result.profile.categories.length} categories, ${result.reclassifyPending} pending)`,
+          data: result,
+        };
+      }),
+  );
+
+  registerTool(server, db, auth,
     "sector_rules_get",
     {
-      description: "Operator: view a sector's eligibility rubric (or the default).",
+      description: "Operator: view a sector's stored eligibility rubric.",
       inputSchema: { sectorId: z.string().describe("Sector UUID") },
     },
     async ({ sectorId }) =>
       wrap(async () => {
         const result = await getRubric(db, sectorId);
-        return { summary: result.isDefault ? "default skincare rubric" : "sector rubric", data: result };
+        return {
+          summary: result.isDefault ? "no rubric stored for this sector" : "sector rubric",
+          data: result,
+        };
       }),
   );
 
