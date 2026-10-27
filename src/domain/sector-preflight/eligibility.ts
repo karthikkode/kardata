@@ -76,8 +76,13 @@ export type DerivedEligibility = "eligible" | "review" | "ineligible";
  */
 function isPossibleQualifier(c: ClassifiedFields, rubric: EligibilityRubric): boolean {
   const types = [...rubric.eligible.businessTypes, ...rubric.review.businessTypes];
-  const categories = [...rubric.eligible.primaryCategories, ...rubric.review.primaryCategories];
   if (!types.includes(c.businessType)) return false;
+  return inRelevantCategory(c, rubric);
+}
+
+/** A category the rubric accepts or reviews ("other" only with an unknown type). */
+function inRelevantCategory(c: ClassifiedFields, rubric: EligibilityRubric): boolean {
+  const categories = [...rubric.eligible.primaryCategories, ...rubric.review.primaryCategories];
   return categories.includes(c.primaryCategory) || (c.primaryCategory === "other" && c.businessType === "unknown");
 }
 
@@ -108,7 +113,11 @@ export function evaluateClassification(
     return { eligibility: "eligible", reason: `matches eligible rule: ${c.businessType} + ${c.primaryCategory}` };
   }
   const triggers: string[] = [];
-  if (r.businessTypes.includes(c.businessType)) triggers.push(`business_type ${c.businessType}`);
+  // A review type (retail-only brand, unknown) only matters in a relevant
+  // category: a retail-only indoor-furniture brand is out, not a review.
+  if (r.businessTypes.includes(c.businessType) && inRelevantCategory(c, rubric)) {
+    triggers.push(`business_type ${c.businessType}`);
+  }
   if (r.primaryCategories.includes(c.primaryCategory)) triggers.push(`category ${c.primaryCategory}`);
   if (triggers.length > 0) {
     return { eligibility: "review", reason: `needs review: ${triggers.join(", ")}` };

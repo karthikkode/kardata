@@ -37,6 +37,16 @@ export const CLASSIFY_MUSE_ARGS = [
   "3",
 ];
 
+/**
+ * Web fallback (our server could not read the site): same lockdown, but
+ * Muse's own web tools (web_fetch, web_search) stay on and the step cap
+ * leaves room to read a few pages. Still no shell, write or MCP servers.
+ */
+export const CLASSIFY_WEB_MAX_STEPS = "10";
+export const CLASSIFY_WEB_MUSE_ARGS = CLASSIFY_MUSE_ARGS.filter((arg) => arg !== "--disable-web-tools").map(
+  (arg, i, all) => (all[i - 1] === "--max-model-steps" ? CLASSIFY_WEB_MAX_STEPS : arg),
+);
+
 export function classifyContainerName(runId: string): string {
   const safe = runId.replace(/[^a-zA-Z0-9_.-]/g, "-").slice(0, 100);
   if (safe.replace(/-/g, "") === "") throw new Error("runId has no usable characters for a container name");
@@ -46,6 +56,8 @@ export function classifyContainerName(runId: string): string {
 export interface ClassifyRunOptions {
   runId: string;
   inputDir: string;
+  /** Let Muse read the site itself (our fetch got nothing). */
+  web?: boolean;
 }
 
 /** Exact `docker run` argv for one classifier call. Refuses a missing input dir. */
@@ -85,7 +97,7 @@ export function classifyRunArgs(opts: ClassifyRunOptions): string[] {
     "run",
     "exec",
     "--json",
-    ...CLASSIFY_MUSE_ARGS,
+    ...(opts.web ? CLASSIFY_WEB_MUSE_ARGS : CLASSIFY_MUSE_ARGS),
     "--output-schema",
     `${CLASSIFY_INPUT_MOUNT}/${CLASSIFY_SCHEMA_FILE}`,
     "--prompt-file",

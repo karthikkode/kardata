@@ -41,6 +41,9 @@ const PAGE_TEXT_BUDGET = 30_000;
 const SUBPAGE_MAX = 2;
 const CLASSIFY_STALL_MS = 120_000;
 const APOLLO_DESCRIPTION_MAX = 500;
+const PROMPT_VERSION = "v2";
+/** Same prompt, site read by Muse's web tools (marks the stored row). */
+const PROMPT_VERSION_WEB = "v2-web";
 
 export interface ClassifierCallResult {
   json: unknown;
@@ -48,17 +51,21 @@ export interface ClassifierCallResult {
   raw?: string;
 }
 
-/** One tool-less schema call; injectable for tests. */
+/**
+ * One schema call; injectable for tests. Tool-less, unless `web` is set:
+ * then Muse may read the site with its own web tools.
+ */
 export type ClassifierCall = (input: {
   runId: string;
   prompt: string;
   schema: string;
+  web?: boolean;
 }) => Promise<ClassifierCallResult>;
 
-export const dockerClassifierCall: ClassifierCall = async ({ runId, prompt, schema }) => {
+export const dockerClassifierCall: ClassifierCall = async ({ runId, prompt, schema, web }) => {
   const input = await prepareClassifyInput(prompt, schema);
   try {
-    const child = spawn("docker", classifyRunArgs({ runId, inputDir: input.dir }), {
+    const child = spawn("docker", classifyRunArgs({ runId, inputDir: input.dir, web }), {
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stderr = "";
@@ -152,6 +159,8 @@ interface FetchedInputs {
   pages: ClassifierPage[];
   shopify: string | null;
   apolloOnly: boolean;
+  /** The company's own origin, when it has one (null: no website at all). */
+  origin: string | null;
 }
 
 async function fetchInputs(
@@ -161,14 +170,14 @@ async function fetchInputs(
   fetchOptions: { privateHostAllowlist?: string[] },
 ): Promise<FetchedInputs> {
   const origin = companyOrigin(company);
-  if (!origin) return { pages: [], shopify: null, apolloOnly: true };
+  if (!origin) return { pages: [], shopify: null, apolloOnly: true, origin: null };
   let homepage: FetchResult;
   try {
     homepage = await fetchUrl(db, { runId, companyId: company.id, collector: SECTOR_COLLECTOR, url: origin, ...fetchOptions });
   } catch {
-    return { pages: [], shopify: null, apolloOnly: true };
+    return { pages: [], shopify: null, apolloOnly: true, origin };
   }
-  if (homepage.source.status !== "ok") return { pages: [], shopify: null, apolloOnly: true };
+  if (homepage.source.status !== "ok") return { pages: [], shopify: null, apolloOnly: true, origin };
   const html = homepage.body?.toString("utf8") ?? "";
   const urls = [origin, ...pickSubpages(html, origin)];
   const pages: ClassifierPage[] = [];
@@ -185,7 +194,7 @@ async function fetchInputs(
     pages.push({ sourceId: result.source.id, url: result.source.finalUrl, text });
     if (remaining <= 0) break;
   }
-  if (pages.length === 0) return { pages, shopify: null, apolloOnly: true };
+  if (pages.length === 0) return { pages, shopify: null, apolloOnly: true, origin };
   // One cheap Shopify probe, no locale fallbacks.
   let shopify: string | null = null;
   try {
@@ -214,7 +223,7 @@ async function fetchInputs(
   } catch {
     shopify = "products.json fetch failed";
   }
-  return { pages, shopify, apolloOnly: false };
+  return { pages, shopify, apolloOnly: false, origin };
 }
 
 export interface ClassifyCompanyInput {
@@ -249,6 +258,8 @@ export interface ClassifyCompanyOutcome {
   classification: Classification;
   verification: "verified" | "doc_only" | "unverified" | "quote_mismatch" | "verified_value";
   apolloOnly: boolean;
+  /** Our fetch got nothing, so Muse read the site with its own web tools. */
+  webFallback: boolean;
 }
 
 /** Classify one company; throws (and fails the run) when the call or schema fails. */
@@ -268,6 +279,9 @@ export async function classifyCompany(db: Db, input: ClassifyCompanyInput): Prom
   };
   const profile = await getProfile(db, input.sectorId);
   const fetched = await fetchInputs(db, runId, company, input.fetchOptions ?? {});
+  // Our server could not read the site (blocked, script-only, down): Muse
+  // reads it with its own web tools instead of classifying blind.
+  const web = fetched.apolloOnly && fetched.origin !== null;
   const prompt = buildClassifierPrompt(
     {
       company,
@@ -275,25 +289,35 @@ export async function classifyCompany(db: Db, input: ClassifyCompanyInput): Prom
       pages: fetched.pages,
       shopify: fetched.shopify,
       apolloOnly: fetched.apolloOnly,
+      webOrigin: web ? fetched.origin : null,
     },
     profile,
   );
   let result: ClassifierCallResult;
   const started = Date.now();
   try {
-    result = await call({ runId, prompt, schema: classifierSchemaFor(profile) });
+    result = await call({ runId, prompt, schema: classifierSchemaFor(profile), web });
   } catch (err) {
     return fail(`classifier call failed: ${err instanceof Error ? err.message : String(err)}`);
   }
   const durationMs = Date.now() - started;
   let classification: Classification;
+  // Muse-read pages are not stored sources, so a web verdict cites none.
+  const json =
+    web && result.json !== null && typeof result.json === "object"
+      ? { ...(result.json as Record<string, unknown>), quote_source_id: null }
+      : result.json;
   try {
-    classification = parseClassification(result.json, profile);
+    classification = parseClassification(json, profile);
   } catch (err) {
     return fail(err instanceof Error ? err.message : "invalid classification");
   }
-  if (fetched.apolloOnly && classification.confidence !== "low") {
+  if (fetched.apolloOnly && !web && classification.confidence !== "low") {
     return fail("invalid classification: Apollo-only input requires low confidence");
+  }
+  if (web && !classification.quote) {
+    // Muse could not quote the site either: the verdict stays low confidence.
+    classification = { ...classification, confidence: "low" };
   }
   await logClassifierCall(db, { ...run, status: "running" } as ResearchRun, {
     seq: 1,
@@ -347,7 +371,7 @@ export async function classifyCompany(db: Db, input: ClassifyCompanyInput): Prom
       quote: classification.quote,
       quoteSourceId: classification.quote_source_id,
       verification,
-      promptVersion: "v2",
+      promptVersion: web ? PROMPT_VERSION_WEB : PROMPT_VERSION,
       profileHash: profileHash(profile),
     })
     .onConflictDoUpdate({
@@ -364,10 +388,10 @@ export async function classifyCompany(db: Db, input: ClassifyCompanyInput): Prom
         quote: classification.quote,
         quoteSourceId: classification.quote_source_id,
         verification,
-        promptVersion: "v2",
+        promptVersion: web ? PROMPT_VERSION_WEB : PROMPT_VERSION,
         profileHash: profileHash(profile),
         updatedAt: new Date(),
       },
     });
-  return { runId, classification, verification, apolloOnly: fetched.apolloOnly };
+  return { runId, classification, verification, apolloOnly: fetched.apolloOnly, webFallback: web };
 }

@@ -55,6 +55,11 @@ export interface SectorPreflightStartInput {
   maxCompanies?: number;
   /** Classify exactly these companies (must be sector members; default: all members). */
   companyIds?: string[];
+  /**
+   * Re-classify only companies whose stored classification is low
+   * confidence (their site was unreadable or thin). Implies onlyPending false.
+   */
+  onlyLowConfidence?: boolean;
   budget?: JobBudget;
 }
 
@@ -66,7 +71,10 @@ export async function startSectorPreflight(
   await resolveProfileForSector(db, input.sectorId);
   // No rubric, no preflight either (only legacy skincare may use defaults).
   await getRubric(db, input.sectorId);
-  const onlyPending = input.onlyPending ?? true;
+  if (input.onlyLowConfidence && input.onlyPending === true) {
+    throw new DomainError("invalid_input", "onlyLowConfidence re-classifies done companies; drop onlyPending");
+  }
+  const onlyPending = input.onlyLowConfidence ? false : (input.onlyPending ?? true);
   const members = await db
     .select({ companyId: sectorCompanies.companyId })
     .from(sectorCompanies)
@@ -84,6 +92,14 @@ export async function startSectorPreflight(
     if (outside.length > 0) throw new DomainError("invalid_input", `${outside.length} companies are not in this sector`);
     const wanted = new Set(input.companyIds);
     companyIds = companyIds.filter((id) => wanted.has(id));
+  }
+  if (input.onlyLowConfidence) {
+    const low = await db
+      .select({ companyId: sectorPreflight.companyId })
+      .from(sectorPreflight)
+      .where(and(eq(sectorPreflight.sectorId, input.sectorId), eq(sectorPreflight.confidence, "low")));
+    const lowSet = new Set(low.map((r) => r.companyId));
+    companyIds = companyIds.filter((id) => lowSet.has(id));
   }
   if (onlyPending) {
     const done = await db

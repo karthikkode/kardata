@@ -1808,16 +1808,21 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         onlyPending: z.boolean().optional().describe("Skip already-classified companies (default true)"),
         maxCompanies: z.number().int().optional().describe("Cap the job at this many companies"),
         companyIds: z.array(z.string()).optional().describe("Classify exactly these companies (default: all members)"),
+        onlyLowConfidence: z
+          .boolean()
+          .optional()
+          .describe("Re-classify only low-confidence companies (unreadable or thin sites); implies onlyPending false"),
         budget: jobBudget,
       },
     },
-    async ({ sectorId, onlyPending, maxCompanies, companyIds, budget }) =>
+    async ({ sectorId, onlyPending, maxCompanies, companyIds, onlyLowConfidence, budget }) =>
       wrap(async () => {
         const result = await startSectorPreflight(db, {
           sectorId,
           onlyPending: onlyPending ?? undefined,
           maxCompanies: maxCompanies ?? undefined,
           companyIds: companyIds ?? undefined,
+          onlyLowConfidence: onlyLowConfidence ?? undefined,
           budget: budget ?? undefined,
         });
         return { summary: `sector job ${result.jobId}: ${result.companies} companies`, data: result };
