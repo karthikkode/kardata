@@ -1,9 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import { gzipSync } from "node:zlib";
-import { asc, eq, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { DbLike } from "../../db/client.js";
-import { blobs, companies, imports, researchRuns, sectorCompanies, sources } from "../../db/schema.js";
-import { getOrCreateManualRun } from "../../runs/queue.js";
+import { blobs, companies, researchRuns, sources } from "../../db/schema.js";
 import { DomainError } from "../errors.js";
 import { isHttpUrl } from "./validate.js";
 
@@ -165,54 +164,4 @@ export async function findApolloImportSource(
     ORDER BY fetched_at DESC, id DESC LIMIT 1`);
   const list = rows as unknown as { id: string }[];
   return list[0] ?? null;
-}
-
-export interface BackfillResult {
-  created: number;
-  alreadyHad: number;
-  skippedNoImport: number;
-}
-
-// One-off: give pre-2.1 Apollo companies their import source (latest raw,
-// earliest import). Idempotent: re-runs only fill companies still missing one.
-export async function backfillApolloImportSources(db: DbLike): Promise<BackfillResult> {
-  const rows = (await db.execute(sql`
-    SELECT c.id AS id, c.apollo_account_id AS "apolloAccountId", c.raw AS raw,
-      EXISTS(SELECT 1 FROM sources s
-             WHERE s.company_id = c.id AND s.collector = ${APOLLO_IMPORT_COLLECTOR}) AS "hasSource"
-    FROM companies c
-    WHERE c.source = 'apollo' AND c.apollo_account_id IS NOT NULL`)) as unknown as {
-    id: string;
-    apolloAccountId: string;
-    raw: unknown;
-    hasSource: boolean;
-  }[];
-  const result: BackfillResult = { created: 0, alreadyHad: 0, skippedNoImport: 0 };
-  for (const company of rows) {
-    if (company.hasSource) {
-      result.alreadyHad += 1;
-      continue;
-    }
-    const [earliest] = await db
-      .select({ importId: sectorCompanies.firstImportId })
-      .from(sectorCompanies)
-      .innerJoin(imports, eq(imports.id, sectorCompanies.firstImportId))
-      .where(eq(sectorCompanies.companyId, company.id))
-      .orderBy(asc(imports.createdAt))
-      .limit(1);
-    if (!earliest?.importId) {
-      result.skippedNoImport += 1;
-      continue;
-    }
-    const runId = await getOrCreateManualRun(db, company.id);
-    await createApolloImportSource(db, {
-      companyId: company.id,
-      runId,
-      importId: earliest.importId,
-      apolloAccountId: company.apolloAccountId,
-      raw: company.raw,
-    });
-    result.created += 1;
-  }
-  return result;
 }

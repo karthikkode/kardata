@@ -5,7 +5,6 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { sql } from "drizzle-orm";
 import { createDb, type Db } from "./db/client.js";
 import { createAgentRunner } from "./runs/agent-runner.js";
-import { createJobRunner, realJobDeps } from "./runs/bulk.js";
 import { createCompanyRunner, realCompanyDeps } from "./runs/company.js";
 import { buildStagePromptForRun } from "./runs/prompt.js";
 import {
@@ -237,8 +236,6 @@ async function main(): Promise<void> {
   // tokens before the collect runner fails leftover running rows.
   await agentRunner.start();
   await runner.start();
-  const jobRunner = createJobRunner(db, realJobDeps(db));
-  await jobRunner.start();
   const companyRunner = createCompanyRunner(db, realCompanyDeps(db));
   await companyRunner.start();
   const sectorRunner = createSectorRunner(db, {});
@@ -250,7 +247,6 @@ async function main(): Promise<void> {
       quotaMonitor.stop();
       await sectorRunner.stop();
       await companyRunner.stop();
-      await jobRunner.stop();
       await agentRunner.stop();
       await runner.stop();
       await handle.close();

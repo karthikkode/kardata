@@ -14,7 +14,6 @@ import {
   companyRevenueTruth,
   recordRevenueConfirmation,
   recordVerdicts,
-  sectorRevenueReclassify,
   sectorSheetRows,
   sectorTierSummary,
   sheetCsv,
@@ -137,63 +136,6 @@ describe("tiering against stored facts and verdicts", () => {
     expect(csv).toContain("Tier,Layer,Score,Company,Domain,Country,Revenue used,Revenue source,Flags");
   });
 
-  it("reclassifies a vendor figure so it stops counting as public", async () => {
-    const sectorId = await seedSector();
-    const companyId = await seedCompany("Vendor Co");
-    await handle.db
-      .insert(sectorCompanies)
-      .values({ sectorId, companyId, addedVia: "manual" });
-    // A vendor estimate stored the old way: named source, no kind.
-    await seedFact(
-      companyId,
-      "financials.revenue_estimate",
-      { json: { amount: 12000000 }, currency: "USD" },
-      { source: "ZoomInfo" },
-    );
-    // Point the seeded fact at a real source row, as stored facts have.
-    const runId = randomUUID();
-    await handle.db.insert(researchRuns).values({ id: runId, companyId, kind: "manual" });
-    const sourceId = randomUUID();
-    await handle.db.insert(sources).values({
-      id: sourceId,
-      companyId,
-      runId,
-      url: "https://example.invalid/vendor",
-      finalUrl: "https://example.invalid/vendor",
-      collector: "test",
-      status: "ok",
-    });
-    await handle.db
-      .update(facts)
-      .set({ sourceIds: [sourceId] })
-      .where(eq(facts.companyId, companyId));
-    await seedFact(companyId, "financials.employees", { num: 10 }, { source: "apollo" });
-    await recordVerdicts(handle.db, [
-      {
-        companyId,
-        sectorId,
-        score: 4,
-        signals: { S1: true },
-        status: "contactable",
-        source: "test-check",
-      },
-    ]);
-
-    const before = await companyRevenueTruth(handle.db, companyId, sectorId);
-    // The backstop already keeps it out of "public" at read time.
-    expect(before.revenueSource).toBe("vendor");
-    expect(before.tier).toBe("A");
-
-    const result = await sectorRevenueReclassify(handle.db, sectorId);
-    expect(result.stamped).toBe(1);
-    expect(result.byKind).toEqual({ vendor_estimate: 1 });
-
-    const after = await companyRevenueTruth(handle.db, companyId, sectorId);
-    // $12M over 10 staff passes the $75k check, but as a vendor figure.
-    expect(after.revenueSource).toBe("vendor");
-    expect(after.revenueKind).toBe("vendor_estimate");
-    expect(after.tier).toBe("A");
-  });
 
   it("a flagged public figure waits for confirmation before setting the tier", async () => {
     const sectorId = await seedSector();

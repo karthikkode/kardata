@@ -23,7 +23,7 @@ import {
   classifyRunError,
   usageInputTokens,
   type JobBudget,
-} from "./bulk.js";
+} from "./job-shared.js";
 import { startCompanyJob } from "./company.js";
 import { cancelRun } from "./queue.js";
 import { createIcpRun, runIcpCheck } from "./icp.js";

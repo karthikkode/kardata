@@ -6,11 +6,9 @@ import {
   factsCurrent,
   revenueConfirmations,
   sectorCompanies,
-  sources,
 } from "../db/schema.js";
 import { DomainError } from "./errors.js";
 import { getProfileOrNull } from "./sector-preflight/profile.js";
-import { addFacts } from "./research/facts.js";
 
 /**
  * D-55 revenue truth and tier/layer (Stage 5.3 Step 4).
@@ -367,90 +365,6 @@ export async function recordVerdicts(db: Db, verdicts: VerdictInput[]): Promise<
     recorded += 1;
   }
   return { recorded };
-}
-
-/**
- * Stamp the source kind onto stored revenue figures that lack one, writing a
- * superseding fact through the standard fact path. The kind comes from the
- * backstop classifier; the extractor's judgement (source_kind) always wins
- * where it is already stored.
- */
-export async function sectorRevenueReclassify(
-  db: Db,
-  sectorId: string,
-): Promise<{ stamped: number; alreadyStamped: number; noRevenueFact: number; byKind: Record<string, number> }> {
-  const members = await db
-    .select({ companyId: sectorCompanies.companyId })
-    .from(sectorCompanies)
-    .where(eq(sectorCompanies.sectorId, sectorId));
-  let stamped = 0;
-  let alreadyStamped = 0;
-  let noRevenueFact = 0;
-  const byKind: Record<string, number> = {};
-  for (const m of members) {
-    const [row] = await db
-      .select()
-      .from(factsCurrent)
-      .where(
-        and(
-          eq(factsCurrent.companyId, m.companyId),
-          eq(factsCurrent.key, "financials.revenue_estimate"),
-        ),
-      );
-    if (!row) {
-      noRevenueFact += 1;
-      continue;
-    }
-    const qualifiers = (row.qualifiers ?? {}) as Record<string, unknown>;
-    const source = typeof qualifiers["source"] === "string" ? (qualifiers["source"] as string) : "";
-    if (source === "") {
-      noRevenueFact += 1;
-      continue;
-    }
-    const kind = classifyRevenueSourceKind(source);
-    if (typeof qualifiers["source_kind"] === "string") {
-      // Extractor-stamped kinds are judgement and stay. Kinds we stamped
-      // ourselves are recomputed, so a stricter classifier re-stamps them.
-      const ours = row.createdBy === "reclassify:stage-5.3";
-      if (!ours || qualifiers["source_kind"] === kind) {
-        alreadyStamped += 1;
-        continue;
-      }
-    }
-    byKind[kind] = (byKind[kind] ?? 0) + 1;
-    const amount = factAmount(row);
-    const citedIds = row.sourceIds ?? [];
-    const existingSources =
-      citedIds.length > 0
-        ? await db
-            .select({ id: sources.id })
-            .from(sources)
-            .where(inArray(sources.id, citedIds))
-        : [];
-    const validSourceIds = existingSources.map((s) => s.id);
-    const results = await addFacts(db, {
-      companyId: m.companyId,
-      createdBy: "reclassify:stage-5.3",
-      facts: [
-        {
-          key: "financials.revenue_estimate",
-          value:
-            amount !== null
-              ? { amount, currency: row.currency ?? "USD" }
-              : (row.valueJson ?? row.valueText ?? row.valueNum),
-          qualifiers: {
-            ...qualifiers,
-            source_kind: kind,
-            ...(kind === "vendor_estimate" ? { estimate_kind: "vendor" } : {}),
-          },
-          sourceIds: validSourceIds,
-          confidence: row.confidence ?? "medium",
-        },
-      ],
-    });
-    if (results[0]?.ok) stamped += 1;
-  }
-  return { stamped, alreadyStamped, noRevenueFact, byKind };
 }
 
 /** Record the human verdict on a flagged public figure for one company. */

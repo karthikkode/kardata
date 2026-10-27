@@ -35,7 +35,6 @@ import {
   companyRevenueTruth,
   recordRevenueConfirmation,
   recordVerdicts,
-  sectorRevenueReclassify,
   sectorTierSummary,
 } from "../domain/tiering.js";
 import { resolveCompanySector } from "../domain/sectors.js";
@@ -51,17 +50,6 @@ import { ADAPTERS } from "../collect/adapters.js";
 import { quotaSnapshotGet } from "../runs/quota-monitor.js";
 import { researchStart } from "../runs/agent.js";
 import {
-  jobCancel,
-  jobList,
-  jobPause,
-  jobResume,
-  jobRetryFailed,
-  jobStatus,
-  startCollectSectorJob,
-  startResearchSectorJob,
-  startResearchShortlistJob,
-} from "../runs/bulk.js";
-import {
   companyJobCancel,
   companyJobList,
   companyJobPause,
@@ -76,7 +64,6 @@ import {
 } from "../runs/company.js";
 import { extractRun } from "../runs/extract.js";
 import { cancelRun, getOrCreateManualRun, startCollect } from "../runs/queue.js";
-import { backfillBatchStatus, enqueueReviewsOnsiteBackfill } from "../collect/backfill.js";
 import {
   checkpointSet,
   collectSettingsGet,
@@ -186,73 +173,6 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         const batch = await startCollect(db, companyIds, areas ?? undefined, undefined, adapters ?? undefined);
         const queued = batch.runs.filter((r) => r.status === "queued").length;
         return { summary: `batch ${batch.batchId}: ${queued} queued, ${batch.runs.length - queued} already running`, data: batch };
-      }),
-  );
-
-  registerTool(server, db, auth,
-    "reviews_onsite_backfill",
-    {
-      description: "Operator: queue on-site review backfill runs for completed Shopify companies skipped by the old plan ordering (deterministic, onsite adapter only, cursor pages; the collect worker drains the queue).",
-      inputSchema: {
-        limit: z.number().int().optional().describe("Companies per batch (1..100, default 25)"),
-        cursor: z.string().nullable().optional().describe("nextCursor from the previous batch"),
-      },
-    },
-    async ({ limit, cursor }) =>
-      wrap(async () => {
-        const result = await enqueueReviewsOnsiteBackfill(db, { limit: limit ?? undefined, cursor: cursor ?? null });
-        return {
-          summary: `onsite backfill: batch ${result.batchId ?? "none"}: ${result.queued.length} queued, ${result.alreadyRunning.length} already running, cursor ${result.nextCursor ?? "done"}`,
-          data: result,
-        };
-      }),
-  );
-
-  registerTool(server, db, auth,
-    "reviews_onsite_backfill_status",
-    {
-      description: "Operator: per-company outcomes for one onsite backfill batch (collected reviews, still-none reasons).",
-      inputSchema: { batchId: z.string().describe("Batch UUID from reviews_onsite_backfill") },
-    },
-    async ({ batchId }) =>
-      wrap(async () => {
-        const result = await backfillBatchStatus(db, batchId);
-        const done = result.results.filter((r) => r.status === "done").length;
-        return {
-          summary: `backfill batch ${batchId}: ${done}/${result.results.length} collected, ${result.ingestedReviews} reviews`,
-          data: result,
-        };
-      }),
-  );
-
-  registerTool(server, db, auth,
-    "collect_sector",
-    {
-      description: "Operator: collect every live company in a sector as a DB-backed job (employees desc, skips fresh collects by default). Feeds the queue as slots free up. Never run on a full sector without the owner's go.",
-      inputSchema: {
-        sectorId: z.string().describe("Sector UUID"),
-        onlyStale: z.boolean().optional().describe("Skip fresh collects (default true)"),
-        staleDays: z.number().optional().describe("Freshness window in days (default 14)"),
-        maxCompanies: z.number().int().optional().describe("Cap the job at this many companies"),
-        budget: z.object({
-          maxTokens: z.number().int().optional(),
-          maxHours: z.number().optional(),
-        }).optional().describe("Pause the job when a budget is reached"),
-      },
-    },
-    async ({ sectorId, onlyStale, staleDays, maxCompanies, budget }) =>
-      wrap(async () => {
-        const result = await startCollectSectorJob(db, {
-          sectorId,
-          onlyStale: onlyStale ?? undefined,
-          staleDays: staleDays ?? undefined,
-          maxCompanies: maxCompanies ?? undefined,
-          budget: budget ?? undefined,
-        });
-        return {
-          summary: `collect job ${result.jobId} started (${result.items} companies${result.capped ? ", capped" : ""})`,
-          data: result,
-        };
       }),
   );
 
@@ -1199,140 +1119,6 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   }).optional().describe("Pause the job when a budget is reached");
 
   registerTool(server, db, auth,
-    "research_sector",
-    {
-      description: "Operator: research every company in a sector (optionally screened) as a DB-backed job. Feeds the queue as slots free up; each company gets collect + agent research + extraction.",
-      inputSchema: {
-        sectorId: z.string().describe("Sector UUID"),
-        criteria: z.array(screenCriterion).max(20).optional().describe("ANDed screen criteria (default: all live companies)"),
-        sort: screenSort.optional().describe("Order (default: employees desc)"),
-        maxCompanies: z.number().int().optional().describe("Cap the job at this many companies"),
-        skipIfRecentDays: z.number().int().optional().describe("Skip companies researched within this window (default 30, 0 disables)"),
-        promptVersion: z.string().optional().describe("Research prompt version"),
-        budget: jobBudget,
-      },
-    },
-    async ({ sectorId, criteria, sort, maxCompanies, skipIfRecentDays, promptVersion, budget }) =>
-      wrap(async () => {
-        const result = await startResearchSectorJob(db, {
-          sectorId,
-          criteria: criteria ?? undefined,
-          sort: sort ?? undefined,
-          maxCompanies: maxCompanies ?? undefined,
-          skipIfRecentDays: skipIfRecentDays ?? undefined,
-          promptVersion: promptVersion ?? undefined,
-          budget: budget ?? undefined,
-        });
-        return { summary: `research job ${result.jobId} started (${result.items} companies${result.capped ? ", capped" : ""})`, data: result };
-      }),
-  );
-
-  registerTool(server, db, auth,
-    "research_shortlist",
-    {
-      description: "Operator: research every company in a shortlist (in list order) as a DB-backed job. Feeds the queue as slots free up.",
-      inputSchema: {
-        shortlistId: z.string().describe("Shortlist UUID"),
-        maxCompanies: z.number().int().optional().describe("Cap the job at this many companies"),
-        skipIfRecentDays: z.number().int().optional().describe("Skip companies researched within this window (default 30, 0 disables)"),
-        promptVersion: z.string().optional().describe("Research prompt version"),
-        budget: jobBudget,
-      },
-    },
-    async ({ shortlistId, maxCompanies, skipIfRecentDays, promptVersion, budget }) =>
-      wrap(async () => {
-        const result = await startResearchShortlistJob(db, {
-          shortlistId,
-          maxCompanies: maxCompanies ?? undefined,
-          skipIfRecentDays: skipIfRecentDays ?? undefined,
-          promptVersion: promptVersion ?? undefined,
-          budget: budget ?? undefined,
-        });
-        return { summary: `research job ${result.jobId} started (${result.items} companies${result.capped ? ", capped" : ""})`, data: result };
-      }),
-  );
-
-  registerTool(server, db, auth,
-    "job_status",
-    {
-      description: "Operator: job progress, counts, active runs, tokens, average minutes per company, ETA and per-company outcomes.",
-      inputSchema: { jobId },
-    },
-    async ({ jobId: id }) =>
-      wrap(async () => {
-        const view = await jobStatus(db, id);
-        const done = view.counts.succeeded + view.counts.failed + view.counts.skipped + view.counts.cancelled;
-        const total = done + view.counts.queued + view.counts.running + view.counts.extracting;
-        return { summary: `job ${id}: ${view.job.status}, ${done}/${total} terminal`, data: view };
-      }),
-  );
-
-  registerTool(server, db, auth,
-    "job_list",
-    {
-      description: "Operator: recent jobs with per-status counts.",
-      inputSchema: { limit: z.number().int().optional().describe("Default 20, max 100") },
-    },
-    async ({ limit }) =>
-      wrap(async () => {
-        const jobs = await jobList(db, limit ?? undefined);
-        return { summary: `${jobs.length} jobs`, data: { jobs } };
-      }),
-  );
-
-  registerTool(server, db, auth,
-    "job_pause",
-    {
-      description: "Operator: pause a job (running companies finish; nothing new starts).",
-      inputSchema: { jobId },
-    },
-    async ({ jobId: id }) =>
-      wrap(async () => {
-        await jobPause(db, id);
-        return { summary: `job ${id} paused`, data: { jobId: id } };
-      }),
-  );
-
-  registerTool(server, db, auth,
-    "job_resume",
-    {
-      description: "Operator: resume a paused job.",
-      inputSchema: { jobId },
-    },
-    async ({ jobId: id }) =>
-      wrap(async () => {
-        await jobResume(db, id);
-        return { summary: `job ${id} resumed`, data: { jobId: id } };
-      }),
-  );
-
-  registerTool(server, db, auth,
-    "job_cancel",
-    {
-      description: "Operator: cancel a job. Running agents are stopped unless stopRunning is false (then they finish).",
-      inputSchema: { jobId, stopRunning: z.boolean().optional().describe("Stop running agents too (default true)") },
-    },
-    async ({ jobId: id, stopRunning }) =>
-      wrap(async () => {
-        await jobCancel(db, id, { stopRunning: stopRunning ?? undefined });
-        return { summary: `job ${id} cancelled`, data: { jobId: id } };
-      }),
-  );
-
-  registerTool(server, db, auth,
-    "job_retry_failed",
-    {
-      description: "Operator: re-queue a job's failed companies and resume it.",
-      inputSchema: { jobId },
-    },
-    async ({ jobId: id }) =>
-      wrap(async () => {
-        const result = await jobRetryFailed(db, id);
-        return { summary: `job ${id}: ${result.retried} companies re-queued`, data: { jobId: id, retried: result.retried } };
-      }),
-  );
-
-  registerTool(server, db, auth,
     "harness_settings_get",
     {
       description: "Operator: effective harness settings (agent concurrency) and where each value comes from.",
@@ -1535,22 +1321,6 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       wrap(async () => {
         const result = await recordRevenueConfirmation(db, { companyId, decision, reason });
         return { summary: `${decision}: ${reason}`, data: result };
-      }),
-  );
-
-  registerTool(server, db, auth,
-    "sector_revenue_reclassify",
-    {
-      description:
-        "Operator: stamp source_kind onto stored revenue figures that lack one (filing, press, interview, company_statement, vendor_estimate, award_entry), so vendor estimates stop counting as public. Writes superseding facts through the standard fact path.",
-      inputSchema: {
-        sectorId: z.string().describe("Sector UUID"),
-      },
-    },
-    async ({ sectorId }) =>
-      wrap(async () => {
-        const result = await sectorRevenueReclassify(db, sectorId);
-        return { summary: `${result.stamped} revenue figures stamped`, data: result };
       }),
   );
 

@@ -41,7 +41,7 @@ import {
   classifyRunError,
   usageInputTokens,
   type JobBudget,
-} from "./bulk.js";
+} from "./job-shared.js";
 import { assertExtractionComplete, extractRun } from "./extract.js";
 import { runIcpCheck } from "./icp.js";
 import { latestPromptVersion } from "./prompt.js";
