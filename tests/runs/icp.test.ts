@@ -20,6 +20,7 @@ import { recordVerdicts } from "../../src/domain/tiering.js";
 import type { ClassifierCall } from "../../src/runs/sector-classify.js";
 import { latestIcpCheck } from "../../src/domain/icp/reads.js";
 import { runIcpCheck } from "../../src/runs/icp.js";
+import { ICP_VOTES } from "../../src/domain/icp/judge.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
 
 let handle: DbHandle;
@@ -137,15 +138,17 @@ describe("runIcpCheck", () => {
     // The stale job post never reached the judge.
     expect(prompts[0]).not.toContain("Inventory Planner");
     const [verdict] = await handle.db.select().from(companyVerdicts).where(eq(companyVerdicts.companyId, s.companyId));
-    expect(verdict).toMatchObject({ score: 2, status: "contactable", source: `icp-v2:${out.checkId}` });
+    expect(verdict).toMatchObject({ score: 2, status: "contactable", source: `icp-v3:${out.checkId}` });
     expect(verdict?.signals).toMatchObject({ channels: true, tool_sprawl: true, hiring: false });
     const check = await latestIcpCheck(handle.db, s.companyId);
     expect(check?.evidence).toHaveLength(2);
     const tool = (check?.results as { signals: { key: string; droppedRefs: string[] }[] }).signals.find((r) => r.key === "tool_sprawl");
     expect(tool?.droppedRefs).toEqual(["f:not-in-pack"]);
     const calls = await handle.db.select().from(providerCalls).where(eq(providerCalls.runId, out.runId));
-    expect(calls).toHaveLength(1);
+    expect(calls).toHaveLength(ICP_VOTES);
     expect(calls[0]).toMatchObject({ stage: "icp", inputTokens: 900 });
+    expect((check?.results as { votes: Record<string, string> }).votes["signals.channels"]).toBe(`yes ${ICP_VOTES}`);
+    expect(check?.usage).toMatchObject({ inputTokens: 900 * ICP_VOTES });
     const [run] = await handle.db.select().from(researchRuns).where(eq(researchRuns.id, out.runId));
     expect(run).toMatchObject({ kind: "icp", stage: "icp", status: "succeeded" });
   });
@@ -158,7 +161,7 @@ describe("runIcpCheck", () => {
     expect(rows).toHaveLength(2);
     expect(first.checkId).not.toBe(second.checkId);
     const [verdict] = await handle.db.select().from(companyVerdicts).where(eq(companyVerdicts.companyId, s.companyId));
-    expect(verdict?.source).toBe(`icp-v2:${second.checkId}`);
+    expect(verdict?.source).toBe(`icp-v3:${second.checkId}`);
   });
 
   it("keeps a manual override verdict", async () => {
@@ -214,7 +217,7 @@ describe("runIcpCheck", () => {
         return judge(input);
       },
     });
-    expect(calls).toBe(2);
+    expect(calls).toBe(ICP_VOTES + 1);
     expect(out.decision.status).toBe("contactable");
   });
 

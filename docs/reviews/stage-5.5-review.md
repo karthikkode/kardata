@@ -27,6 +27,10 @@ Branch `feat/stage-5.5-icp`, one commit per step (plus a migrate-test fix). Full
 - **Manual overrides:** a verdict whose source starts with `override:` is never overwritten by a check. The
   2026-10-26 skincare verdicts have other sources, so a skincare `sector_icp_start` would replace them. That's the
   owner's call.
+- **Three judge votes per check (icp-v3, after the pilot).** One call flipped borderline answers between re-runs.
+  `mergeJudgements` (`src/domain/icp/judge.ts`) keeps a verdict only when 2 of 3 agree; the tallies are stored in
+  `results.votes`. icp-v2/v3 also count distinct vendors for tool sprawl, and count wholesale as a channel even when
+  trade orders come through the brand's own site.
 - **`batch_scorecard` gained `companyJobIds`.** It was needed to score the 10-company pilot, which has no batch id,
   through MCP.
 
