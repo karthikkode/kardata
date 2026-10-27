@@ -81,30 +81,21 @@ const VENDOR_BACKSTOP = [
   "bold.pro",
 ];
 
-/** Known editorial outlets. Anything else fails closed to vendor_estimate. */
-const PRESS_BACKSTOP = [
-  "wwd",
-  "women's wear daily",
-  "beautymatter",
-  "beauty independent",
-  "glossy",
+/** Generic editorial outlets kept in code. Sector press lives in the profile. */
+export const GENERIC_PRESS_SOURCES = [
   "forbes",
-  "businesscloud",
-  "happi",
   "fast company",
-  "premium beauty",
-  "cosmeticsbusiness",
-  "cosmetics business",
+  "businesscloud",
+  "glossy",
   "fierce biotech",
   "stocktitan",
-  "little pink book",
-  "body+soul",
   "acuity",
 ];
 
 export function classifyRevenueSourceKind(
   sourceName: string,
   storedKind?: string | null,
+  pressSources: string[] = [],
 ): RevenueSourceKind {
   if (storedKind && (SOURCE_KINDS as string[]).includes(storedKind)) {
     return storedKind as RevenueSourceKind;
@@ -122,7 +113,8 @@ export function classifyRevenueSourceKind(
     return "filing";
   }
   if (name.includes("podcast") || name.includes("interview")) return "interview";
-  if (PRESS_BACKSTOP.some((v) => name.includes(v))) return "press";
+  const press = [...GENERIC_PRESS_SOURCES, ...pressSources.map((s) => s.toLowerCase())];
+  if (press.some((v) => name.includes(v))) return "press";
   if (name.includes("investor page") || name.includes("investor relations")) {
     return "company_statement";
   }

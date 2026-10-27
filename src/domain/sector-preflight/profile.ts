@@ -27,7 +27,6 @@ export const sectorProfileSchema = z
   .object({
     name: z.string().min(1).max(120).optional(),
     description: z.string().max(2000).optional(),
-    rubric: z.unknown().optional(),
     categories: z
       .array(
         z
@@ -45,6 +44,9 @@ export const sectorProfileSchema = z
         coreCategories: z.array(categoryKey).max(20),
         adjacentCategories: z.array(categoryKey).max(20),
         scopeKeywords: z.array(z.string().min(1).max(120)).max(200),
+        businessTypes: z.array(z.string().min(1)).min(1).max(30),
+        requireSellsOwnProducts: z.boolean(),
+        requireHasOnlineStore: z.boolean(),
       })
       .strict(),
     classifierHints: z
@@ -52,6 +54,22 @@ export const sectorProfileSchema = z
         serviceExamples: z.string().max(500),
         retailerExamples: z.string().max(500),
         supplierExamples: z.string().max(500),
+      })
+      .strict(),
+    tiering: z
+      .object({
+        apolloMinPerStaff: z.number().positive(),
+        staffEstimatePerHead: z.number().positive(),
+        publicCheckPerStaff: z.number().positive(),
+        pressSources: z.array(z.string().min(1).max(120)).max(50),
+      })
+      .strict(),
+    promptHints: z
+      .object({
+        retailerExamples: z.string().max(300),
+        priceTiers: z.string().max(300),
+        productClaims: z.string().max(300),
+        positioningStory: z.string().max(300),
       })
       .strict(),
   })
@@ -100,6 +118,11 @@ export function parseSectorProfile(value: unknown): SectorProfile {
       `invalid sector profile: categories in both core and adjacent scope: ${overlap.join(", ")}`,
     );
   }
+  for (const type of profile.scope.businessTypes) {
+    if (!(BUSINESS_TYPES as readonly string[]).includes(type)) {
+      throw new DomainError("invalid_input", `invalid sector profile: scope lists unknown business_type "${type}"`);
+    }
+  }
   return profile;
 }
 
@@ -127,6 +150,20 @@ export function validateRubricAgainstProfile(rubric: EligibilityRubric, profile:
   }
 }
 
+/** Sector press sources for the stored skincare profile (B1 values). */
+export const SKINCARE_PRESS_SOURCES = [
+  "wwd",
+  "women's wear daily",
+  "beautymatter",
+  "beauty independent",
+  "happi",
+  "premium beauty",
+  "cosmeticsbusiness",
+  "cosmetics business",
+  "little pink book",
+  "body+soul",
+];
+
 /** The skincare profile: today's constants, field for field. */
 export const SKINCARE_PROFILE: SectorProfile = {
   categories: [
@@ -151,11 +188,26 @@ export const SKINCARE_PROFILE: SectorProfile = {
       "salicylic", "azelaic", "kojic", "anti-ag", "antiag", "wrinkle", "dark spot",
       "hyperpigment", "melasma", "skin barrier",
     ],
+    businessTypes: ["dtc_brand"],
+    requireSellsOwnProducts: true,
+    requireHasOnlineStore: true,
   },
   classifierHints: {
     serviceExamples: "spa, salon, barbershop, beauty services without own product line",
     retailerExamples: "beauty store, pharmacy chain, marketplace selling other brands",
     supplierExamples: "raw ingredients, packaging, or equipment supplier",
+  },
+  tiering: {
+    apolloMinPerStaff: 75000,
+    staffEstimatePerHead: 175000,
+    publicCheckPerStaff: 1000000,
+    pressSources: [...SKINCARE_PRESS_SOURCES],
+  },
+  promptHints: {
+    retailerExamples: "Sephora, Ulta, Target, Boots, Amazon, pharmacies",
+    priceTiers: "masstige, prestige, luxury, budget",
+    productClaims: "clean, vegan, dermatologist-tested, ingredient stories",
+    positioningStory: "ingredient story",
   },
 };
 
@@ -203,11 +255,11 @@ export interface SetProfileResult {
   before: EligibilityCounts;
   after: EligibilityCounts;
   reclassifyPending: number;
-  rubricApplied: boolean;
+  changedFields: string[];
 }
 
 /**
- * Store a profile. Scope/rubric-only edits re-derive instantly. Changing
+ * Store a profile. Scope-only edits re-derive instantly. Changing
  * category keys after classifications exist is refused unless
  * `reclassify: true`, which marks classified memberships pending again.
  */
@@ -219,25 +271,25 @@ export async function setProfile(
 ): Promise<SetProfileResult> {
   const sector = await loadSectorRow(db, sectorId);
   const profile = parseSectorProfile(value);
-  // A rubric included in the profile goes through the same validated path
-  // as sector_rules_set, checked against the new categories up front so a
-  // bad rubric stores nothing.
-  const { eligibilityRubricSchema, parseEligibilityRubric, setRubric } = await import("./eligibility.js");
-  const includedRubric =
-    profile.rubric !== undefined ? parseEligibilityRubric(profile.rubric, profile) : null;
-  const rubricParsed = sector.eligibilityRules
-    ? eligibilityRubricSchema.safeParse(sector.eligibilityRules)
-    : null;
-  if (rubricParsed && !rubricParsed.success) {
-    throw new DomainError("invalid_input", "stored rubric is invalid; set it again");
-  }
-  // Only a stored rubric constrains the new profile (and only when the call
-  // does not replace it in the same step); a sector without one gets its
-  // rubric validated when the rubric itself is set.
-  if (rubricParsed?.data && !includedRubric) validateRubricAgainstProfile(rubricParsed.data, profile);
 
   const before = await eligibilityCounts(db, sectorId);
-  const existing = sector.profile ? parseSectorProfile(sector.profile) : null;
+  let existing: SectorProfile | null = null;
+  if (sector.profile) {
+    try {
+      existing = parseSectorProfile(sector.profile);
+    } catch {
+      existing = null;
+    }
+  }
+  const changedFields: string[] = [];
+  if (existing) {
+    const topKeys = ["name", "description", "categories", "scope", "classifierHints", "tiering", "promptHints"] as const;
+    for (const key of topKeys) {
+      if (JSON.stringify(existing[key] ?? null) !== JSON.stringify(profile[key] ?? null)) changedFields.push(key);
+    }
+  } else {
+    changedFields.push("categories", "scope", "classifierHints", "tiering", "promptHints");
+  }
   const keysChanged =
     existing !== null &&
     JSON.stringify([...categoryKeys(existing)].sort()) !== JSON.stringify([...categoryKeys(profile)].sort());
@@ -259,7 +311,6 @@ export async function setProfile(
     .update(sectors)
     .set({ profile: profile as unknown as Record<string, unknown> })
     .where(eq(sectors.id, sectorId));
-  if (includedRubric) await setRubric(db, sectorId, includedRubric);
   if (reclassifyPending > 0) {
     // Pending marking wins over any re-derivation above: the stored
     // classifications were made with the old category keys.
@@ -277,7 +328,7 @@ export async function setProfile(
     await applySectorScope(db, sectorId);
   }
   const after = await eligibilityCounts(db, sectorId);
-  return { profile, before, after, reclassifyPending, rubricApplied: includedRubric !== null };
+  return { profile, before, after, reclassifyPending, changedFields };
 }
 
 export { PRIMARY_CATEGORIES };

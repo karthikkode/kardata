@@ -19,7 +19,9 @@ const gardenInput = {
     { key: "growing", label: "Growing", description: "Seeds, bulbs, plants, compost." },
     { key: "tools_watering", label: "Tools & watering", description: "Tools, hoses, irrigation." },
   ],
-  scope: { coreCategories: ["growing"], adjacentCategories: [], scopeKeywords: [] },
+  scope: { coreCategories: ["growing"], adjacentCategories: [], scopeKeywords: [], businessTypes: ["dtc_brand"], requireSellsOwnProducts: true, requireHasOnlineStore: true },
+  tiering: { apolloMinPerStaff: 75000, staffEstimatePerHead: 175000, publicCheckPerStaff: 1000000, pressSources: [] },
+  promptHints: { retailerExamples: "example retailers", priceTiers: "example tiers", productClaims: "example claims", positioningStory: "example story" },
   classifierHints: {
     serviceExamples: "landscaping, garden design",
     retailerExamples: "garden centres, DIY chains",
@@ -37,7 +39,7 @@ describe("parseSectorProfile", () => {
     expect(() =>
       parseSectorProfile({
         ...gardenInput,
-        scope: { coreCategories: ["nope"], adjacentCategories: [], scopeKeywords: [] },
+        scope: { ...gardenInput.scope, coreCategories: ["nope"] },
       }),
     ).toThrowError(/unknown category "nope"/);
   });
@@ -46,7 +48,7 @@ describe("parseSectorProfile", () => {
     expect(() =>
       parseSectorProfile({
         ...gardenInput,
-        scope: { coreCategories: ["growing"], adjacentCategories: ["growing"], scopeKeywords: [] },
+        scope: { ...gardenInput.scope, adjacentCategories: ["growing"] },
       }),
     ).toThrowError(/both core and adjacent/);
     expect(() =>
@@ -70,6 +72,37 @@ describe("parseSectorProfile", () => {
       description: "x",
     }));
     expect(() => parseSectorProfile({ ...gardenInput, categories: many })).toThrowError(/at most 20/);
+  });
+});
+
+describe("profile v2 fields", () => {
+  it("rejects a business type outside BUSINESS_TYPES and an over-long prompt hint", () => {
+    expect(() =>
+      parseSectorProfile({
+        ...gardenInput,
+        scope: { ...gardenInput.scope, businessTypes: ["not_a_type"] },
+      }),
+    ).toThrowError(/invalid sector profile/);
+    expect(() =>
+      parseSectorProfile({
+        ...gardenInput,
+        promptHints: { ...gardenInput.promptHints, priceTiers: "x".repeat(301) },
+      }),
+    ).toThrowError(/invalid sector profile/);
+  });
+
+  it("rejects a profile carrying the removed rubric field", () => {
+    expect(() => parseSectorProfile({ ...gardenInput, rubric: {} })).toThrowError(/invalid sector profile/);
+  });
+
+  it("profileHash covers category keys only", () => {
+    const a = parseSectorProfile(gardenInput);
+    const b = parseSectorProfile({
+      ...gardenInput,
+      promptHints: { ...gardenInput.promptHints, priceTiers: "different tiers" },
+      tiering: { ...gardenInput.tiering, apolloMinPerStaff: 1 },
+    });
+    expect(profileHash(a)).toBe(profileHash(b));
   });
 });
 
@@ -111,11 +144,29 @@ describe("SKINCARE_PROFILE matches the old constants field for field", () => {
           "salicylic", "azelaic", "kojic", "anti-ag", "antiag", "wrinkle", "dark spot",
           "hyperpigment", "melasma", "skin barrier",
         ],
+        businessTypes: ["dtc_brand"],
+        requireSellsOwnProducts: true,
+        requireHasOnlineStore: true,
       },
       classifierHints: {
         serviceExamples: "spa, salon, barbershop, beauty services without own product line",
         retailerExamples: "beauty store, pharmacy chain, marketplace selling other brands",
         supplierExamples: "raw ingredients, packaging, or equipment supplier",
+      },
+      tiering: {
+        apolloMinPerStaff: 75000,
+        staffEstimatePerHead: 175000,
+        publicCheckPerStaff: 1000000,
+        pressSources: [
+          "wwd", "women's wear daily", "beautymatter", "beauty independent", "happi",
+          "premium beauty", "cosmeticsbusiness", "cosmetics business", "little pink book", "body+soul",
+        ],
+      },
+      promptHints: {
+        retailerExamples: "Sephora, Ulta, Target, Boots, Amazon, pharmacies",
+        priceTiers: "masstige, prestige, luxury, budget",
+        productClaims: "clean, vegan, dermatologist-tested, ingredient stories",
+        positioningStory: "ingredient story",
       },
     });
     // And against the surviving pre-5.4 constants themselves, not just literals.

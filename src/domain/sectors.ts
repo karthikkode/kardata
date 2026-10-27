@@ -4,7 +4,6 @@ import { imports, sectorCompanies, sectors, type Import } from "../db/schema.js"
 import type { Db, DbLike } from "../db/client.js";
 import { getImportDirs } from "../lib/env.js";
 import { DomainError, isUniqueViolation } from "./errors.js";
-import { parseEligibilityRubric } from "./sector-preflight/eligibility.js";
 import { parseSectorProfile } from "./sector-preflight/profile.js";
 import { checkImportPaths, importOneFile, MAX_FILES, type FileImportResult } from "./imports.js";
 
@@ -79,10 +78,6 @@ export async function createSector(
   }
   await checkImportPaths(paths, opts.importDirs ?? getImportDirs());
   const profile = input.profile !== undefined ? parseSectorProfile(input.profile) : null;
-  // A rubric included in the profile is stored through the same validated
-  // path as sector_rules_set (checked against the profile up front).
-  const rubric =
-    profile && profile.rubric !== undefined ? parseEligibilityRubric(profile.rubric, profile) : null;
   return db.transaction(async (tx) => {
     if (await existingByName(tx, name)) {
       throw new DomainError("conflict", `sector already exists: ${name}`);
@@ -96,7 +91,6 @@ export async function createSector(
           name,
           description,
           profile: profile as Record<string, unknown> | null,
-          eligibilityRules: rubric as Record<string, unknown> | null,
         })
         .returning({ id: sectors.id });
       if (!row) throw new Error("insert returned no row");

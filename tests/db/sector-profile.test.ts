@@ -12,7 +12,6 @@ import {
   getProfileOrNull,
   setProfile,
 } from "../../src/domain/sector-preflight/profile.js";
-import { getRubric } from "../../src/domain/sector-preflight/eligibility.js";
 import { createSector } from "../../src/domain/sectors.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
 
@@ -50,7 +49,9 @@ describe("sector profile storage", () => {
         { key: "growing", label: "Growing", description: "Seeds and plants." },
         { key: "tools_watering", label: "Tools", description: "Tools and watering." },
       ],
-      scope: { coreCategories: ["growing"], adjacentCategories: [], scopeKeywords: [] },
+      scope: { coreCategories: ["growing"], adjacentCategories: [], scopeKeywords: [], businessTypes: ["dtc_brand"], requireSellsOwnProducts: true, requireHasOnlineStore: true },
+  tiering: { apolloMinPerStaff: 75000, staffEstimatePerHead: 175000, publicCheckPerStaff: 1000000, pressSources: [] },
+  promptHints: { retailerExamples: "example retailers", priceTiers: "example tiers", productClaims: "example claims", positioningStory: "example story" },
       classifierHints: {
         serviceExamples: "landscaping",
         retailerExamples: "garden centres",
@@ -105,87 +106,46 @@ describe("sector profile storage", () => {
     expect(membership?.eligibility).toBe("pending");
   });
 
-  it("stores a rubric included in the profile via the sector_rules_set path", async () => {
-    const sectorId = await makeSector("garden-test");
-    const rubric = {
-      eligible: {
-        businessTypes: ["dtc_brand"],
-        primaryCategories: ["growing"],
-        requireSellsOwnProducts: true,
-        requireHasOnlineStore: true,
-      },
-      review: { businessTypes: ["brand_retail_only", "unknown"], primaryCategories: [], lowConfidence: true },
-    };
-    const result = await setProfile(handle.db, sectorId, {
-      categories: [
-        { key: "growing", label: "Growing", description: "Seeds and plants." },
-        { key: "tools_watering", label: "Tools", description: "Tools and watering." },
-      ],
-      scope: { coreCategories: ["growing"], adjacentCategories: [], scopeKeywords: [] },
-      classifierHints: {
-        serviceExamples: "landscaping",
-        retailerExamples: "garden centres",
-        supplierExamples: "trade growers",
-      },
-      rubric,
-    });
-    expect(result.rubricApplied).toBe(true);
-    await expect(getRubric(handle.db, sectorId)).resolves.toEqual({ rubric, isDefault: false });
-  });
-
-  it("rejects a bad included rubric and stores nothing", async () => {
+  it("rejects a profile carrying the removed rubric field and stores nothing", async () => {
     const sectorId = await makeSector("garden-test");
     await expect(
       setProfile(handle.db, sectorId, {
         categories: [{ key: "growing", label: "Growing", description: "Seeds and plants." }],
-        scope: { coreCategories: ["growing"], adjacentCategories: [], scopeKeywords: [] },
+        scope: { coreCategories: ["growing"], adjacentCategories: [], scopeKeywords: [], businessTypes: ["dtc_brand"], requireSellsOwnProducts: true, requireHasOnlineStore: true },
+  tiering: { apolloMinPerStaff: 75000, staffEstimatePerHead: 175000, publicCheckPerStaff: 1000000, pressSources: [] },
+  promptHints: { retailerExamples: "example retailers", priceTiers: "example tiers", productClaims: "example claims", positioningStory: "example story" },
         classifierHints: {
           serviceExamples: "landscaping",
           retailerExamples: "garden centres",
           supplierExamples: "trade growers",
         },
-        rubric: {
-          eligible: {
-            businessTypes: ["dtc_brand"],
-            primaryCategories: ["skincare"],
-            requireSellsOwnProducts: true,
-            requireHasOnlineStore: true,
-          },
-          review: { businessTypes: [], primaryCategories: [], lowConfidence: true },
-        },
+        rubric: { eligible: {}, review: {} },
       }),
-    ).rejects.toThrow(/rubric lists unknown category "skincare"/);
+    ).rejects.toThrow(/invalid sector profile/);
     expect(await getProfileOrNull(handle.db, sectorId)).toBeNull();
   });
 
-  it("sector_create with a profile stores its rubric too; a bad rubric creates nothing", async () => {
-    const rubric = {
-      eligible: {
-        businessTypes: ["dtc_brand"],
-        primaryCategories: ["growing"],
-        requireSellsOwnProducts: true,
-        requireHasOnlineStore: true,
-      },
-      review: { businessTypes: ["unknown"], primaryCategories: [], lowConfidence: true },
-    };
+  it("sector_create with a profile stores it; changed fields are reported on update", async () => {
     const profile = {
       categories: [{ key: "growing", label: "Growing", description: "Seeds and plants." }],
-      scope: { coreCategories: ["growing"], adjacentCategories: [], scopeKeywords: [] },
+      scope: { coreCategories: ["growing"], adjacentCategories: [], scopeKeywords: [], businessTypes: ["dtc_brand"], requireSellsOwnProducts: true, requireHasOnlineStore: true },
+  tiering: { apolloMinPerStaff: 75000, staffEstimatePerHead: 175000, publicCheckPerStaff: 1000000, pressSources: [] },
+  promptHints: { retailerExamples: "example retailers", priceTiers: "example tiers", productClaims: "example claims", positioningStory: "example story" },
       classifierHints: {
         serviceExamples: "landscaping",
         retailerExamples: "garden centres",
         supplierExamples: "trade growers",
       },
-      rubric,
     };
     const { sector } = await createSector(handle.db, { name: "garden-created", profile });
-    await expect(getRubric(handle.db, sector.id)).resolves.toEqual({ rubric, isDefault: false });
-    await expect(
-      createSector(handle.db, {
-        name: "garden-bad",
-        profile: { ...profile, rubric: { ...rubric, eligible: { ...rubric.eligible, primaryCategories: ["nope"] } } },
-      }),
-    ).rejects.toThrow(/unknown category "nope"/);
+    const stored = await getProfile(handle.db, sector.id);
+    expect(categoryKeys(stored)).toEqual(["growing", "other"]);
+    const updated = await setProfile(handle.db, sector.id, {
+      ...profile,
+      promptHints: { ...profile.promptHints, priceTiers: "new tiers" },
+    });
+    expect(updated.changedFields).toContain("promptHints");
+    expect(updated.before).toEqual(updated.after);
   });
 
   it("stores the skincare seed unchanged (same categories as the old enum)", async () => {

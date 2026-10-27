@@ -34,7 +34,9 @@ const garden = parseSectorProfile({
     { key: "tools_watering", label: "Tools & watering", description: "Tools, hoses and irrigation." },
     { key: "outdoor_decor", label: "Outdoor decor", description: "Decor, furniture, lighting." },
   ],
-  scope: { coreCategories: ["growing"], adjacentCategories: [], scopeKeywords: [] },
+  scope: { coreCategories: ["growing"], adjacentCategories: [], scopeKeywords: [], businessTypes: ["dtc_brand"], requireSellsOwnProducts: true, requireHasOnlineStore: true },
+  tiering: { apolloMinPerStaff: 75000, staffEstimatePerHead: 175000, publicCheckPerStaff: 1000000, pressSources: [] },
+  promptHints: { retailerExamples: "example retailers", priceTiers: "example tiers", productClaims: "example claims", positioningStory: "example story" },
   classifierHints: {
     serviceExamples: "landscaping, garden design",
     retailerExamples: "garden centres",

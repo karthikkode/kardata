@@ -60,38 +60,28 @@
       "lawn_care"
     ],
     "adjacentCategories": [],
-    "scopeKeywords": []
-  },
-  "rubric": {
-    "review": {
-      "businessTypes": [
-        "brand_retail_only",
-        "unknown"
-      ],
-      "lowConfidence": true,
-      "primaryCategories": []
-    },
-    "eligible": {
-      "businessTypes": [
-        "dtc_brand"
-      ],
-      "primaryCategories": [
-        "growing",
-        "tools_watering",
-        "planters_structures",
-        "outdoor_furniture",
-        "outdoor_cooking_heating",
-        "lighting_decor",
-        "wildlife",
-        "lawn_care"
-      ],
-      "requireHasOnlineStore": true,
-      "requireSellsOwnProducts": true
-    }
+    "scopeKeywords": [],
+    "businessTypes": [
+      "dtc_brand"
+    ],
+    "requireSellsOwnProducts": true,
+    "requireHasOnlineStore": true
   },
   "classifierHints": {
     "serviceExamples": "landscaping, lawn and garden maintenance, garden design, tree surgery, florists and flower delivery",
     "retailerExamples": "garden centres, DIY and hardware chains, national store chains that sell mainly through their own stores even with own-label ranges, department stores, multi-brand online outdoor retailers",
     "supplierExamples": "growers selling only to trade, horticultural wholesalers"
+  },
+  "tiering": {
+    "apolloMinPerStaff": 75000,
+    "staffEstimatePerHead": 175000,
+    "publicCheckPerStaff": 1000000,
+    "pressSources": []
+  },
+  "promptHints": {
+    "retailerExamples": "",
+    "priceTiers": "",
+    "productClaims": "",
+    "positioningStory": ""
   }
 }

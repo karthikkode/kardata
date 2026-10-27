@@ -9,6 +9,7 @@ import {
   applySectorScope,
   getRubric,
   rederiveSector,
+  setRubric,
 } from "../../src/domain/sector-preflight/eligibility.js";
 import { parseSectorProfile, profileHash } from "../../src/domain/sector-preflight/profile.js";
 import { classifyCompany, createSectorRun } from "../../src/runs/sector-classify.js";
@@ -42,21 +43,27 @@ const TEST_PROFILE = {
     coreCategories: ["growing", "tools_watering", "planters_structures", "outdoor_furniture", "lighting_decor", "lawn_care"],
     adjacentCategories: [],
     scopeKeywords: [],
+    businessTypes: ["dtc_brand"],
+    requireSellsOwnProducts: true,
+    requireHasOnlineStore: true,
   },
-  rubric: {
-    eligible: {
-      businessTypes: ["dtc_brand"],
-      primaryCategories: ["growing", "tools_watering", "planters_structures", "outdoor_furniture", "lighting_decor", "lawn_care"],
-      requireSellsOwnProducts: true,
-      requireHasOnlineStore: true,
-    },
-    review: { businessTypes: ["brand_retail_only", "unknown"], primaryCategories: [], lowConfidence: true },
-  },
+  tiering: { apolloMinPerStaff: 75000, staffEstimatePerHead: 175000, publicCheckPerStaff: 1000000, pressSources: [] },
+  promptHints: { retailerExamples: "example retailers", priceTiers: "example tiers", productClaims: "example claims", positioningStory: "example story" },
   classifierHints: {
     serviceExamples: "landscaping or garden-design service without its own product line",
     retailerExamples: "garden centre or DIY chain selling other brands",
     supplierExamples: "grower or materials supplier selling only to trade",
   },
+};
+
+const TEST_RUBRIC = {
+  eligible: {
+    businessTypes: ["dtc_brand"],
+    primaryCategories: ["growing", "tools_watering", "planters_structures", "outdoor_furniture", "lighting_decor", "lawn_care"],
+    requireSellsOwnProducts: true,
+    requireHasOnlineStore: true,
+  },
+  review: { businessTypes: ["brand_retail_only", "unknown"], primaryCategories: [] as string[], lowConfidence: true },
 };
 
 function answer(patch: Record<string, unknown>): Record<string, unknown> {
@@ -161,9 +168,10 @@ describe("garden sector end to end (synthetic)", () => {
       },
       { importDirs: [FIXTURES] },
     );
-    // The rubric arrived with the profile (one call), via sector_rules_set's path.
+    // Rubric is set separately now (profiles no longer carry one).
+    await setRubric(handle.db, sector.id, TEST_RUBRIC);
     await expect(getRubric(handle.db, sector.id)).resolves.toEqual({
-      rubric: TEST_PROFILE.rubric,
+      rubric: TEST_RUBRIC,
       isDefault: false,
     });
 

@@ -1,12 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { eligibilityRubricSchema } from "../../src/domain/sector-preflight/eligibility.js";
-import {
-  categoryKeys,
-  parseSectorProfile,
-  validateRubricAgainstProfile,
-} from "../../src/domain/sector-preflight/profile.js";
+import { categoryKeys, parseSectorProfile } from "../../src/domain/sector-preflight/profile.js";
 
 const GARDEN_KEYS = [
   "growing",
@@ -39,20 +34,11 @@ describe("docs/plans/stage-5.4-garden-profile.json (first non-skincare profile)"
     });
   });
 
-  it("carries the plan rubric, valid against its own categories", () => {
+  it("carries v2 scope fields matching its old rubric", () => {
     const profile = parseSectorProfile(raw);
-    const rubric = eligibilityRubricSchema.parse(raw.rubric);
-    expect(rubric.eligible).toEqual({
-      businessTypes: ["dtc_brand"],
-      primaryCategories: GARDEN_KEYS,
-      requireSellsOwnProducts: true,
-      requireHasOnlineStore: true,
-    });
-    expect(rubric.review).toEqual({
-      businessTypes: ["brand_retail_only", "unknown"],
-      primaryCategories: [],
-      lowConfidence: true,
-    });
-    expect(() => validateRubricAgainstProfile(rubric, profile)).not.toThrow();
+    expect(profile.scope.businessTypes).toEqual(["dtc_brand"]);
+    expect(profile.scope.requireSellsOwnProducts).toBe(true);
+    expect(profile.scope.requireHasOnlineStore).toBe(true);
+    expect(raw.rubric).toBeUndefined();
   });
 });

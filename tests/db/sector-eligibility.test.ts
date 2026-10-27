@@ -167,7 +167,9 @@ describe("sector eligibility", () => {
     const sectorId = await makeSector("garden-test");
     await setProfile(handle.db, sectorId, {
       categories: [{ key: "growing", label: "Growing", description: "Seeds and plants." }],
-      scope: { coreCategories: ["growing"], adjacentCategories: [], scopeKeywords: [] },
+      scope: { coreCategories: ["growing"], adjacentCategories: [], scopeKeywords: [], businessTypes: ["dtc_brand"], requireSellsOwnProducts: true, requireHasOnlineStore: true },
+  tiering: { apolloMinPerStaff: 75000, staffEstimatePerHead: 175000, publicCheckPerStaff: 1000000, pressSources: [] },
+  promptHints: { retailerExamples: "example retailers", priceTiers: "example tiers", productClaims: "example claims", positioningStory: "example story" },
       classifierHints: {
         serviceExamples: "landscaping",
         retailerExamples: "garden centres",
