@@ -24,4 +24,13 @@ describe("classifyRunArgs", () => {
     expect(CLASSIFY_MUSE_ARGS).toContain("--disable-web-tools");
     expect(classifyRunArgs({ runId: "abc", inputDir: "/tmp/in" }).join(" ")).toContain("--max-model-steps 3");
   });
+
+  it("names parallel calls of one run apart, keeping the run label", () => {
+    const a = classifyRunArgs({ runId: "abc", inputDir: "/tmp/in", callKey: "v1-a0" });
+    const b = classifyRunArgs({ runId: "abc", inputDir: "/tmp/in", callKey: "v2-a0" });
+    const name = (args: string[]) => args[args.indexOf("--name") + 1];
+    expect(name(a)).toBe("kardata-classify-abc-v1-a0");
+    expect(name(a)).not.toBe(name(b));
+    expect(a.join(" ")).toContain("=abc");
+  });
 });

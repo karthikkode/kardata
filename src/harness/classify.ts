@@ -47,15 +47,19 @@ export const CLASSIFY_WEB_MUSE_ARGS = CLASSIFY_MUSE_ARGS.filter((arg) => arg !==
   (arg, i, all) => (all[i - 1] === "--max-model-steps" ? CLASSIFY_WEB_MAX_STEPS : arg),
 );
 
-export function classifyContainerName(runId: string): string {
+/** Container name per call; `callKey` separates parallel calls of one run (ICP votes). */
+export function classifyContainerName(runId: string, callKey?: string): string {
   const safe = runId.replace(/[^a-zA-Z0-9_.-]/g, "-").slice(0, 100);
   if (safe.replace(/-/g, "") === "") throw new Error("runId has no usable characters for a container name");
-  return `kardata-classify-${safe}`;
+  const key = callKey ? `-${callKey.replace(/[^a-zA-Z0-9_.-]/g, "-").slice(0, 20)}` : "";
+  return `kardata-classify-${safe}${key}`;
 }
 
 export interface ClassifyRunOptions {
   runId: string;
   inputDir: string;
+  /** Distinct per parallel call of one run (see classifyContainerName). */
+  callKey?: string;
   /** Let Muse read the site itself (our fetch got nothing). */
   web?: boolean;
 }
@@ -67,7 +71,7 @@ export function classifyRunArgs(opts: ClassifyRunOptions): string[] {
     "run",
     "--rm",
     "--name",
-    classifyContainerName(opts.runId),
+    classifyContainerName(opts.runId, opts.callKey),
     "--label",
     `${RUN_LABEL}=${opts.runId}`,
     "--memory",

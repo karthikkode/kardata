@@ -206,6 +206,7 @@ describe("runIcpCheck", () => {
   it("retries a stalled judge call once", async () => {
     const s = await seed();
     let calls = 0;
+    const keys: string[] = [];
     const judge = fakeJudge(s);
     const out = await runIcpCheck(handle.db, {
       sectorId: s.sectorId,
@@ -213,11 +214,14 @@ describe("runIcpCheck", () => {
       call: async (input) => {
         calls += 1;
         expect(input.stallMs).toBe(300_000);
+        keys.push(input.callKey ?? "");
         if (calls === 1) throw new Error("classifier container exited 143: (stall)");
         return judge(input);
       },
     });
     expect(calls).toBe(ICP_VOTES + 1);
+    // Every call, retries included, gets its own container name.
+    expect(new Set(keys).size).toBe(keys.length);
     expect(out.decision.status).toBe("contactable");
   });
 
