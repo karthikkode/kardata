@@ -177,7 +177,7 @@ describe("ICP check end to end (synthetic garden)", () => {
     expect(all).toHaveLength(COMPANIES.length);
     expect(byName["Bramble & Bough"]).toMatchObject({ status: "contactable", tier: "A", score: 3, layer: 4 });
     expect(byName["Pip & Trowel"]).toMatchObject({ status: "contactable", tier: "B", score: 2, layer: 5 });
-    expect(byName["Lone Fern"]).toMatchObject({ status: "watchlist", score: 1 });
+    expect(byName["Lone Fern"]).toMatchObject({ status: "contactable", score: 1, tier: "B", layer: 6 });
     expect(byName["Metric Meadow"]?.status).toBe("excluded");
     expect(byName["Metric Meadow"]?.exclusionReason).toMatch(/^Has a data team/);
     expect(byName["Group Grove"]?.status).toBe("excluded");
@@ -185,12 +185,13 @@ describe("ICP check end to end (synthetic garden)", () => {
     expect(byName["Quiet Acre"]).toMatchObject({ status: "research_incomplete" });
 
     const summary = await sectorTierSummary(handle.db, sectorId);
-    expect(summary.byTierLayer).toEqual({ "A/L4": 1, "B/L5": 1 });
+    expect(summary.byTierLayer).toEqual({ "A/L4": 1, "B/L5": 1, "B/L6": 1 });
 
     const sheet = await outreachSheetRows(handle.db, sectorId);
     expect(sheet.map((r) => [r.company, r.tier, r.layer])).toEqual([
       ["Bramble & Bough", "A", 4],
       ["Pip & Trowel", "B", 5],
+      ["Lone Fern", "B", 6],
     ]);
     expect(sheet[0]?.companyId).toBe(ids["Bramble & Bough"]);
     expect(sheet[0]?.signalsMet).toEqual(["Sells across channels", "Customer pain in reviews", "Tool sprawl"]);
@@ -199,6 +200,6 @@ describe("ICP check end to end (synthetic garden)", () => {
     const csv = outreachCsv(sheet);
     expect(csv).toContain("Tier A");
     expect(csv).toContain("Tier B");
-    expect(csv).not.toContain("Lone Fern");
+    expect(csv).not.toContain("Quiet Acre");
   }, 60000);
 });

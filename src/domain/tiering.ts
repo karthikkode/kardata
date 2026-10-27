@@ -135,6 +135,12 @@ export function isPublicKind(kind: RevenueSourceKind): boolean {
   return kind !== "vendor_estimate";
 }
 export type Tier = "A" | "B" | "C" | null;
+/**
+ * Lowest score that is contacted (D-64): one signal is a Layer 6 discovery
+ * call; score 0 stays on the watchlist.
+ */
+export const MIN_CONTACT_SCORE = 1;
+
 export type ContactStatus = "contactable" | "watchlist" | "excluded" | "research_incomplete";
 
 export interface StaffCount {
@@ -282,7 +288,7 @@ export function computeRevenueTruth(input: RevenueTruthInput): RevenueTruth {
   }
 
   const score = input.score;
-  const layer = score !== null && score >= 2 ? 7 - score : null;
+  const layer = score !== null && score >= MIN_CONTACT_SCORE ? 7 - score : null;
   const tier = tierForRevenue(revenueUsed);
 
   let status: ContactStatus;
@@ -292,7 +298,7 @@ export function computeRevenueTruth(input: RevenueTruthInput): RevenueTruth {
     exclusionReason = input.exclusionReason ?? "excluded";
   } else if (input.verdictStatus === "research_incomplete") {
     status = "research_incomplete";
-  } else if (score === null || score <= 1) {
+  } else if (score === null || score < MIN_CONTACT_SCORE) {
     status = "watchlist";
   } else if (revenueUsed !== null && tier === null) {
     status = "excluded";

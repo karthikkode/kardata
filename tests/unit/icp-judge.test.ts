@@ -75,9 +75,9 @@ describe("decideIcp", () => {
     expect(d.score).toBe(0);
   });
 
-  it("puts a lone hiring signal on the watchlist", () => {
-    const d = decideIcp(FULL, judgement({ signals: { hiring: yes(["r:2"]) } }));
-    expect(d).toMatchObject({ score: 1, status: "watchlist" });
+  it("contacts a company with one signal (D-64) and watchlists one with none", () => {
+    expect(decideIcp(FULL, judgement({ signals: { hiring: yes(["r:2"]) } }))).toMatchObject({ score: 1, status: "contactable" });
+    expect(decideIcp(FULL, judgement({}))).toMatchObject({ score: 0, status: "watchlist" });
   });
 
   it("counts two signals resting on the same job post once", () => {
