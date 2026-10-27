@@ -200,6 +200,24 @@ describe("runIcpCheck", () => {
     expect(verdicts).toHaveLength(0);
   });
 
+  it("retries a stalled judge call once", async () => {
+    const s = await seed();
+    let calls = 0;
+    const judge = fakeJudge(s);
+    const out = await runIcpCheck(handle.db, {
+      sectorId: s.sectorId,
+      companyId: s.companyId,
+      call: async (input) => {
+        calls += 1;
+        expect(input.stallMs).toBe(300_000);
+        if (calls === 1) throw new Error("classifier container exited 143: (stall)");
+        return judge(input);
+      },
+    });
+    expect(calls).toBe(2);
+    expect(out.decision.status).toBe("contactable");
+  });
+
   it("refuses a company outside the sector", async () => {
     const s = await seed();
     const other = await seed("Other Co");

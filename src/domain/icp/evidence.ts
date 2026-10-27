@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, like, or } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
 import { companies, factsCurrent, records, sectorPreflight, sources } from "../../db/schema.js";
 import { DomainError } from "../errors.js";
@@ -61,12 +61,18 @@ export interface EvidenceItem {
   date: string;
   /** stated = the source gives the date; seen = the day we fetched it. */
   dateKind: "stated" | "seen";
-  /** grounded = quote checked (verified, verified_value); collector = read straight from the source. */
-  origin: "grounded" | "collector";
+  /**
+   * grounded = quote checked (verified, verified_value); collector = read
+   * straight from the source; notes = quoted in the agent's notes but not
+   * matched to a stored page (doc_only), usable only where a rule allows.
+   */
+  origin: "grounded" | "collector" | "notes";
 }
 
 export interface DroppedCounts {
   unverified: number;
+  /** doc_only rows kept out of signal buckets (still usable for exclusions and flags). */
+  notesOnly: number;
   undated: number;
   stale: number;
 }
@@ -89,10 +95,11 @@ export interface BuiltPack {
 
 const RECORD_DATE_FIELDS = ["date", "posted_at", "published_at", "occurred_at", "launched_at"];
 
-/** Grounded facts and records, or collector rows read straight from the source; never a quote mismatch. */
+/** Grounded rows, collector rows read straight from the source, or research-note rows; never a quote mismatch. */
 export function usableOrigin(row: { verification: string; createdBy: string }): EvidenceItem["origin"] | null {
   if (row.verification === "verified" || row.verification === "verified_value") return "grounded";
   if (row.createdBy.startsWith("collector:") && row.verification !== "quote_mismatch") return "collector";
+  if (row.verification === "doc_only") return "notes";
   return null;
 }
 
@@ -222,7 +229,7 @@ function admits(route: Route, c: Candidate, now: Date, dropped: DroppedCounts): 
 
 /** Sort usable rows into buckets; pure, so the rules are testable without a database. */
 export function buildPack(input: PackInput): BuiltPack {
-  const dropped: DroppedCounts = { unverified: 0, undated: 0, stale: 0 };
+  const dropped: DroppedCounts = { unverified: 0, notesOnly: 0, undated: 0, stale: 0 };
   const facts: Candidate[] = [];
   const recs: Candidate[] = [];
   for (const f of input.facts) {
@@ -240,12 +247,18 @@ export function buildPack(input: PackInput): BuiltPack {
   for (const rule of ALL_RULES) {
     const items = new Map<string, EvidenceItem>();
     for (const route of rule.routes) {
+      const wantsFact = (key: string) =>
+        (route.factKeys?.includes(key) ?? false) || (route.keyPrefixes?.some((p) => key.startsWith(p)) ?? false);
       const pool = [
-        ...(route.factKeys ? facts.filter((c) => route.factKeys!.includes(c.item.key)) : []),
+        ...facts.filter((c) => wantsFact(c.item.key)),
         ...(route.recordTypes ? recs.filter((c) => route.recordTypes!.includes(c.item.key)) : []),
       ];
       for (const c of pool) {
         if (items.has(c.item.ref)) continue;
+        if (c.item.origin === "notes" && !rule.allowNotes) {
+          dropped.notesOnly += 1;
+          continue;
+        }
         if (admits(route, c, input.now, dropped)) items.set(c.item.ref, c.item);
       }
     }
@@ -278,6 +291,7 @@ export interface EvidencePack extends BuiltPack {
 }
 
 const FACT_KEYS = [...new Set(ALL_RULES.flatMap((r) => r.routes.flatMap((route) => route.factKeys ?? [])))];
+const KEY_PREFIXES = [...new Set(ALL_RULES.flatMap((r) => r.routes.flatMap((route) => route.keyPrefixes ?? [])))];
 const RECORD_TYPES = [...new Set(ALL_RULES.flatMap((r) => r.routes.flatMap((route) => route.recordTypes ?? [])))];
 
 /** Load and build the pack for one company in one sector. */
@@ -288,7 +302,12 @@ export async function icpEvidence(db: Db, sectorId: string, companyId: string, n
     db
       .select()
       .from(factsCurrent)
-      .where(and(eq(factsCurrent.companyId, companyId), inArray(factsCurrent.key, FACT_KEYS))),
+      .where(
+        and(
+          eq(factsCurrent.companyId, companyId),
+          or(inArray(factsCurrent.key, FACT_KEYS), ...KEY_PREFIXES.map((p) => like(factsCurrent.key, `${p}%`))),
+        ),
+      ),
     db
       .select()
       .from(records)

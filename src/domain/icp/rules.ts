@@ -20,6 +20,8 @@ export type BucketKey = SignalKey | ExclusionKey | FlagKey;
 export interface Route {
   /** Fact keys (current facts) that feed the bucket. */
   factKeys?: string[];
+  /** Fact key prefixes (for open-ended keys such as financials.parent_*). */
+  keyPrefixes?: string[];
   /** Record types that feed the bucket. */
   recordTypes?: string[];
   /** Only records whose text matches (job titles, leader titles). */
@@ -38,6 +40,14 @@ export interface BucketRule {
   /** What the judge decides (icp.md wording, shortened). */
   question: string;
   routes: Route[];
+  /**
+   * Research-note items (doc_only: quoted in the agent's notes, not matched
+   * to a stored page) may support this answer. True for exclusions and
+   * flags: wrongly skipping a company costs one prospect, while pitching a
+   * listed group's brand breaks icp.md. Signals become claims to prospects,
+   * so they stay grounded only (evidence-rules.md).
+   */
+  allowNotes?: boolean;
 }
 
 const DATA_TITLE = /\b(data|analytics|analyst|insights?|business intelligence|bi)\b/i;
@@ -124,12 +134,14 @@ export const EXCLUSION_RULES: BucketRule[] = [
   {
     key: "data_team",
     label: "Has a data team",
+    allowNotes: true,
     question: "Are there 2+ data job titles, or any Head/VP of Data, among its staff or open roles?",
     routes: [{ recordTypes: ["leader", "job_posting"], match: DATA_TITLE }, { factKeys: ["hiring.open_roles_by_department"] }],
   },
   {
     key: "parent_company",
     label: "Owned by a listed or multi-brand company",
+    allowNotes: true,
     question:
       "Is it owned by a listed or multi-brand company? It stays in only if a source shows the brand has its own founder, CEO or GM who makes decisions. PE funds and small holding companies are kept.",
     routes: [
@@ -143,6 +155,7 @@ export const EXCLUSION_RULES: BucketRule[] = [
           "decisions.outside_investment",
           "decisions.legal_entity_name",
         ],
+        keyPrefixes: ["financials.parent_", "decisions.parent_", "decisions.acquir", "financials.ownership"],
       },
       { recordTypes: ["leader"], match: OWNER_TITLE },
     ],
@@ -150,6 +163,7 @@ export const EXCLUSION_RULES: BucketRule[] = [
   {
     key: "not_d2c",
     label: "Not a real D2C brand",
+    allowNotes: true,
     question: "Is it not a real D2C brand (clinic, salon, spa, distributor, agency, dead or parked site)?",
     routes: [{ factKeys: ["business_model.dtc_store", "decisions.online_store_active_oct_2026"] }],
   },
@@ -159,6 +173,7 @@ export const FLAG_RULES: BucketRule[] = [
   {
     key: "tech_team",
     label: "Has a tech team",
+    allowNotes: true,
     question: "Does it employ engineers (but no data roles)?",
     routes: [{ recordTypes: ["leader", "job_posting"], match: TECH_TITLE }],
   },
