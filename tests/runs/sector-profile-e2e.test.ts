@@ -20,11 +20,9 @@ const GARDEN_STORY =
   "Orders over forty dollars ship free, and every order includes a bonus packet of wildflower seeds for bees.";
 const USAGE = { inputTokens: 100, outputTokens: 10, cachedTokens: 0, reasoningTokens: 0, calls: 1 };
 
-// Synthetic test profile: kept in this test file only. The owner's real
-// garden profile is docs/plans/stage-5.4-garden-profile.json, asserted by
-// tests/unit/sector-garden-profile-file.test.ts.
+// Synthetic test profile: kept in this test file only (sample-sector).
 const TEST_PROFILE = {
-  name: "garden-test",
+  name: "sample-sector",
   description: "Synthetic test profile for the garden e2e fixture",
   categories: [
     { key: "growing", label: "Growing", description: "Seeds, bulbs, plants, compost and soil care." },
@@ -135,13 +133,13 @@ async function eligibilityByName(sectorId: string): Promise<Record<string, strin
   return Object.fromEntries(members.map((m) => [m.name, m.eligibility]));
 }
 
-describe("garden sector end to end (synthetic)", () => {
+describe("second sector end to end (synthetic)", () => {
   it("imports, classifies, scopes and pipelines from its own profile", async () => {
     const { sector } = await createSector(
       handle.db,
       {
-        name: "Garden Test",
-        csvPaths: [resolve(FIXTURES, "apollo-garden.csv")],
+        name: "Sample Sector Test",
+        csvPaths: [resolve(FIXTURES, "apollo-sector-b.csv")],
         profile: TEST_PROFILE,
       },
       { importDirs: [FIXTURES] },

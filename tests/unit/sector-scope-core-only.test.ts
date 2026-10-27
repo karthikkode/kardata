@@ -5,7 +5,7 @@ import {
 } from "../../src/domain/sector-preflight/eligibility.js";
 import { parseSectorProfile } from "../../src/domain/sector-preflight/profile.js";
 
-const garden = parseSectorProfile({
+const sample = parseSectorProfile({
   categories: [
     { key: "growing", label: "Growing", description: "Seeds, bulbs, plants, compost and soil care." },
     { key: "tools_watering", label: "Tools & watering", description: "Tools, hoses and irrigation." },
@@ -36,17 +36,17 @@ function classified(overrides: Partial<ScopeInput> = {}): ScopeInput {
   };
 }
 
-describe("garden sector scope (core-only profile)", () => {
+describe("sample sector scope (core-only profile)", () => {
   it("admits a D2C brand in the core category with no keyword logic", () => {
-    const verdict = evaluateSectorScope(classified(), garden);
+    const verdict = evaluateSectorScope(classified(), sample);
     expect(verdict.eligible).toBe(true);
     expect(verdict.reason).toBe("sector scope: growing");
   });
 
   it("excludes non-core categories and non-D2C types", () => {
-    expect(evaluateSectorScope(classified({ primaryCategory: "tools_watering" }), garden).eligible).toBe(false);
-    expect(evaluateSectorScope(classified({ businessType: "retailer_marketplace" }), garden).eligible).toBe(false);
-    expect(evaluateSectorScope(classified({ sellsOwnProducts: false }), garden).eligible).toBe(false);
-    expect(evaluateSectorScope(classified({ hasOnlineStore: false }), garden).eligible).toBe(false);
+    expect(evaluateSectorScope(classified({ primaryCategory: "tools_watering" }), sample).eligible).toBe(false);
+    expect(evaluateSectorScope(classified({ businessType: "retailer_marketplace" }), sample).eligible).toBe(false);
+    expect(evaluateSectorScope(classified({ sellsOwnProducts: false }), sample).eligible).toBe(false);
+    expect(evaluateSectorScope(classified({ hasOnlineStore: false }), sample).eligible).toBe(false);
   });
 });
