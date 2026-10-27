@@ -16,8 +16,8 @@ docker compose up -d
 npm run db:migrate
 npm run dev            # health: GET /healthz
 ```
-Scripts: `dev` `build` `start` `lint` `typecheck` `test` `db:generate` `db:migrate` `smoke:real` `harness:setup`
-`mcp` calls one tool on a running server (`npm run mcp -- <tool> '<json>'`).
+Scripts: `dev` `dev:migrate` `build` `start` `lint` `typecheck` `test` `test:live` `db:generate` `db:migrate` `smoke:real` `smoke:collect` `harness:setup` `eval:research`
+`mcp` calls one tool on a running server (`npm run mcp -- <tool> '<json>'`, or `--key value` flags with `--json-file <path>` for a profile). Database backups: `scripts/backup-db.sh`, run by the `kardata-backup` systemd timer (see the script header).
 
 ## Run vs dev
 
