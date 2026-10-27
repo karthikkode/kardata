@@ -4,6 +4,7 @@ import {
   buildIcpPrompt,
   decideIcp,
   icpSchema,
+  mergeJudgements,
   parseJudgement,
   type Judgement,
 } from "../../src/domain/icp/judge.js";
@@ -137,6 +138,34 @@ describe("decideIcp", () => {
     }));
     expect(d.status).toBe("contactable");
     expect(d.flags[0]).toMatchObject({ key: "tech_team", counted: true });
+  });
+});
+
+describe("mergeJudgements", () => {
+  it("keeps a verdict only when most votes give it, with the first such vote's refs", () => {
+    const votes = [
+      judgement({ signals: { channels: yes(["r:1"], "first"), tool_sprawl: yes(["f:3"]) } }),
+      judgement({ signals: { channels: yes(["r:1", "r:9"], "second") } }),
+      judgement({ signals: { tool_sprawl: { verdict: "unknown", evidence_refs: [], observation: "?" } } }),
+    ];
+    const { judgement: merged, tallies } = mergeJudgements(votes);
+    expect(merged.signals.channels).toMatchObject({ verdict: "yes", evidence_refs: ["r:1"], observation: "first" });
+    // yes 1, no 1, unknown 1: no majority, so not counted.
+    expect(merged.signals.tool_sprawl.verdict).toBe("unknown");
+    expect(tallies["signals.tool_sprawl"]).toBe("yes 1, no 1, unknown 1");
+    expect(tallies["signals.channels"]).toBe("yes 2, no 1");
+    expect(decideIcp(FULL, merged).score).toBe(1);
+  });
+
+  it("carries own_decision_maker from the winning parent_company vote", () => {
+    const owned = { ...yes(["f:6"]), own_decision_maker: "no" as const };
+    const { judgement: merged } = mergeJudgements([
+      judgement({ exclusions: { parent_company: owned } }),
+      judgement({ exclusions: { parent_company: owned } }),
+      judgement({}),
+    ]);
+    expect(merged.exclusions.parent_company).toMatchObject({ verdict: "yes", own_decision_maker: "no" });
+    expect(decideIcp(FULL, merged).status).toBe("excluded");
   });
 });
 

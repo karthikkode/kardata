@@ -9,6 +9,7 @@ import {
   type ResearchRun,
 } from "../db/schema.js";
 import { DomainError } from "../domain/errors.js";
+import type { HarnessUsage } from "../harness/types.js";
 import { icpEvidence, type EvidenceItem, type EvidencePack } from "../domain/icp/evidence.js";
 import {
   ICP_PROMPT_VERSION,
@@ -16,7 +17,10 @@ import {
   decideIcp,
   icpSchema,
   incompleteDecision,
+  mergeJudgements,
   parseJudgement,
+  ICP_VOTES,
+  type Judgement,
   type IcpDecision,
 } from "../domain/icp/judge.js";
 import { logIcpCall } from "../domain/logging/provider-calls.js";
@@ -24,8 +28,9 @@ import { recordVerdicts } from "../domain/tiering.js";
 import { dockerClassifierCall, type ClassifierCall } from "./sector-classify.js";
 
 /**
- * One ICP check (Stage 5.5 Step 3): evidence pack, one tool-less Muse call
- * through the classifier harness (same lockdown and Muse settings), the
+ * One ICP check (Stage 5.5 Step 3): evidence pack, ICP_VOTES independent
+ * tool-less Muse calls through the classifier harness (same lockdown and Muse
+ * settings) merged by majority per question, the
  * server's decision, an append-only check row, and the verdict.
  */
 
@@ -103,43 +108,49 @@ export async function runIcpCheck(db: Db, input: RunIcpInput): Promise<RunIcpOut
   }
   let decision: IcpDecision;
   let usage: ResearchRun["agentUsage"] = null;
+  let tallies: Record<string, string> = {};
   if (pack.usable === 0) {
     decision = incompleteDecision();
   } else {
     const prompt = buildIcpPrompt(pack);
-    const started = Date.now();
-    let result;
-    for (let attempt = 0; ; attempt += 1) {
-      try {
-        result = await (input.call ?? dockerClassifierCall)({ runId, prompt, schema: icpSchema(), stallMs: ICP_STALL_MS });
-        break;
-      } catch (err) {
-        if (attempt >= ICP_CALL_RETRIES) {
-          return fail(`icp judge call failed: ${err instanceof Error ? err.message : String(err)}`);
+    const call = input.call ?? dockerClassifierCall;
+    const judgeOnce = async (seq: number): Promise<{ judgement: Judgement; usage: HarnessUsage | null }> => {
+      const started = Date.now();
+      for (let attempt = 0; ; attempt += 1) {
+        try {
+          const result = await call({ runId, prompt, schema: icpSchema(), stallMs: ICP_STALL_MS });
+          await logIcpCall(db, { ...run, status: "running" } as ResearchRun, {
+            seq,
+            prompt,
+            raw: result.raw,
+            json: result.json,
+            usage: result.usage,
+            durationMs: Date.now() - started,
+          });
+          return { judgement: parseJudgement(result.json), usage: result.usage ?? null };
+        } catch (err) {
+          if (attempt >= ICP_CALL_RETRIES) throw err;
         }
       }
-    }
-    await logIcpCall(db, { ...run, status: "running" } as ResearchRun, {
-      seq: 1,
-      prompt,
-      raw: result.raw,
-      json: result.json,
-      usage: result.usage,
-      durationMs: Date.now() - started,
-    });
+    };
+    let votes;
     try {
-      decision = decideIcp(pack, parseJudgement(result.json));
+      votes = await Promise.all(Array.from({ length: ICP_VOTES }, (_, i) => judgeOnce(i + 1)));
     } catch (err) {
-      return fail(err instanceof Error ? err.message : "invalid icp judgement");
+      return fail(`icp judge call failed: ${err instanceof Error ? err.message : String(err)}`);
     }
-    if (result.usage) {
+    const merged = mergeJudgements(votes.map((v) => v.judgement));
+    tallies = merged.tallies;
+    decision = decideIcp(pack, merged.judgement);
+    const used = votes.map((v) => v.usage).filter((u): u is HarnessUsage => u !== null);
+    if (used.length > 0) {
       usage = {
-        model: result.usage.model,
-        inputTokens: result.usage.inputTokens,
-        outputTokens: result.usage.outputTokens,
-        cachedTokens: result.usage.cachedTokens,
-        reasoningTokens: result.usage.reasoningTokens,
-        calls: result.usage.calls,
+        model: used[0]?.model ?? "",
+        inputTokens: used.reduce((n, u) => n + u.inputTokens, 0),
+        outputTokens: used.reduce((n, u) => n + u.outputTokens, 0),
+        cachedTokens: used.reduce((n, u) => n + u.cachedTokens, 0),
+        reasoningTokens: used.reduce((n, u) => n + u.reasoningTokens, 0),
+        calls: used.reduce((n, u) => n + u.calls, 0),
         childrenIncluded: false,
       };
     }
@@ -161,6 +172,7 @@ export async function runIcpCheck(db: Db, input: RunIcpInput): Promise<RunIcpOut
       flags: decision.flags,
       dropped: pack.dropped,
       usable: pack.usable,
+      votes: tallies,
     },
     evidence: citedItems(pack, decision),
     usage: usage as Record<string, unknown> | null,

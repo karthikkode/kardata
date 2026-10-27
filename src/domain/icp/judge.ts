@@ -21,7 +21,7 @@ import {
  * and decides the score and status. The model never sets the score.
  */
 
-export const ICP_PROMPT_VERSION = "icp-v2";
+export const ICP_PROMPT_VERSION = "icp-v3";
 
 function promptsDir(): string {
   const here = dirname(fileURLToPath(import.meta.url));
@@ -105,6 +105,48 @@ export function parseJudgement(json: unknown): Judgement {
     throw new Error(`invalid icp judgement: ${parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`);
   }
   return parsed.data as Judgement;
+}
+
+/** Independent judge calls per check; a verdict needs a majority of them. */
+export const ICP_VOTES = 3;
+
+function majority<A extends Answer>(answers: A[]): { answer: A; tally: string } {
+  const counts = new Map<Verdict, number>();
+  for (const a of answers) counts.set(a.verdict, (counts.get(a.verdict) ?? 0) + 1);
+  const tally = VERDICTS.filter((v) => counts.has(v)).map((v) => `${v} ${counts.get(v)}`).join(", ");
+  const need = Math.floor(answers.length / 2) + 1;
+  const won = VERDICTS.find((v) => (counts.get(v) ?? 0) >= need);
+  // No majority (for example yes/no/unknown): the evidence doesn't settle it.
+  const pick = won ?? "unknown";
+  const first = answers.find((a) => a.verdict === pick);
+  const answer = first ?? ({ ...answers[0], verdict: "unknown", evidence_refs: [], observation: "The judges disagreed; not counted." } as A);
+  return { answer, tally };
+}
+
+/**
+ * Merges independent judgements question by question: each verdict is the
+ * majority's (ties are unknown), with the refs and observation of the first
+ * vote that gave it. Returns the tally per question for the check row.
+ */
+export function mergeJudgements(votes: Judgement[]): { judgement: Judgement; tallies: Record<string, string> } {
+  if (votes.length === 0) throw new Error("no judgements to merge");
+  const tallies: Record<string, string> = {};
+  const merge = <K extends string, A extends Answer>(group: string, pick: (j: Judgement) => Record<K, A>): Record<K, A> => {
+    const keys = Object.keys(pick(votes[0] as Judgement)) as K[];
+    return Object.fromEntries(
+      keys.map((k) => {
+        const { answer, tally } = majority(votes.map((j) => pick(j)[k]));
+        tallies[`${group}.${k}`] = tally;
+        return [k, answer];
+      }),
+    ) as Record<K, A>;
+  };
+  const judgement: Judgement = {
+    signals: merge("signals", (j) => j.signals),
+    exclusions: merge("exclusions", (j) => j.exclusions) as Judgement["exclusions"],
+    flags: merge("flags", (j) => j.flags),
+  };
+  return { judgement, tallies };
 }
 
 function itemLine(item: EvidenceItem): string {

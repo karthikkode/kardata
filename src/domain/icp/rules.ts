@@ -63,7 +63,8 @@ export const SIGNAL_RULES: BucketRule[] = [
   {
     key: "channels",
     label: "Sells across channels",
-    question: "Does it sell on Amazon, or through 3+ retailers, or wholesale, besides its own store?",
+    question:
+      "Does it sell on Amazon, or through 3+ retailers, or wholesale or trade, besides its own consumer store? Wholesale counts even when trade orders come in through its own website.",
     routes: [
       { recordTypes: ["retailer"] },
       {
