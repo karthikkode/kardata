@@ -15,7 +15,7 @@ import {
 } from "../db/schema.js";
 import { DomainError } from "../domain/errors.js";
 import { deriveCompany, getRubric } from "../domain/sector-preflight/eligibility.js";
-import { categoryKeys, resolveProfileForSector } from "../domain/sector-preflight/profile.js";
+import { categoryKeys, profileHash, resolveProfileForSector } from "../domain/sector-preflight/profile.js";
 import {
   JOB_SAME_ERROR_PAUSE,
   checkBudget,
@@ -344,6 +344,8 @@ export interface SectorPreflightCompaniesInput {
   eligibility?: ("eligible" | "review" | "ineligible")[];
   confidence?: ("high" | "medium" | "low")[];
   promptVersion?: string;
+  /** Only rows classified under an older version of the sector profile. */
+  staleProfile?: boolean;
   companyIds?: string[];
   limit?: number;
   offset?: number;
@@ -366,6 +368,7 @@ export interface SectorPreflightCompanyRow {
   quote: string | null;
   verification: string | null;
   promptVersion: string | null;
+  profileHash: string | null;
 }
 
 /** Per-company classifications for one sector, filtered, ordered by name. */
@@ -382,6 +385,10 @@ export async function sectorPreflightCompanies(
   if (input.confidence?.length) filters.push(inArray(sectorPreflight.confidence, input.confidence));
   if (input.promptVersion) filters.push(eq(sectorPreflight.promptVersion, input.promptVersion));
   if (input.companyIds?.length) filters.push(inArray(sectorPreflight.companyId, input.companyIds));
+  if (input.staleProfile) {
+    const current = profileHash(await resolveProfileForSector(db, input.sectorId));
+    filters.push(sql`${sectorPreflight.profileHash} is distinct from ${current}`);
+  }
   const where = and(...filters);
   const from = db
     .select({
@@ -401,6 +408,7 @@ export async function sectorPreflightCompanies(
       quote: sectorPreflight.quote,
       verification: sectorPreflight.verification,
       promptVersion: sectorPreflight.promptVersion,
+      profileHash: sectorPreflight.profileHash,
     })
     .from(sectorPreflight)
     .innerJoin(

@@ -28,6 +28,7 @@ import {
   sectorPreflightSettingsGet,
   sectorPreflightSettingsSet,
 } from "../../src/runs/settings.js";
+import { profileHash, resolveProfileForSector } from "../../src/domain/sector-preflight/profile.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
 
 let handle: DbHandle;
@@ -482,6 +483,14 @@ describe("sectorPreflightCompanies", () => {
     expect(page.rows.map((r) => r.name)).toEqual(["B Co"]);
     expect((await sectorPreflightCompanies(handle.db, { sectorId, confidence: ["low"] })).total).toBe(0);
     await expect(sectorPreflightCompanies(handle.db, { sectorId, limit: 0 })).rejects.toThrow(/limit/);
+    // Rows carry no hash of the current profile here, so every row is stale.
+    const current = profileHash(await resolveProfileForSector(handle.db, sectorId));
+    await handle.db
+      .update(sectorPreflight)
+      .set({ profileHash: current })
+      .where(and(eq(sectorPreflight.sectorId, sectorId), eq(sectorPreflight.companyId, a)));
+    const stale = await sectorPreflightCompanies(handle.db, { sectorId, staleProfile: true });
+    expect(stale.rows.map((r) => r.companyId)).toEqual([b]);
   });
 });
 

@@ -1941,6 +1941,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         eligibility: z.array(z.enum(["eligible", "review", "ineligible"])).optional(),
         confidence: z.array(z.enum(["high", "medium", "low"])).optional(),
         promptVersion: z.string().optional().describe("For example v2-web: rows Muse read with its web tools"),
+        staleProfile: z.boolean().optional().describe("Only rows classified under an older version of the sector profile"),
         companyIds: z.array(z.string()).optional(),
         limit: z.number().int().optional().describe("1..500 (default 50)"),
         offset: z.number().int().optional(),
