@@ -1,5 +1,6 @@
 # kardata-server (v2)
-Backend-only MCP service. No frontend.
+Backend-only MCP service. No frontend. The public website (kardata.co) is a separate project in
+[`website/`](website/README.md).
 
 Docs: stage plans in `docs/plans/`, reviews in `docs/reviews/`, code how-tos in `docs/sources/`, and the business
 side (strategy, offer, ICP, outreach) in [`docs/business/`](docs/business/README.md). Agent rules: `AGENTS.md`.
