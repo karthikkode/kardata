@@ -9,11 +9,15 @@
 	# v1 pages that links may still point at.
 	@v1 path /how-it-works /how-it-works/ /ai-layer /ai-layer/ /case-studies /case-studies/
 	redir @v1 / permanent
+	# v1's per-prospect pages (/p/...) are gone with v1; send anyone holding an old link to the home page.
+	redir /p/* / 302
 
 	@hashed path /_astro/*
 	header @hashed Cache-Control "public, max-age=31536000, immutable"
 	@pages not path /_astro/*
 	header @pages Cache-Control "public, max-age=300"
+	# deploy.sh reads this to confirm which release is live.
+	header /release.txt Cache-Control "no-store"
 	header {
 		X-Content-Type-Options nosniff
 		Referrer-Policy strict-origin-when-cross-origin

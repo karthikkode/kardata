@@ -23,24 +23,31 @@ is `Status: current`.
   the rest of v1 is shut down is the owner's call.
 - **Disk:** 28 of 30 GB used (94%). Don't build images on the VM until space is cleared.
 
-## Deploying (plan: `docs/plans/website/site-1-launch.md`)
+## Deploying
 
-kathawin's Caddy mounts only its Caddyfile, so it can't serve a host folder without re-creating a kathawin
-container. Instead a small container of our own, `kardata-site` (`deploy/compose.yml`, the `caddy:2-alpine` image
-already on the VM), serves `/home/opc/kardata-site/current` on `kathawin-edge`. kathawin's Caddy keeps TLS and
-proxies kardata.co to it.
+kardata.co is a static site served by one small container, `kardata-site` (`deploy/compose.yml`, image
+`caddy:2-alpine`), on the `kathawin-edge` network. kathawin's Caddy keeps TLS and proxies `kardata.co` and
+`www.kardata.co` to `kardata-site:80`. Nothing else of Kardata runs on the VM; v1 was removed on 2026-10-27
+(its backup is on the owner's machine, not in the repo).
 
-- **Build and check:** `cd frontend && npm run check`. Never build on the VM.
-- **Deploy:** `npm run deploy` refuses a dirty `website/`, builds, uploads a release to
-  `~/kardata-site/releases/<date>-<commit>`, switches `current` atomically and keeps 5. `npm run rollback` goes back
-  one. `DEPLOY_HOST=local DEPLOY_ROOT=<dir>` runs both on this machine for testing.
-- **First time on the VM:** copy `deploy/compose.yml` to `~/kardata-site/` and run
-  `docker compose -p kardata-site up -d` there.
-- **Switch kardata.co** (only on the owner's word): back up the Caddyfile, change `reverse_proxy kardata-web:3000`
-  to `reverse_proxy kardata-site:80` in the `kardata.co` block, validate the new file inside the container, write it
-  over the Caddyfile in place (`cat new > Caddyfile`; it is a single-file bind mount, so `sed -i` would leave Caddy on
-  the old copy), then `docker exec kathawin-caddy-1 caddy reload --config /etc/caddy/Caddyfile`. Roll back the
-  same way from the backup.
+**Deploy:** commit, then from `frontend/`:
+
+```bash
+npm run deploy
+```
+
+It refuses a dirty `website/`, runs the full check, uploads `~/kardata-site/releases/<date>-<commit>`, syncs
+`compose.yml` and the inner `Caddyfile`, starts or updates the container, switches `current` atomically, keeps 5
+releases, and fails unless https://kardata.co/release.txt shows the new release.
+
+**Roll back one release:** `npm run rollback` (also checks the live site).
+
+**Test without the VM:** `DEPLOY_HOST=local DEPLOY_ROOT=<dir> npm run deploy`.
+
+**Routing (one-time, already done):** the `kardata.co` block in `/home/opc/kathawin/deploy/Caddyfile` says
+`reverse_proxy kardata-site:80`. If it ever needs changing: back it up, validate the new file inside
+`kathawin-caddy-1`, write it in place (`cat new > Caddyfile`; it is a single-file bind mount, so `sed -i` leaves Caddy
+on the old copy), then `docker exec kathawin-caddy-1 caddy reload --config /etc/caddy/Caddyfile`.
 
 ## Rules for the VM
 
