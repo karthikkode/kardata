@@ -5,12 +5,7 @@ import { eq } from "drizzle-orm";
 import type { DbHandle } from "../../src/db/client.js";
 import { companies, companyJobs, sectorCompanies, sectorPreflight, sectors } from "../../src/db/schema.js";
 import { createSector } from "../../src/domain/sectors.js";
-import {
-  applySectorScope,
-  getRubric,
-  rederiveSector,
-  setRubric,
-} from "../../src/domain/sector-preflight/eligibility.js";
+import { rederiveSectorScope } from "../../src/domain/sector-preflight/eligibility.js";
 import { parseSectorProfile, profileHash } from "../../src/domain/sector-preflight/profile.js";
 import { classifyCompany, createSectorRun } from "../../src/runs/sector-classify.js";
 import { startPipeline } from "../../src/runs/sector.js";
@@ -56,16 +51,6 @@ const TEST_PROFILE = {
   },
 };
 
-const TEST_RUBRIC = {
-  eligible: {
-    businessTypes: ["dtc_brand"],
-    primaryCategories: ["growing", "tools_watering", "planters_structures", "outdoor_furniture", "lighting_decor", "lawn_care"],
-    requireSellsOwnProducts: true,
-    requireHasOnlineStore: true,
-  },
-  review: { businessTypes: ["brand_retail_only", "unknown"], primaryCategories: [] as string[], lowConfidence: true },
-};
-
 function answer(patch: Record<string, unknown>): Record<string, unknown> {
   return {
     also_sells: [], sells_own_products: true, has_online_store: true, confidence: "high",
@@ -99,8 +84,9 @@ const ANSWERS: Record<string, Record<string, unknown>> = {
   "Fable Fern Co": answer({ business_type: "dtc_brand", primary_category: "growing", confidence: "low" }),
 };
 
-type Eligibility = "eligible" | "review" | "ineligible";
-const EXPECTED_RUBRIC: Record<string, Eligibility> = {
+// Binary scope has no "review": the low-confidence D2C brand is in scope
+// (core category), the retail-only brand is out (not an in-scope type).
+const EXPECTED_SCOPE: Record<string, "eligible" | "ineligible"> = {
   "Seedling & Sprout Co": "eligible",
   "Timber & Trowel": "eligible",
   "Raised & Rooted": "eligible",
@@ -110,18 +96,10 @@ const EXPECTED_RUBRIC: Record<string, Eligibility> = {
   "Greenburgh Garden Centre": "ineligible",
   "Outdoor Emporium": "ineligible",
   "Verdant Yards Ltd": "ineligible",
-  "Harvest Lane": "review",
+  "Harvest Lane": "ineligible",
   "Dormant Plots Ltd": "ineligible",
-  "Fable Fern Co": "review",
-};
-// Binary scope has no "review": the low-confidence D2C brand is in scope
-// (core category), the retail-only brand is out (not D2C).
-const EXPECTED_SCOPE: Record<string, "eligible" | "ineligible"> = {
-  ...Object.fromEntries(
-    Object.entries(EXPECTED_RUBRIC).map(([name, v]) => [name, v === "eligible" ? "eligible" : "ineligible"]),
-  ),
   "Fable Fern Co": "eligible",
-} as Record<string, "eligible" | "ineligible">;
+};
 
 let handle: DbHandle;
 let server: Server;
@@ -158,7 +136,7 @@ async function eligibilityByName(sectorId: string): Promise<Record<string, strin
 }
 
 describe("garden sector end to end (synthetic)", () => {
-  it("imports, classifies, derives, scopes and pipelines from its own profile", async () => {
+  it("imports, classifies, scopes and pipelines from its own profile", async () => {
     const { sector } = await createSector(
       handle.db,
       {
@@ -168,13 +146,6 @@ describe("garden sector end to end (synthetic)", () => {
       },
       { importDirs: [FIXTURES] },
     );
-    // Rubric is set separately now (profiles no longer carry one).
-    await setRubric(handle.db, sector.id, TEST_RUBRIC);
-    await expect(getRubric(handle.db, sector.id)).resolves.toEqual({
-      rubric: TEST_RUBRIC,
-      isDefault: false,
-    });
-
     const members = await handle.db
       .select()
       .from(sectorCompanies)
@@ -222,11 +193,7 @@ describe("garden sector end to end (synthetic)", () => {
       expect(row.profileHash).toBe(profileHash(parseSectorProfile(TEST_PROFILE)));
     }
 
-    const derived = await rederiveSector(handle.db, sector.id);
-    expect(derived).toEqual({ pending: 0, eligible: 6, review: 2, ineligible: 4 });
-    expect(await eligibilityByName(sector.id)).toEqual(EXPECTED_RUBRIC);
-
-    const applied = await applySectorScope(handle.db, sector.id);
+    const applied = await rederiveSectorScope(handle.db, sector.id);
     expect(applied).toEqual({ eligible: 7, ineligible: 5, skippedOverride: 0, skippedPending: 0 });
     expect(await eligibilityByName(sector.id)).toEqual(EXPECTED_SCOPE);
 

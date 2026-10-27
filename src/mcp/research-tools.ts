@@ -104,11 +104,9 @@ import {
   sectorPreflightSummary,
 } from "../runs/sector.js";
 import {
-  applySectorScope,
   eligibilityCounts,
-  getRubric,
+  rederiveSectorScope,
   setOverride,
-  setRubric,
 } from "../domain/sector-preflight/eligibility.js";
 import {
   getProfileOrNull,
@@ -2099,35 +2097,6 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   );
 
   registerTool(server, db, auth,
-    "sector_rules_get",
-    {
-      description: "Operator: view a sector's stored eligibility rubric.",
-      inputSchema: { sectorId: z.string().describe("Sector UUID") },
-    },
-    async ({ sectorId }) =>
-      wrap(async () => {
-        const result = await getRubric(db, sectorId);
-        return {
-          summary: result.isDefault ? "legacy skincare default rubric (nothing stored)" : "sector rubric",
-          data: result,
-        };
-      }),
-  );
-
-  registerTool(server, db, auth,
-    "sector_rules_set",
-    {
-      description: "Operator: replace a sector's eligibility rubric; re-derives every membership instantly.",
-      inputSchema: { sectorId: z.string().describe("Sector UUID"), rules: z.unknown().describe("Full rubric JSON (see sector_rules_get)") },
-    },
-    async ({ sectorId, rules }) =>
-      wrap(async () => {
-        const result = await setRubric(db, sectorId, rules);
-        return { summary: "rubric updated", data: result };
-      }),
-  );
-
-  registerTool(server, db, auth,
     "company_eligibility_override",
     {
       description: "Operator: force-include or force-exclude a company (or clear the override).",
@@ -2149,12 +2118,12 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
     "sector_scope_apply",
     {
       description:
-        "Operator: resolve every classified, non-overridden membership to the binary sector scope (eligible/ineligible).",
+        "Operator: re-apply the stored profile's scope to every membership (override, then scope). Refused when the sector has no profile.",
       inputSchema: { sectorId: z.string().describe("Sector UUID") },
     },
     async ({ sectorId }) =>
       wrap(async () => {
-        const result = await applySectorScope(db, sectorId);
+        const result = await rederiveSectorScope(db, sectorId);
         const counts = await eligibilityCounts(db, sectorId);
         return {
           summary: `${result.eligible} eligible, ${result.ineligible} ineligible (${result.skippedOverride} overrides, ${result.skippedPending} pending kept)`,

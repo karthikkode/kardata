@@ -40,7 +40,7 @@ describe("garden sector scope (core-only profile)", () => {
   it("admits a D2C brand in the core category with no keyword logic", () => {
     const verdict = evaluateSectorScope(classified(), garden);
     expect(verdict.eligible).toBe(true);
-    expect(verdict.reason).toBe("sector scope: D2C growing");
+    expect(verdict.reason).toBe("sector scope: growing");
   });
 
   it("excludes non-core categories and non-D2C types", () => {

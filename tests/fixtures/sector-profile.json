@@ -1,0 +1,34 @@
+{
+  "name": "sample-sector",
+  "description": "Synthetic neutral profile for tests (invented categories and keywords).",
+  "categories": [
+    { "key": "widgets", "label": "Widgets", "description": "General-purpose widgets for everyday tasks." },
+    { "key": "gadgets", "label": "Gadgets", "description": "Small electronic gadgets and accessories." },
+    { "key": "other", "label": "Other", "description": "A real business whose main lane is none of the listed categories." }
+  ],
+  "scope": {
+    "coreCategories": ["widgets"],
+    "adjacentCategories": ["gadgets"],
+    "scopeKeywords": ["widgetized", "gadget-grade"],
+    "businessTypes": ["dtc_brand"],
+    "requireSellsOwnProducts": true,
+    "requireHasOnlineStore": true
+  },
+  "classifierHints": {
+    "serviceExamples": "repair shops and installers without their own product line",
+    "retailerExamples": "general stores and marketplaces selling other brands",
+    "supplierExamples": "component suppliers selling only to trade"
+  },
+  "tiering": {
+    "apolloMinPerStaff": 75000,
+    "staffEstimatePerHead": 175000,
+    "publicCheckPerStaff": 1000000,
+    "pressSources": ["example trade press"]
+  },
+  "promptHints": {
+    "retailerExamples": "example big-box stores and marketplaces",
+    "priceTiers": "entry, mid, premium",
+    "productClaims": "durable, repairable, two-year warranty",
+    "positioningStory": "built-to-last story"
+  }
+}

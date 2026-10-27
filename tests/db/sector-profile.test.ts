@@ -3,15 +3,19 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { DbHandle } from "../../src/db/client.js";
 import { eq } from "drizzle-orm";
 import { companies, sectorCompanies, sectorPreflight, sectors } from "../../src/db/schema.js";
-import { PRIMARY_CATEGORIES } from "../../src/domain/sector-preflight/classify.js";
-import { DEFAULT_SKINCARE_RUBRIC } from "../../src/domain/sector-preflight/eligibility.js";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
-  SKINCARE_PROFILE,
   categoryKeys,
   getProfile,
   getProfileOrNull,
+  parseSectorProfile,
   setProfile,
 } from "../../src/domain/sector-preflight/profile.js";
+
+const TEST_PROFILE = parseSectorProfile(
+  JSON.parse(readFileSync(resolve("tests/fixtures/sector-profile.json"), "utf8")),
+);
 import { createSector } from "../../src/domain/sectors.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
 
@@ -65,7 +69,7 @@ describe("sector profile storage", () => {
 
   it("refuses a category change after classifications, reclassify marks them pending", async () => {
     const sectorId = await makeSector("skincare-refusal");
-    await setProfile(handle.db, sectorId, SKINCARE_PROFILE);
+    await setProfile(handle.db, sectorId, TEST_PROFILE);
     const [company] = await handle.db
       .insert(companies)
       .values({ id: randomUUID(), source: "manual", name: "Synthetic Brand" })
@@ -79,7 +83,7 @@ describe("sector profile storage", () => {
       sectorId,
       companyId: company.id,
       businessType: "dtc_brand",
-      primaryCategory: "skincare",
+      primaryCategory: "widgets",
       sellsOwnProducts: true,
       hasOnlineStore: true,
       shipsTo: [],
@@ -87,13 +91,13 @@ describe("sector profile storage", () => {
       reason: "synthetic",
     });
     const renamed = {
-      ...SKINCARE_PROFILE,
-      categories: SKINCARE_PROFILE.categories.map((c) =>
-        c.key === "skincare" ? { ...c, key: "skin_care" } : c,
+      ...TEST_PROFILE,
+      categories: TEST_PROFILE.categories.map((c) =>
+        c.key === "widgets" ? { ...c, key: "super_widgets" } : c,
       ),
       scope: {
-        ...SKINCARE_PROFILE.scope,
-        coreCategories: ["skin_care", "body_bath", "mens_grooming"],
+        ...TEST_PROFILE.scope,
+        coreCategories: ["super_widgets"],
       },
     };
     await expect(setProfile(handle.db, sectorId, renamed)).rejects.toThrowError(/reclassify: true/);
@@ -148,12 +152,12 @@ describe("sector profile storage", () => {
     expect(updated.before).toEqual(updated.after);
   });
 
-  it("stores the skincare seed unchanged (same categories as the old enum)", async () => {
-    const sectorId = await makeSector("skincare");
-    const result = await setProfile(handle.db, sectorId, SKINCARE_PROFILE);
-    expect(categoryKeys(result.profile)).toEqual([...PRIMARY_CATEGORIES]);
-    expect(result.profile.scope.coreCategories).toEqual(DEFAULT_SKINCARE_RUBRIC.eligible.primaryCategories);
-    expect(result.profile.scope.adjacentCategories).toEqual(DEFAULT_SKINCARE_RUBRIC.review.primaryCategories);
+  it("stores the fixture profile with its scope intact", async () => {
+    const sectorId = await makeSector("sample-sector");
+    const result = await setProfile(handle.db, sectorId, TEST_PROFILE);
+    expect(categoryKeys(result.profile)).toEqual(["widgets", "gadgets", "other"]);
+    expect(result.profile.scope.coreCategories).toEqual(["widgets"]);
+    expect(result.profile.scope.adjacentCategories).toEqual(["gadgets"]);
     const [membership] = await handle.db
       .select()
       .from(sectorCompanies)

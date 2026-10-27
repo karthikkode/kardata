@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { eq } from "drizzle-orm";
@@ -133,8 +135,6 @@ const EXPECTED_TOOLS = [
   "sector_icp_status",
   "company_icp_get",
   "sector_icp_companies",
-  "sector_rules_get",
-  "sector_rules_set",
   "company_eligibility_override",
   "sector_scope_apply",
   "sector_profile_get",
@@ -450,8 +450,8 @@ describe("mcp tools", () => {
     expect(cleared.target).toBeNull();
   });
 
-  it("sector preflight tools: job controls, rules, overrides, pipeline start", async () => {
-    const [sector] = await handle.db.insert(sectors).values({ id: randomUUID(), name: "Skincare" }).returning();
+  it("sector preflight tools: job controls, overrides, pipeline start", async () => {
+    const [sector] = await handle.db.insert(sectors).values({ id: randomUUID(), name: "Sample Sector" }).returning();
     if (!sector) throw new Error("no sector row");
     const [company] = await handle.db
       .insert(companies)
@@ -460,6 +460,10 @@ describe("mcp tools", () => {
     if (!company) throw new Error("no company row");
     await handle.db.insert(sectorCompanies).values({ sectorId: sector.id, companyId: company.id, addedVia: "manual" });
 
+    const profile = JSON.parse(readFileSync(resolve("tests/fixtures/sector-profile.json"), "utf8"));
+    const noProfile = await call("sector_preflight_start", { sectorId: sector.id });
+    expect(errorOf(noProfile).code).toBe("invalid_input");
+    dataOf(await call("sector_profile_set", { sectorId: sector.id, profile }));
     const started = dataOf(await call("sector_preflight_start", { sectorId: sector.id }));
     expect(started.companies).toBe(1);
     const jobId = (started as { jobId: string }).jobId;
@@ -480,11 +484,6 @@ describe("mcp tools", () => {
 
     const summary = dataOf(await call("sector_preflight_summary", { sectorId: sector.id }));
     expect((summary as { buckets: unknown[] }).buckets).toHaveLength(0);
-
-    const rules = dataOf(await call("sector_rules_get", { sectorId: sector.id }));
-    expect(rules.isDefault).toBe(true);
-    const badRules = await call("sector_rules_set", { sectorId: sector.id, rules: { nope: true } });
-    expect(errorOf(badRules).code).toBe("invalid_input");
 
     const override = dataOf(
       await call("company_eligibility_override", {
@@ -509,16 +508,16 @@ describe("mcp tools", () => {
       sectorId: sector.id,
       companyId: company.id,
       businessType: "dtc_brand",
-      primaryCategory: "skincare",
+      primaryCategory: "widgets",
       sellsOwnProducts: true,
       hasOnlineStore: true,
       confidence: "high",
-      reason: "site shows own-brand skincare with cart",
+      reason: "site shows own-brand widgets with cart",
     });
     const scoped = dataOf(await call("sector_scope_apply", { sectorId: sector.id }));
     expect(scoped.eligible).toBe(1);
 
-    const filtered = dataOf(await call("pipeline_start", { sectorId: sector.id, categories: ["haircare"] }));
+    const filtered = dataOf(await call("pipeline_start", { sectorId: sector.id, categories: ["gadgets"] }));
     expect(filtered.created).toBe(0);
     const launched = dataOf(await call("pipeline_start", { sectorId: sector.id }));
     expect(launched.created).toBe(1);

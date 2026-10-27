@@ -4,12 +4,8 @@ import { z } from "zod";
 import type { Db } from "../../db/client.js";
 import { sectorCompanies, sectorPreflight, sectors } from "../../db/schema.js";
 import { DomainError } from "../errors.js";
-import { BUSINESS_TYPES, PRIMARY_CATEGORIES } from "./classify.js";
-import {
-  eligibilityCounts,
-  type EligibilityCounts,
-  type EligibilityRubric,
-} from "./eligibility.js";
+import { BUSINESS_TYPES } from "./classify.js";
+import { eligibilityCounts, type EligibilityCounts } from "./eligibility.js";
 
 /**
  * Sector profile (Stage 5.4 Step 1): everything sector-specific about the
@@ -135,82 +131,6 @@ export function profileHash(profile: SectorProfile): string {
   return createHash("sha256").update(categoryKeys(profile).join(",")).digest("hex").slice(0, 16);
 }
 
-/** Rubric categories and business types must exist in the profile / enum. */
-export function validateRubricAgainstProfile(rubric: EligibilityRubric, profile: SectorProfile): void {
-  const known = new Set(categoryKeys(profile));
-  for (const key of [...rubric.eligible.primaryCategories, ...rubric.review.primaryCategories]) {
-    if (!known.has(key)) {
-      throw new DomainError("invalid_input", `rubric lists unknown category "${key}" for this sector's profile`);
-    }
-  }
-  for (const type of [...rubric.eligible.businessTypes, ...rubric.review.businessTypes]) {
-    if (!(BUSINESS_TYPES as readonly string[]).includes(type)) {
-      throw new DomainError("invalid_input", `rubric lists unknown business_type "${type}"`);
-    }
-  }
-}
-
-/** Sector press sources for the stored skincare profile (B1 values). */
-export const SKINCARE_PRESS_SOURCES = [
-  "wwd",
-  "women's wear daily",
-  "beautymatter",
-  "beauty independent",
-  "happi",
-  "premium beauty",
-  "cosmeticsbusiness",
-  "cosmetics business",
-  "little pink book",
-  "body+soul",
-];
-
-/** The skincare profile: today's constants, field for field. */
-export const SKINCARE_PROFILE: SectorProfile = {
-  categories: [
-    { key: "skincare", label: "Skincare", description: "Skin care products: cleansers, serums, moisturisers, SPF, treatments." },
-    { key: "haircare", label: "Haircare", description: "Hair care products: shampoo, conditioner, styling, treatments." },
-    { key: "cosmetics_makeup", label: "Cosmetics & makeup", description: "Colour cosmetics and makeup." },
-    { key: "body_bath", label: "Body & bath", description: "Body care, bath, hand and foot care." },
-    { key: "fragrance", label: "Fragrance", description: "Perfume, fragrance, home scent." },
-    { key: "supplements_wellness", label: "Supplements & wellness", description: "Supplements and wellness products and devices." },
-    { key: "mens_grooming", label: "Men's grooming", description: "Men's grooming and shaving products." },
-    { key: "other", label: "Other", description: OTHER_CATEGORY.description },
-  ],
-  scope: {
-    coreCategories: ["skincare", "body_bath", "mens_grooming"],
-    adjacentCategories: ["haircare", "cosmetics_makeup", "fragrance", "supplements_wellness"],
-    scopeKeywords: [
-      "skin", "derma", "dermat", "collagen", "elastin", "retinol", "retinoid", "tretinoin",
-      "hyaluron", "niacinamide", "peptid", "ceramid", "moisturiz", "moisturis", "serum",
-      "acne", "eczema", "psoriasis", "rosacea", "sunscreen", "sun screen", "suncare",
-      "sun care", "spf", "exfoliat", "cleanser", "facial", "face wash", "facewash",
-      "toner", "lotion", "night cream", "day cream", "eye cream", "vitamin c", "glycolic",
-      "salicylic", "azelaic", "kojic", "anti-ag", "antiag", "wrinkle", "dark spot",
-      "hyperpigment", "melasma", "skin barrier",
-    ],
-    businessTypes: ["dtc_brand"],
-    requireSellsOwnProducts: true,
-    requireHasOnlineStore: true,
-  },
-  classifierHints: {
-    serviceExamples: "spa, salon, barbershop, beauty services without own product line",
-    retailerExamples: "beauty store, pharmacy chain, marketplace selling other brands",
-    supplierExamples: "raw ingredients, packaging, or equipment supplier",
-  },
-  tiering: {
-    apolloMinPerStaff: 75000,
-    staffEstimatePerHead: 175000,
-    publicCheckPerStaff: 1000000,
-    pressSources: [...SKINCARE_PRESS_SOURCES],
-  },
-  promptHints: {
-    retailerExamples: "Sephora, Ulta, Target, Boots, Amazon, pharmacies",
-    priceTiers: "masstige, prestige, luxury, budget",
-    productClaims: "clean, vegan, dermatologist-tested, ingredient stories",
-    positioningStory: "ingredient story",
-  },
-};
-
 async function loadSectorRow(db: Db, sectorId: string) {
   const [sector] = await db.select().from(sectors).where(eq(sectors.id, sectorId));
   if (!sector) throw new DomainError("not_found", `sector not found: ${sectorId}`);
@@ -232,22 +152,6 @@ export async function getProfile(db: Db, sectorId: string): Promise<SectorProfil
 export async function getProfileOrNull(db: Db, sectorId: string): Promise<SectorProfile | null> {
   const sector = await loadSectorRow(db, sectorId);
   return sector.profile ? parseSectorProfile(sector.profile) : null;
-}
-
-/**
- * Profile for reading paths (scope, pipeline): the stored profile, or the
- * skincare seed for the sector named skincare (migration 0030 seeds it in
- * real data; this keeps older rows and tests working). Any other sector
- * without a profile is refused in plain words.
- */
-export async function resolveProfileForSector(db: Db, sectorId: string): Promise<SectorProfile> {
-  const sector = await loadSectorRow(db, sectorId);
-  if (sector.profile) return parseSectorProfile(sector.profile);
-  if (sector.name.trim().toLowerCase() === "skincare") return SKINCARE_PROFILE;
-  throw new DomainError(
-    "invalid_input",
-    `sector "${sector.name}" has no profile; set one with sector_profile_set before running the preflight`,
-  );
 }
 
 export interface SetProfileResult {
@@ -324,11 +228,10 @@ export async function setProfile(
       .where(eq(sectorCompanies.sectorId, sectorId));
   } else if (classified.length > 0) {
     // Scope edits re-derive instantly (no LLM), like rubric edits.
-    const { applySectorScope } = await import("./eligibility.js");
-    await applySectorScope(db, sectorId);
+    const { rederiveSectorScope } = await import("./eligibility.js");
+    await rederiveSectorScope(db, sectorId);
   }
   const after = await eligibilityCounts(db, sectorId);
   return { profile, before, after, reclassifyPending, changedFields };
 }
 
-export { PRIMARY_CATEGORIES };

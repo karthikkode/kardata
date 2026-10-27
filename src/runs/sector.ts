@@ -15,8 +15,8 @@ import {
   type SectorPreflightJob,
 } from "../db/schema.js";
 import { DomainError } from "../domain/errors.js";
-import { deriveCompany, getRubric } from "../domain/sector-preflight/eligibility.js";
-import { categoryKeys, profileHash, resolveProfileForSector } from "../domain/sector-preflight/profile.js";
+import { deriveCompany } from "../domain/sector-preflight/eligibility.js";
+import { categoryKeys, getProfile, profileHash } from "../domain/sector-preflight/profile.js";
 import {
   JOB_SAME_ERROR_PAUSE,
   checkBudget,
@@ -74,9 +74,7 @@ export async function startSectorPreflight(
   input: SectorPreflightStartInput,
 ): Promise<{ jobId: string; companies: number }> {
   // No profile, no preflight (plain refusal, no fallback prompt).
-  await resolveProfileForSector(db, input.sectorId);
-  // No rubric, no preflight either (only legacy skincare may use defaults).
-  await getRubric(db, input.sectorId);
+  await getProfile(db, input.sectorId);
   const rerun = input.onlyLowConfidence === true || (input.eligibility?.length ?? 0) > 0;
   if (rerun && input.onlyPending === true) {
     throw new DomainError("invalid_input", "onlyLowConfidence and eligibility re-classify done companies; drop onlyPending");
@@ -457,7 +455,7 @@ export async function sectorPreflightCompanies(
   if (input.promptVersion) filters.push(eq(sectorPreflight.promptVersion, input.promptVersion));
   if (input.companyIds?.length) filters.push(inArray(sectorPreflight.companyId, input.companyIds));
   if (input.staleProfile) {
-    const current = profileHash(await resolveProfileForSector(db, input.sectorId));
+    const current = profileHash(await getProfile(db, input.sectorId));
     filters.push(sql`${sectorPreflight.profileHash} is distinct from ${current}`);
   }
   const where = and(...filters);
@@ -530,7 +528,7 @@ export async function startPipeline(
   options: { categories?: string[] } = {},
 ): Promise<{ created: number; skipped: number; eligible: number }> {
   if (options.categories && options.categories.length > 0) {
-    const profile = await resolveProfileForSector(db, sectorId);
+    const profile = await getProfile(db, sectorId);
     const valid = categoryKeys(profile);
     const unknown = options.categories.filter((c) => !valid.includes(c));
     if (unknown.length > 0) {

@@ -24,30 +24,17 @@ export const BUSINESS_TYPES = [
   "unknown",
 ] as const;
 
-export const PRIMARY_CATEGORIES = [
-  "skincare",
-  "haircare",
-  "cosmetics_makeup",
-  "body_bath",
-  "fragrance",
-  "supplements_wellness",
-  "mens_grooming",
-  "other",
-] as const;
-
-export const classificationSchema = z.object({
-  business_type: z.enum(BUSINESS_TYPES),
-  primary_category: z.enum(PRIMARY_CATEGORIES),
-  sells_own_products: z.boolean(),
-  has_online_store: z.boolean(),
-  ships_to: z.array(z.string().min(1).max(120)).max(50),
-  confidence: z.enum(["low", "medium", "high"]),
-  reason: z.string().min(1).max(500),
-  quote: z.string().max(2000).nullable(),
-  quote_source_id: z.string().uuid().nullable(),
-});
-
-export type Classification = z.infer<typeof classificationSchema>;
+export interface Classification {
+  business_type: (typeof BUSINESS_TYPES)[number];
+  primary_category: string;
+  sells_own_products: boolean;
+  has_online_store: boolean;
+  ships_to: string[];
+  confidence: "low" | "medium" | "high";
+  reason: string;
+  quote: string | null;
+  quote_source_id: string | null;
+}
 
 function schemaForCategories(categories: readonly string[]) {
   return z.object({
@@ -63,8 +50,8 @@ function schemaForCategories(categories: readonly string[]) {
   });
 }
 
-export function parseClassification(value: unknown, profile?: SectorProfile): Classification {
-  const schema = profile ? schemaForCategories(categoryKeys(profile)) : classificationSchema;
+export function parseClassification(value: unknown, profile: SectorProfile): Classification {
+  const schema = schemaForCategories(categoryKeys(profile));
   const parsed = schema.safeParse(value);
   if (!parsed.success) {
     const first = parsed.error.issues[0];
@@ -80,10 +67,6 @@ export function parseClassification(value: unknown, profile?: SectorProfile): Cl
 function promptsDir(version = "sector-preflight-v2"): string {
   const here = dirname(fileURLToPath(import.meta.url));
   return join(here, "..", "..", "..", "prompts", version);
-}
-
-export function classifierSchema(): string {
-  return readFileSync(join(promptsDir("sector-preflight-v1"), "schema.json"), "utf8");
 }
 
 /** Output schema as a string, generated from the profile at runtime. */
@@ -180,23 +163,21 @@ export function apolloBlock(company: Company, description: string | null): strin
   return lines.join("\n");
 }
 
-export function buildClassifierPrompt(input: ClassifierInput, profile?: SectorProfile): string {
+export function buildClassifierPrompt(input: ClassifierInput, profile: SectorProfile): string {
   const template = readFileSync(join(promptsDir(), "prompt.md"), "utf8");
-  const rendered = profile
-    ? template
-        .split("{{categories}}")
-        .join(
-          profile.categories
-            .map((c) => `- \`${c.key}\` (${c.label}): ${c.description}`)
-            .join("\n"),
-        )
-        .split("{{serviceExamples}}")
-        .join(profile.classifierHints.serviceExamples)
-        .split("{{retailerExamples}}")
-        .join(profile.classifierHints.retailerExamples)
-        .split("{{supplierExamples}}")
-        .join(profile.classifierHints.supplierExamples)
-    : template;
+  const rendered = template
+    .split("{{categories}}")
+    .join(
+      profile.categories
+        .map((c) => `- \`${c.key}\` (${c.label}): ${c.description}`)
+        .join("\n"),
+    )
+    .split("{{serviceExamples}}")
+    .join(profile.classifierHints.serviceExamples)
+    .split("{{retailerExamples}}")
+    .join(profile.classifierHints.retailerExamples)
+    .split("{{supplierExamples}}")
+    .join(profile.classifierHints.supplierExamples);
   const sourceList =
     input.pages.length > 0
       ? `${input.pages.map((p) => p.sourceId).join(", ")}${input.webOrigin ? "; also read the live site with your web tools" : ""}`

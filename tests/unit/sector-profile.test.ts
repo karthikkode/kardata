@@ -1,17 +1,10 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { PRIMARY_CATEGORIES } from "../../src/domain/sector-preflight/classify.js";
 import {
-  DEFAULT_SKINCARE_RUBRIC,
-  SCOPE_ADJACENT_CATEGORIES,
-  SCOPE_CORE_CATEGORIES,
-  SKIN_KEYWORDS,
-} from "../../src/domain/sector-preflight/eligibility.js";
-import {
-  SKINCARE_PROFILE,
   categoryKeys,
   parseSectorProfile,
   profileHash,
-  validateRubricAgainstProfile,
 } from "../../src/domain/sector-preflight/profile.js";
 
 const gardenInput = {
@@ -106,76 +99,16 @@ describe("profile v2 fields", () => {
   });
 });
 
-describe("rubric validation against the profile", () => {
-  it("accepts the skincare rubric against the skincare profile", () => {
-    expect(() => validateRubricAgainstProfile(DEFAULT_SKINCARE_RUBRIC, SKINCARE_PROFILE)).not.toThrow();
-  });
-
-  it("rejects rubric categories the profile does not declare", () => {
-    const profile = parseSectorProfile(gardenInput);
-    expect(() => validateRubricAgainstProfile(DEFAULT_SKINCARE_RUBRIC, profile)).toThrowError(
-      /unknown category "skincare"/,
+describe("neutral fixture profile", () => {
+  it("parses tests/fixtures/sector-profile.json with invented categories", () => {
+    const profile = parseSectorProfile(
+      JSON.parse(readFileSync(resolve("tests/fixtures/sector-profile.json"), "utf8")),
     );
-  });
-});
-
-describe("SKINCARE_PROFILE matches the old constants field for field", () => {
-  it("equals the pre-5.4 constants exactly: categories, scope, keywords, hints", () => {
-    expect(SKINCARE_PROFILE).toEqual({
-      categories: [
-        { key: "skincare", label: "Skincare", description: "Skin care products: cleansers, serums, moisturisers, SPF, treatments." },
-        { key: "haircare", label: "Haircare", description: "Hair care products: shampoo, conditioner, styling, treatments." },
-        { key: "cosmetics_makeup", label: "Cosmetics & makeup", description: "Colour cosmetics and makeup." },
-        { key: "body_bath", label: "Body & bath", description: "Body care, bath, hand and foot care." },
-        { key: "fragrance", label: "Fragrance", description: "Perfume, fragrance, home scent." },
-        { key: "supplements_wellness", label: "Supplements & wellness", description: "Supplements and wellness products and devices." },
-        { key: "mens_grooming", label: "Men's grooming", description: "Men's grooming and shaving products." },
-        { key: "other", label: "Other", description: "A real business whose main lane is none of the listed categories." },
-      ],
-      scope: {
-        coreCategories: ["skincare", "body_bath", "mens_grooming"],
-        adjacentCategories: ["haircare", "cosmetics_makeup", "fragrance", "supplements_wellness"],
-        scopeKeywords: [
-          "skin", "derma", "dermat", "collagen", "elastin", "retinol", "retinoid", "tretinoin",
-          "hyaluron", "niacinamide", "peptid", "ceramid", "moisturiz", "moisturis", "serum",
-          "acne", "eczema", "psoriasis", "rosacea", "sunscreen", "sun screen", "suncare",
-          "sun care", "spf", "exfoliat", "cleanser", "facial", "face wash", "facewash",
-          "toner", "lotion", "night cream", "day cream", "eye cream", "vitamin c", "glycolic",
-          "salicylic", "azelaic", "kojic", "anti-ag", "antiag", "wrinkle", "dark spot",
-          "hyperpigment", "melasma", "skin barrier",
-        ],
-        businessTypes: ["dtc_brand"],
-        requireSellsOwnProducts: true,
-        requireHasOnlineStore: true,
-      },
-      classifierHints: {
-        serviceExamples: "spa, salon, barbershop, beauty services without own product line",
-        retailerExamples: "beauty store, pharmacy chain, marketplace selling other brands",
-        supplierExamples: "raw ingredients, packaging, or equipment supplier",
-      },
-      tiering: {
-        apolloMinPerStaff: 75000,
-        staffEstimatePerHead: 175000,
-        publicCheckPerStaff: 1000000,
-        pressSources: [
-          "wwd", "women's wear daily", "beautymatter", "beauty independent", "happi",
-          "premium beauty", "cosmeticsbusiness", "cosmetics business", "little pink book", "body+soul",
-        ],
-      },
-      promptHints: {
-        retailerExamples: "Sephora, Ulta, Target, Boots, Amazon, pharmacies",
-        priceTiers: "masstige, prestige, luxury, budget",
-        productClaims: "clean, vegan, dermatologist-tested, ingredient stories",
-        positioningStory: "ingredient story",
-      },
-    });
-    // And against the surviving pre-5.4 constants themselves, not just literals.
-    expect(categoryKeys(SKINCARE_PROFILE)).toEqual([...PRIMARY_CATEGORIES]);
-    expect(SKINCARE_PROFILE.scope.coreCategories).toEqual([...SCOPE_CORE_CATEGORIES]);
-    expect(SKINCARE_PROFILE.scope.adjacentCategories).toEqual([...SCOPE_ADJACENT_CATEGORIES]);
-    expect(SKINCARE_PROFILE.scope.scopeKeywords).toEqual([...SKIN_KEYWORDS]);
-    expect(SKINCARE_PROFILE.scope.coreCategories).toEqual(DEFAULT_SKINCARE_RUBRIC.eligible.primaryCategories);
-    expect(SKINCARE_PROFILE.scope.adjacentCategories).toEqual(DEFAULT_SKINCARE_RUBRIC.review.primaryCategories);
-    expect(profileHash(SKINCARE_PROFILE)).toHaveLength(16);
+    expect(categoryKeys(profile)).toEqual(["widgets", "gadgets", "other"]);
+    expect(profile.scope.coreCategories).toEqual(["widgets"]);
+    expect(profile.scope.adjacentCategories).toEqual(["gadgets"]);
+    expect(profile.scope.businessTypes).toEqual(["dtc_brand"]);
+    expect(profile.tiering.pressSources).toEqual(["example trade press"]);
+    expect(profileHash(profile)).toHaveLength(16);
   });
 });

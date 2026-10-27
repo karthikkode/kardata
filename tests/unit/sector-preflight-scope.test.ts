@@ -1,86 +1,99 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { evaluateSectorScope, type ScopeInput } from "../../src/domain/sector-preflight/eligibility.js";
+import { parseSectorProfile } from "../../src/domain/sector-preflight/profile.js";
+
+const profile = parseSectorProfile(
+  JSON.parse(readFileSync(resolve("tests/fixtures/sector-profile.json"), "utf8")),
+);
 
 function input(patch: Partial<ScopeInput> = {}): ScopeInput {
   return {
     businessType: "dtc_brand",
-    primaryCategory: "skincare",
+    primaryCategory: "widgets",
     sellsOwnProducts: true,
     hasOnlineStore: true,
     confidence: "high",
-    reason: "Shopify storefront sells its own skincare line.",
+    reason: "Storefront sells its own widget line.",
     quote: null,
-    companyName: "Skin Co",
+    companyName: "Widget Co",
     apolloKeywords: [],
     ...patch,
   };
 }
 
-describe("evaluateSectorScope", () => {
-  it("admits D2C core-category sellers", () => {
-    for (const primaryCategory of ["skincare", "body_bath", "mens_grooming"]) {
-      const verdict = evaluateSectorScope(input({ primaryCategory }));
-      expect(verdict).toEqual({ eligible: true, reason: `sector scope: D2C ${primaryCategory}` });
-    }
-  });
-
-  it("rejects non-D2C, product-less and store-less sellers first", () => {
-    expect(evaluateSectorScope(input({ businessType: "clinic_medical" })).eligible).toBe(false);
-    expect(evaluateSectorScope(input({ businessType: "spa_salon" })).reason).toContain("not D2C");
-    expect(evaluateSectorScope(input({ sellsOwnProducts: false })).reason).toContain("no own products");
-    expect(evaluateSectorScope(input({ hasOnlineStore: false })).reason).toContain("no online store");
-  });
-
-  it("admits adjacent categories only with skin evidence", () => {
-    const makeup = input({
-      primaryCategory: "cosmetics_makeup",
-      reason: "Sells its own makeup line direct.",
-      quote: null,
-      companyName: "Glam Co",
+describe("evaluateSectorScope (neutral fixture profile)", () => {
+  it("admits in-scope business types in a core category", () => {
+    expect(evaluateSectorScope(input(), profile)).toEqual({
+      eligible: true,
+      reason: "sector scope: widgets",
     });
-    expect(evaluateSectorScope(makeup)).toEqual({
+  });
+
+  it("rejects business types outside the profile list, then missing products/store per the require flags", () => {
+    const out = evaluateSectorScope(input({ businessType: "clinic_medical" }), profile);
+    expect(out.eligible).toBe(false);
+    expect(out.reason).toContain("business type clinic_medical out of scope");
+    expect(evaluateSectorScope(input({ sellsOwnProducts: false }), profile).reason).toContain("no own products");
+    expect(evaluateSectorScope(input({ hasOnlineStore: false }), profile).reason).toContain("no online store");
+  });
+
+  it("honours require flags switched off in the profile", () => {
+    const relaxed = parseSectorProfile({
+      ...JSON.parse(readFileSync(resolve("tests/fixtures/sector-profile.json"), "utf8")),
+      scope: {
+        ...profile.scope,
+        requireSellsOwnProducts: false,
+        requireHasOnlineStore: false,
+      },
+    });
+    expect(evaluateSectorScope(input({ sellsOwnProducts: false, hasOnlineStore: false }), relaxed).eligible).toBe(true);
+    const open = parseSectorProfile({
+      ...JSON.parse(readFileSync(resolve("tests/fixtures/sector-profile.json"), "utf8")),
+      scope: { ...profile.scope, businessTypes: ["dtc_brand", "brand_retail_only"] },
+    });
+    expect(evaluateSectorScope(input({ businessType: "brand_retail_only" }), open).eligible).toBe(true);
+  });
+
+  it("admits adjacent categories only with a keyword hit, with neutral reason wording", () => {
+    const plain = input({
+      primaryCategory: "gadgets",
+      reason: "Sells its own gadget line direct.",
+      companyName: "Gadget Co",
+    });
+    expect(evaluateSectorScope(plain, profile)).toEqual({
       eligible: false,
-      reason: "sector scope: cosmetics_makeup out of scope, not skin-related",
+      reason: "sector scope: gadgets out of scope, no keyword hit",
     });
-    const skinMakeup = input({
-      primaryCategory: "cosmetics_makeup",
-      reason: "Sells its own makeup line direct.",
-      quote: "skincare-infused foundation with SPF",
-      companyName: "Glam Co",
+    const hit = input({
+      primaryCategory: "gadgets",
+      reason: "Sells its own gadget line direct.",
+      quote: "our widgetized gadget-grade kit",
+      companyName: "Gadget Co",
     });
-    expect(evaluateSectorScope(skinMakeup).eligible).toBe(true);
-    expect(evaluateSectorScope(skinMakeup).reason).toContain("skin-related");
-  });
-
-  it("finds skin evidence in the company name", () => {
-    const byName = input({
-      primaryCategory: "haircare",
-      reason: "Sells its own hair products direct.",
-      companyName: "SkinFix Hair",
-      apolloKeywords: [],
+    expect(evaluateSectorScope(hit, profile)).toEqual({
+      eligible: true,
+      reason: "sector scope: gadgets, keyword hit (widgetized)",
     });
-    expect(evaluateSectorScope(byName).eligible).toBe(true);
   });
 
   it("counts Apollo keywords only when the site was unreadable", () => {
     const base = {
-      primaryCategory: "supplements_wellness",
-      reason: "Sells its own vitamins direct.",
-      companyName: "Vita Co",
-      apolloKeywords: ["collagen peptides", "e-commerce"],
+      primaryCategory: "gadgets",
+      reason: "Sells its own gadgets direct.",
+      companyName: "Gadget Co",
+      apolloKeywords: ["gadget-grade hardware", "e-commerce"],
     };
-    // Readable site without skin evidence: Apollo soup does not save it.
-    expect(evaluateSectorScope(input({ ...base, confidence: "high" })).eligible).toBe(false);
-    // Blocked site: Apollo is the only evidence and it counts.
-    const low = evaluateSectorScope(input({ ...base, confidence: "low" }));
+    expect(evaluateSectorScope(input({ ...base, confidence: "high" }), profile).eligible).toBe(false);
+    const low = evaluateSectorScope(input({ ...base, confidence: "low" }), profile);
     expect(low.eligible).toBe(true);
     expect(low.reason).toContain("apollo-attested");
   });
 
-  it("rejects off-sector categories even with skin words nearby", () => {
-    const verdict = evaluateSectorScope(
-      input({ primaryCategory: "other", reason: "Sells its own contact lenses with skin-tone packaging." }),
-    );
-    expect(verdict).toEqual({ eligible: false, reason: "sector scope: other out of scope" });
+  it("rejects off-sector categories even with keywords nearby", () => {
+    expect(
+      evaluateSectorScope(input({ primaryCategory: "other", reason: "Sells widgetized contact lenses." }), profile),
+    ).toEqual({ eligible: false, reason: "sector scope: other out of scope" });
   });
 });

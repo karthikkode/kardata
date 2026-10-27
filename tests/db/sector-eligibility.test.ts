@@ -1,21 +1,23 @@
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import type { DbHandle } from "../../src/db/client.js";
 import { companies, sectorCompanies, sectorPreflight, sectors } from "../../src/db/schema.js";
 import {
-  DEFAULT_SKINCARE_RUBRIC,
-  applySectorScope,
   deriveCompany,
   eligibilityCounts,
-  getRubric,
-  rederiveSector,
+  rederiveSectorScope,
   setOverride,
-  setRubric,
 } from "../../src/domain/sector-preflight/eligibility.js";
-import { setProfile } from "../../src/domain/sector-preflight/profile.js";
+import { parseSectorProfile, setProfile } from "../../src/domain/sector-preflight/profile.js";
 import { startSectorPreflight } from "../../src/runs/sector.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
+
+const TEST_PROFILE = parseSectorProfile(
+  JSON.parse(readFileSync(resolve("tests/fixtures/sector-profile.json"), "utf8")),
+);
 
 let handle: DbHandle;
 
@@ -32,12 +34,13 @@ afterAll(async () => {
   await handle.close();
 });
 
-async function makeSector(name: string): Promise<string> {
+async function makeSector(name: string, withProfile = true): Promise<string> {
   const [row] = await handle.db
     .insert(sectors)
     .values({ id: randomUUID(), name })
     .returning({ id: sectors.id });
   if (!row) throw new Error("no sector row");
+  if (withProfile) await setProfile(handle.db, row.id, TEST_PROFILE);
   return row.id;
 }
 
@@ -57,11 +60,11 @@ async function classify(sectorId: string, companyId: string, patch: Record<strin
     sectorId,
     companyId,
     businessType: "dtc_brand",
-    primaryCategory: "skincare",
+    primaryCategory: "widgets",
     sellsOwnProducts: true,
     hasOnlineStore: true,
     confidence: "high",
-    reason: "test",
+    reason: "test storefront sells its own widgets",
     ...patch,
   });
 }
@@ -74,118 +77,96 @@ async function membership(sectorId: string, companyId: string) {
   return row;
 }
 
-describe("sector eligibility", () => {
-  it("defaults to the skincare rubric and pending memberships", async () => {
-    const sectorId = await makeSector("Skincare");
+describe("sector eligibility (scope only)", () => {
+  it("stays pending without a classification or a profile refusal path", async () => {
+    const sectorId = await makeSector("Sample Sector");
     const companyId = await addCompany(sectorId, "A Co");
-    await expect(getRubric(handle.db, sectorId)).resolves.toEqual({ rubric: DEFAULT_SKINCARE_RUBRIC, isDefault: true });
-    expect((await membership(sectorId, companyId))?.eligibility).toBe("pending");
-    await deriveCompany(handle.db, sectorId, companyId);
+    await expect(deriveCompany(handle.db, sectorId, companyId)).resolves.toEqual({
+      eligibility: "pending",
+      source: null,
+      reason: null,
+    });
     expect((await membership(sectorId, companyId))?.eligibility).toBe("pending");
   });
 
-  it("derives eligible/review/ineligible from classifications", async () => {
-    const sectorId = await makeSector("Skincare");
+  it("derives eligible for in-scope D2C core, ineligible otherwise, never review", async () => {
+    const sectorId = await makeSector("Sample Sector");
     const a = await addCompany(sectorId, "A Co");
     const b = await addCompany(sectorId, "B Co");
     const c = await addCompany(sectorId, "C Co");
     await classify(sectorId, a);
     await classify(sectorId, b, { businessType: "clinic_medical" });
-    await classify(sectorId, c, { businessType: "unknown", confidence: "low" });
+    await classify(sectorId, c, { primaryCategory: "gadgets", reason: "sells gadgets direct" });
     await expect(deriveCompany(handle.db, sectorId, a)).resolves.toMatchObject({ eligibility: "eligible", source: "rule" });
     await expect(deriveCompany(handle.db, sectorId, b)).resolves.toMatchObject({ eligibility: "ineligible" });
-    await expect(deriveCompany(handle.db, sectorId, c)).resolves.toMatchObject({ eligibility: "review" });
-    await expect(eligibilityCounts(handle.db, sectorId)).resolves.toEqual({ pending: 0, eligible: 1, review: 1, ineligible: 1 });
+    await expect(deriveCompany(handle.db, sectorId, c)).resolves.toMatchObject({ eligibility: "ineligible" });
+    await expect(eligibilityCounts(handle.db, sectorId)).resolves.toEqual({
+      pending: 0,
+      eligible: 1,
+      review: 0,
+      ineligible: 2,
+    });
   });
 
-  it("applies the binary sector scope, skipping overrides and pending rows", async () => {
-    const sectorId = await makeSector("Skincare");
-    const core = await addCompany(sectorId, "Skin Co");
-    const adjacent = await addCompany(sectorId, "Glam Co");
-    const rejected = await addCompany(sectorId, "Lens Co");
-    const overridden = await addCompany(sectorId, "Kept Co");
-    const pending = await addCompany(sectorId, "New Co");
-    await classify(sectorId, core);
-    await classify(sectorId, adjacent, { primaryCategory: "cosmetics_makeup", reason: "makeup with SPF skincare" });
-    await classify(sectorId, rejected, { primaryCategory: "other", reason: "sells contact lenses" });
-    await classify(sectorId, overridden, { primaryCategory: "other", reason: "sells contact lenses" });
-    await setOverride(handle.db, sectorId, overridden, "include", "owner call");
-    const result = await applySectorScope(handle.db, sectorId);
-    expect(result).toEqual({ eligible: 2, ineligible: 1, skippedOverride: 1, skippedPending: 1 });
-    expect((await membership(sectorId, core))?.eligibility).toBe("eligible");
-    expect((await membership(sectorId, adjacent))?.eligibility).toBe("eligible");
-    expect((await membership(sectorId, adjacent))?.eligibilityReason).toContain("skin-related");
-    expect((await membership(sectorId, rejected))?.eligibility).toBe("ineligible");
-    expect((await membership(sectorId, overridden))?.eligibility).toBe("eligible");
-    expect((await membership(sectorId, overridden))?.eligibilitySource).toBe("override");
-    expect((await membership(sectorId, pending))?.eligibility).toBe("pending");
-  });
-
-  it("overrides win and clear restores the rule", async () => {
-    const sectorId = await makeSector("Skincare");
+  it("lets overrides win both ways and clear restores the scope verdict", async () => {
+    const sectorId = await makeSector("Sample Sector");
     const companyId = await addCompany(sectorId, "A Co");
     await classify(sectorId, companyId, { businessType: "clinic_medical" });
-    await expect(setOverride(handle.db, sectorId, companyId, "include", "owner call")).resolves.toMatchObject({
+    await expect(setOverride(handle.db, sectorId, companyId, "include", "owner knows")).resolves.toEqual({
       eligibility: "eligible",
       source: "override",
+      reason: "owner knows",
     });
-    expect((await membership(sectorId, companyId))?.eligibilityReason).toBe("owner call");
     await expect(setOverride(handle.db, sectorId, companyId, "clear")).resolves.toMatchObject({
       eligibility: "ineligible",
       source: "rule",
     });
-  });
-
-  it("re-derives instantly on a rubric change with before/after counts", async () => {
-    const sectorId = await makeSector("Skincare");
-    const companyId = await addCompany(sectorId, "A Co");
-    await classify(sectorId, companyId, { primaryCategory: "haircare" });
-    await deriveCompany(handle.db, sectorId, companyId);
-    expect((await membership(sectorId, companyId))?.eligibility).toBe("review");
-    const wider = {
-      ...DEFAULT_SKINCARE_RUBRIC,
-      eligible: { ...DEFAULT_SKINCARE_RUBRIC.eligible, primaryCategories: ["skincare", "haircare"] },
-    };
-    const result = await setRubric(handle.db, sectorId, wider);
-    expect(result.before).toMatchObject({ review: 1 });
-    expect(result.after).toMatchObject({ eligible: 1 });
-    expect((await membership(sectorId, companyId))?.eligibility).toBe("eligible");
-    await expect(setRubric(handle.db, sectorId, { nope: true })).rejects.toThrow(/invalid rubric/);
-  });
-
-  it("refuses a rubric-less sector that is not legacy skincare, plainly", async () => {
-    const sectorId = await makeSector("garden-test");
-    const companyId = await addCompany(sectorId, "A Co");
-    await expect(getRubric(handle.db, sectorId)).rejects.toThrow(
-      /has no eligibility rubric; set one with sector_rules_set/,
-    );
-    await expect(deriveCompany(handle.db, sectorId, companyId)).rejects.toThrow(/has no eligibility rubric/);
-    await expect(rederiveSector(handle.db, sectorId)).rejects.toThrow(/has no eligibility rubric/);
-  });
-
-  it("preflight start refuses a profiled sector with no rubric", async () => {
-    const sectorId = await makeSector("garden-test");
-    await setProfile(handle.db, sectorId, {
-      categories: [{ key: "growing", label: "Growing", description: "Seeds and plants." }],
-      scope: { coreCategories: ["growing"], adjacentCategories: [], scopeKeywords: [], businessTypes: ["dtc_brand"], requireSellsOwnProducts: true, requireHasOnlineStore: true },
-  tiering: { apolloMinPerStaff: 75000, staffEstimatePerHead: 175000, publicCheckPerStaff: 1000000, pressSources: [] },
-  promptHints: { retailerExamples: "example retailers", priceTiers: "example tiers", productClaims: "example claims", positioningStory: "example story" },
-      classifierHints: {
-        serviceExamples: "landscaping",
-        retailerExamples: "garden centres",
-        supplierExamples: "trade growers",
-      },
+    await expect(setOverride(handle.db, sectorId, companyId, "exclude", "out")).resolves.toMatchObject({
+      eligibility: "ineligible",
+      source: "override",
     });
-    await expect(startSectorPreflight(handle.db, { sectorId })).rejects.toThrow(
-      /has no eligibility rubric; set one with sector_rules_set/,
-    );
   });
 
-  it("rederiveSector covers every membership", async () => {
-    const sectorId = await makeSector("Skincare");
+  it("rederiveSectorScope covers every membership and skips overrides in its tally", async () => {
+    const sectorId = await makeSector("Sample Sector");
     const a = await addCompany(sectorId, "A Co");
-    await addCompany(sectorId, "B Co");
+    const b = await addCompany(sectorId, "B Co");
+    await addCompany(sectorId, "C Co");
     await classify(sectorId, a);
-    await expect(rederiveSector(handle.db, sectorId)).resolves.toEqual({ pending: 1, eligible: 1, review: 0, ineligible: 0 });
+    await classify(sectorId, b, { businessType: "clinic_medical" });
+    await setOverride(handle.db, sectorId, b, "include", "keep");
+    const result = await rederiveSectorScope(handle.db, sectorId);
+    expect(result).toEqual({ eligible: 1, ineligible: 0, skippedOverride: 1, skippedPending: 1 });
+    await expect(eligibilityCounts(handle.db, sectorId)).resolves.toEqual({
+      pending: 1,
+      eligible: 2,
+      review: 0,
+      ineligible: 0,
+    });
+  });
+
+  it("refuses preflight and scope for a sector with no profile, in plain words", async () => {
+    const sectorId = await makeSector("No Profile Sector", false);
+    const companyId = await addCompany(sectorId, "A Co");
+    await classify(sectorId, companyId);
+    await expect(startSectorPreflight(handle.db, { sectorId })).rejects.toThrow(/has no profile/);
+    await expect(rederiveSectorScope(handle.db, sectorId)).rejects.toThrow(/has no profile/);
+    await expect(deriveCompany(handle.db, sectorId, companyId)).rejects.toThrow(/has no profile/);
+  });
+
+  it("re-derives on profile save when classifications exist", async () => {
+    const sectorId = await makeSector("Sample Sector");
+    const companyId = await addCompany(sectorId, "A Co");
+    await classify(sectorId, companyId);
+    await deriveCompany(handle.db, sectorId, companyId);
+    expect((await membership(sectorId, companyId))?.eligibility).toBe("eligible");
+    const narrower = {
+      ...JSON.parse(readFileSync(resolve("tests/fixtures/sector-profile.json"), "utf8")),
+      scope: { ...TEST_PROFILE.scope, businessTypes: ["brand_retail_only"] },
+    };
+    const result = await setProfile(handle.db, sectorId, narrower);
+    expect(result.after.eligible).toBe(0);
+    expect(result.after.ineligible).toBe(1);
+    expect((await membership(sectorId, companyId))?.eligibility).toBe("ineligible");
   });
 });
