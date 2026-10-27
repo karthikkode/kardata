@@ -138,6 +138,32 @@ describe("startSectorPreflight", () => {
     expect(b).toBeTruthy();
   });
 
+  it("re-classifies only low-confidence companies with onlyLowConfidence", async () => {
+    const sectorId = await makeSector("Skincare");
+    const sure = await addCompany(sectorId, "A Co");
+    const unsure = await addCompany(sectorId, "B Co");
+    await addCompany(sectorId, "C Co");
+    const row = (companyId: string, confidence: "high" | "medium" | "low") => ({
+      id: randomUUID(),
+      sectorId,
+      companyId,
+      businessType: "dtc_brand",
+      primaryCategory: "skincare",
+      sellsOwnProducts: true,
+      hasOnlineStore: true,
+      confidence,
+      reason: "prior",
+    });
+    await handle.db.insert(sectorPreflight).values([row(sure, "high"), row(unsure, "low")]);
+    const low = await startSectorPreflight(handle.db, { sectorId, onlyLowConfidence: true });
+    expect(low.companies).toBe(1);
+    const items = await handle.db.select().from(sectorPreflightItems).where(eq(sectorPreflightItems.jobId, low.jobId));
+    expect(items.map((i) => i.companyId)).toEqual([unsure]);
+    await expect(
+      startSectorPreflight(handle.db, { sectorId, onlyLowConfidence: true, onlyPending: true }),
+    ).rejects.toThrow(/drop onlyPending/);
+  });
+
   it("starts a subset by companyIds and rejects outsiders", async () => {
     const sectorId = await makeSector("Skincare");
     const a = await addCompany(sectorId, "A Co");

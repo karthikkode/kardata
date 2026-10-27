@@ -157,48 +157,85 @@ describe("classifyCompany", () => {
     expect((await rowFor(sectorId, companyId))?.verification).toBe("quote_mismatch");
   });
 
-  it("falls back to Apollo-only on a blocked homepage and requires low confidence", async () => {
+  it("hands a blocked site to Muse's web tools and keeps its verdict ungrounded", async () => {
     // 403, not robots: the fetcher caches robots.txt per fake-site host across tests.
     site.routes.set("/", (_req, res) => sendText(res, "denied", 403));
     const sectorId = await makeSector("Skincare");
     const companyId = await makeCompany("Blocked Co", site.baseUrl);
-    const apolloCall: ClassifierCall = async () => ({
-      json: {
-        business_type: "unknown",
-        primary_category: "other",
-        sells_own_products: false,
-        has_online_store: false,
-        ships_to: [],
-        confidence: "low",
-        reason: "Site blocked; Apollo record only.",
-        quote: null,
-        quote_source_id: null,
-      },
-      usage: USAGE,
-    });
+    const seen: { web?: boolean; prompt: string }[] = [];
+    const webCall = (quote: string | null): ClassifierCall => async ({ prompt, web }) => {
+      seen.push({ web, prompt });
+      return {
+        json: {
+          business_type: "dtc_brand",
+          primary_category: "skincare",
+          sells_own_products: true,
+          has_online_store: true,
+          ships_to: [],
+          confidence: "medium",
+          reason: "Muse read the shop page: own serums with checkout.",
+          quote,
+          quote_source_id: "made-up-id",
+        },
+        usage: USAGE,
+      };
+    };
     const hitsBefore = site.hits.length;
-    const outcome = await classifyCompany(handle.db, { sectorId, companyId, call: apolloCall, fetchOptions: ALLOW });
+    const outcome = await classifyCompany(handle.db, {
+      sectorId,
+      companyId,
+      call: webCall("Shop our serums"),
+      fetchOptions: ALLOW,
+    });
     expect(outcome.apolloOnly).toBe(true);
+    expect(outcome.webFallback).toBe(true);
     expect(outcome.verification).toBe("unverified");
+    expect(seen[0]?.web).toBe(true);
+    expect(seen[0]?.prompt).toContain("web_fetch");
+    expect(seen[0]?.prompt).toContain(new URL(site.baseUrl).origin);
+    expect(seen[0]?.prompt).not.toContain("Never browse");
+    const row = await rowFor(sectorId, companyId);
+    expect(row?.confidence).toBe("medium");
+    expect(row?.quote).toBe("Shop our serums");
+    expect(row?.quoteSourceId).toBeNull();
+    expect(row?.promptVersion).toBe("v2-web");
     // Blocked homepage: no subpages and no Shopify probe were attempted.
     const paths = site.hits.slice(hitsBefore).map((h) => h.path);
     expect(paths.every((p) => p === "/" || p === "/robots.txt")).toBe(true);
 
-    const badCall: ClassifierCall = async () => ({
-      json: {
-        business_type: "dtc_brand",
-        primary_category: "skincare",
-        sells_own_products: true,
-        has_online_store: true,
-        ships_to: [],
-        confidence: "medium",
-        reason: "Overconfident on Apollo only.",
-        quote: null,
-        quote_source_id: null,
-      },
-      usage: USAGE,
-    });
-    await expect(classifyCompany(handle.db, { sectorId, companyId, call: badCall, fetchOptions: ALLOW })).rejects.toThrow(
+    // Muse could not read the site either (no quote): the verdict stays low.
+    await classifyCompany(handle.db, { sectorId, companyId, call: webCall(null), fetchOptions: ALLOW });
+    expect((await rowFor(sectorId, companyId))?.confidence).toBe("low");
+  });
+
+  it("classifies a company without any website from Apollo only and requires low confidence", async () => {
+    const sectorId = await makeSector("Skincare");
+    const companyId = await makeCompany("No Site Co", null);
+    const seen: (boolean | undefined)[] = [];
+    const callWith = (confidence: string): ClassifierCall => async ({ prompt, web }) => {
+      seen.push(web);
+      expect(prompt).toContain("Never browse");
+      return {
+        json: {
+          business_type: "unknown",
+          primary_category: "other",
+          sells_own_products: false,
+          has_online_store: false,
+          ships_to: [],
+          confidence,
+          reason: "Apollo record only.",
+          quote: null,
+          quote_source_id: null,
+        },
+        usage: USAGE,
+      };
+    };
+    const outcome = await classifyCompany(handle.db, { sectorId, companyId, call: callWith("low") });
+    expect(outcome.apolloOnly).toBe(true);
+    expect(outcome.webFallback).toBe(false);
+    expect(seen[0]).toBe(false);
+    expect((await rowFor(sectorId, companyId))?.promptVersion).toBe("v2");
+    await expect(classifyCompany(handle.db, { sectorId, companyId, call: callWith("medium") })).rejects.toThrow(
       /low confidence/,
     );
   });

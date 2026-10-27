@@ -1,7 +1,6 @@
 # Sector preflight classifier
 
-You classify one company for a sector eligibility pass. Use ONLY the evidence below: the Apollo
-record, the fetched site pages, and the Shopify signal. Never browse. Output one JSON object matching
+You classify one company for a sector eligibility pass. {{evidenceRule}} Output one JSON object matching
 the schema: no extra keys, no markdown.
 
 ## What each business_type means

@@ -70,10 +70,17 @@ describe("evaluateClassification (low confidence, garden-style rubric)", () => {
     expect(evaluateClassification(low("dtc_brand", "other"), GARDEN).eligibility).toBe("ineligible");
   });
 
-  it("still reviews an unsure retail-only brand outside the categories via its type", () => {
-    expect(evaluateClassification(low("brand_retail_only", "other"), GARDEN).reason).toBe(
+  it("rejects a retail-only or unknown company outside the categories, sure or not", () => {
+    expect(evaluateClassification(low("brand_retail_only", "other"), GARDEN).eligibility).toBe("ineligible");
+    const sure = { ...low("brand_retail_only", "other"), confidence: "high" };
+    expect(evaluateClassification(sure, GARDEN).eligibility).toBe("ineligible");
+  });
+
+  it("reviews a sure retail-only or unknown company in a relevant category", () => {
+    expect(evaluateClassification({ ...low("brand_retail_only", "growing"), confidence: "high" }, GARDEN).reason).toBe(
       "needs review: business_type brand_retail_only",
     );
+    expect(evaluateClassification({ ...low("unknown", "other"), confidence: "medium" }, GARDEN).eligibility).toBe("review");
   });
 
   it("is off when the rubric disables it", () => {
