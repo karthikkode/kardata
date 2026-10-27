@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import type { ContactStatus } from "../tiering.js";
+import { MIN_CONTACT_SCORE, type ContactStatus } from "../tiering.js";
 import type { EvidenceItem, EvidencePack } from "./evidence.js";
 import {
   EXCLUSION_RULES,
@@ -280,7 +280,7 @@ export function decideIcp(pack: EvidencePack, judgement: Judgement): IcpDecision
     status = "excluded";
     exclusionReason = "below $500k revenue: not contacted";
   } else {
-    status = score >= 2 ? "contactable" : "watchlist";
+    status = score >= MIN_CONTACT_SCORE ? "contactable" : "watchlist";
   }
   return { score, status, exclusionReason, signals, exclusions, flags };
 }

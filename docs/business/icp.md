@@ -19,7 +19,7 @@ The structure is the same for every sector:
   - **Tier A:** high revenue. **Tier B:** mid revenue. **Tier C:** low revenue.
 - **Layer** = priority inside a tier, set by the signal score. **Layer 1 has the highest score**, and the layer number
   goes up as the score goes down. "Tier B, Layer 1" means a mid-revenue company with the strongest signals.
-- **Watchlist:** score 0–1. Not in any layer and never contacted.
+- **Watchlist:** score 0. Not in any layer and never contacted. Score 1 is Layer 6 (D-64).
 - **Research wave:** which group of companies gets researched first (wave 1: skincare, body and bath, men's
   grooming; wave 2: 156 more, counted 2026-10-26 from sector preflight). Older plans and reviews call this "Layer 1/Layer 2". That old use is retired.
 - **Older docs and the 2026-10-26 ICP check** used "Tier A/B" for the signal score. That old use is retired too. Read
@@ -115,12 +115,13 @@ Each signal adds 1 point, up to 6. Every point needs the evidence standard in `e
 | 3 | 4 | Call first |
 | 4 | 3 | Call first |
 | 5 | 2 | Email first; call only those who open or reply, or where the evidence is unusually sharp |
-| Watchlist | 0–1 | Never contacted. One signal alone is never enough to pitch |
+| 6 | 1 | Discovery call: learn how they run, no problem claim. One signal is never enough to pitch a problem (D-64) |
+| Watchlist | 0 | Never contacted |
 
 - **Work order:** inside each tier, Layer 1 first, then Layer 2, and so on.
 - **Tech team flag:** a company with engineers but no data roles keeps its layer, but goes last within it.
 
-**A verdict needs 2+ independent signals, and at least one must not be hiring** (see `problem-bar.md`).
+**A problem claim (verdict) needs 2+ independent signals, and at least one must not be hiring** (see `problem-bar.md`). Layer 6 is contacted without one.
 
 ## Snapshot (DB, 2026-10-26, research wave 1, after the ICP check and the tier split)
 

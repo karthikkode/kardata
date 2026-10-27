@@ -56,13 +56,22 @@ describe("D-55 revenue truth (pure)", () => {
     expect(r.flags.some((f) => f.includes("over $1M per staff"))).toBe(true);
   });
 
-  it("score 0-1 is watchlist and below $500k is not contacted", () => {
-    const w = computeRevenueTruth({
+  it("score 1 is Layer 6 (D-64), score 0 is watchlist, and below $500k is not contacted", () => {
+    const one = computeRevenueTruth({
       publicRevenue: null,
       vendorRevenue: null,
       staff: { count: 10, source: "apollo" },
       score: 1,
       verdictStatus: "contactable",
+    });
+    expect(one.status).toBe("contactable");
+    expect(one.layer).toBe(6);
+    const w = computeRevenueTruth({
+      publicRevenue: null,
+      vendorRevenue: null,
+      staff: { count: 10, source: "apollo" },
+      score: 0,
+      verdictStatus: "watchlist",
     });
     expect(w.status).toBe("watchlist");
     expect(w.layer).toBeNull();

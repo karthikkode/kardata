@@ -62,6 +62,7 @@ Newest at the bottom. Each entry: an ID, the date, the decision, and why. A late
 | D-60 | 2026-10-27 | The intro call is 30 minutes everywhere: the website, cold calls and cold emails. Replaces the 20 minutes in D-56 and the 15 minutes in the outreach files | Owner. 15 minutes isn't enough to understand the business and find the one question worth auditing |
 | D-61 | 2026-10-27 | Calls are booked on Cal.com (free plan), embedded on the site's booking page. The home headline says "multiple systems", not "five systems" | Owner. Calendly needs a paid plan for what the site needs; "five" was an arbitrary number |
 | D-62 | 2026-10-27 | The new kardata.co is live (static site, `kardata-site` container). v1 (web, api, db, mail jobs) and Mattermost (`mm.kardata.co`) are removed from the VM, backed up to the owner's machine first. No analytics at launch | Owner. v1 predates the current offer and Mattermost was no longer used; the VM was at 94% disk |
+| D-64 | 2026-10-27 | Score 1 is contacted, as Layer 6, starting with garden: a discovery call with no problem claim. Score 0 stays on the watchlist. Replaces the score-1 part of D-21. A problem claim still needs 2+ signals (`problem-bar.md`) | Owner. Early on we need data: calls teach us how these companies run in the worst case, and in the best case they surface something research missed. Loss-making companies need investment, so a growth-minded one is worth the call |
 
 ## Open
 
