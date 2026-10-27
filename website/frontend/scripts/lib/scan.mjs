@@ -3,16 +3,19 @@ export const BANNED = [
   { rule: "em dash", re: /\u2014/ },
   { rule: '"diagnostic" (say "audit", D-54)', re: /\bdiagnostics?\b/i },
   { rule: '"AI automation"', re: /\bAI[- ]automation\b/i },
-  { rule: "a price or $ amount (D-58)", re: /[$£€]\s?\d/ },
+  { rule: "a price or $ amount (D-58)", re: /[$£€]\s?\d/, pagesOnly: true },
   { rule: "guarantee (D-58)", re: /\bguarantee/i },
   { rule: "retainer (D-58)", re: /\bretainers?\b/i },
   { rule: "testimonials", re: /\btestimonials?\b/i },
 ];
 
-/** Returns one message per rule broken, with a little context. */
+/** Returns one message per rule broken, with a little context. Blog posts may quote figures
+ * in dollars (a study, an estimate), so the price rule covers the site's own pages only. */
 export function scanText(text, where) {
   const problems = [];
-  for (const { rule, re } of BANNED) {
+  const isPost = /^blog\/[^/]+\/index\.html$/.test(where) || where === "rss.xml";
+  for (const { rule, re, pagesOnly } of BANNED) {
+    if (pagesOnly && isPost) continue;
     const m = re.exec(text);
     if (m) {
       const at = Math.max(0, m.index - 30);

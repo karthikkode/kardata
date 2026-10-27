@@ -23,6 +23,19 @@ describe("scanText", () => {
   });
 });
 
+describe("scanText on posts", () => {
+  it("allows dollar figures in a post but not on a page", () => {
+    expect(scanText("an order of $60", "blog/a-post/index.html")).toEqual([]);
+    expect(scanText("an order of $60", "rss.xml")).toEqual([]);
+    expect(scanText("an order of $60", "audit/index.html")).toHaveLength(1);
+    expect(scanText("blog index $60", "blog/index.html")).toHaveLength(1);
+  });
+
+  it("still flags em dashes in a post", () => {
+    expect(scanText("a dash \u2014 here", "blog/a-post/index.html")).toHaveLength(1);
+  });
+});
+
 describe("htmlText", () => {
   it("drops tags, scripts and styles and decodes entities", () => {
     expect(htmlText("<style>a{}</style><p>don&#39;t &amp; <b>go</b></p><script>x=1</script>")).toBe("don't & go");
