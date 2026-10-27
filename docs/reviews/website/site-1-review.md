@@ -60,3 +60,11 @@ Full run at the end: `npm run check`: astro check 0 errors, 8 pages, check-dist 
 ## Blocked
 
 Nothing.
+
+## Go-live (2026-10-27, owner's go)
+- v1 removed from the VM after a full backup to the owner's machine (`~/backups/kardata-v1-vm-2026-10-27/`, not in
+  the repo): containers, images, volumes, network, `~/kardata`, `~/backup`, its SQL files and both cron jobs. Disk 94% → 76%.
+- kathawin's Caddyfile: only the `kardata.co` line changed (`kardata-web:3000` → `kardata-site:80`), backed up as
+  `Caddyfile.bak-20261027-kardata-site`, validated, written in place, reloaded. kathawin.com 200.
+- `npm run deploy` passes end to end against the VM (live `release.txt` check). Mattermost (`mm.kardata.co`) left running.
+- Found, not touched: staging.kathawin.com returns 500 (its own DB query errors, there before the switch).
