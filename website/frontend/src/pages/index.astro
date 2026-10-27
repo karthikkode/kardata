@@ -36,7 +36,12 @@ const deliverables = [
   { title: "Readout call", text: "45 minutes." },
 ];
 
-const steps = [`A ${BOOKING.minutes}-minute call`, "Read-only exports", "The readout"];
+// Titles from website.md; the one-line details are the audit page's own wording (offer.md).
+const steps = [
+  { title: `A ${BOOKING.minutes}-minute call`, text: "We find the one question worth answering." },
+  { title: "Read-only exports", text: "From the systems that hold the answer. Nothing changed." },
+  { title: "The readout", text: "The report and a 45-minute readout call." },
+];
 
 const faq = [
   {
@@ -110,14 +115,18 @@ const faq = [
   <section class="section" aria-labelledby="how">
     <div class="wrap">
       <SectionHeading eyebrow="03" title="How it works" id="how" />
-      <ol class="steps">
-        {steps.map((s, i) => (
-          <li style={`--fill: ${Math.round(((i + 1) / steps.length) * 100)}%`}>
-            <span class="step-n">{String(i + 1).padStart(2, "0")}</span>
-            <span class="step-t">{s}</span>
-          </li>
-        ))}
-      </ol>
+      <div class="timeline">
+        <div class="track" aria-hidden="true"><span class="fill"></span><span class="spark"></span></div>
+        <ol class="steps">
+          {steps.map((s, i) => (
+            <li style={`--i: ${i}`}>
+              <span class="node">{String(i + 1).padStart(2, "0")}</span>
+              <span class="step-t">{s.title}</span>
+              <span class="step-d">{s.text}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
     </div>
   </section>
 
@@ -262,8 +271,7 @@ const faq = [
     color: var(--fg);
     font-weight: 600;
   }
-  .num,
-  .step-n {
+  .num {
     font-family: var(--font-mono);
     font-size: 0.8rem;
     color: var(--accent-bright);
@@ -281,45 +289,174 @@ const faq = [
     content: " \2192";
   }
 
+  /* How it works: one line through three numbered nodes. With motion on, the line fills left to right
+     when the section comes into view, each node lights as the fill reaches it, then a light keeps
+     travelling along it. Without motion or JavaScript it simply shows filled. */
+  .timeline {
+    --node: 3rem;
+    --gap: 1.5rem;
+    --run: 1.6s;
+    position: relative;
+  }
   .steps {
     list-style: none;
     padding: 0;
     margin: 0;
     display: grid;
-    gap: 1rem;
+    gap: 2rem;
+  }
+  .steps li {
+    position: relative;
+    display: grid;
+    grid-template-columns: var(--node) 1fr;
+    column-gap: 1.25rem;
+    row-gap: 0.35rem;
+    align-items: center;
+  }
+  .node {
+    grid-row: span 2;
+    align-self: start;
+    position: relative;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: var(--node);
+    height: var(--node);
+    border-radius: 999px;
+    border: 1px solid var(--accent);
+    background: radial-gradient(circle at 50% 35%, rgba(79, 156, 249, 0.28), rgba(79, 156, 249, 0.08)), var(--bg);
+    box-shadow: 0 0 0 6px var(--bg), 0 0 22px rgba(79, 156, 249, 0.45);
+    color: var(--fg);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    transition: all 0.5s var(--ease) calc(0.3s + var(--run) * var(--i) / 2);
+  }
+  .node::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    border: 1px solid var(--accent-bright);
+    opacity: 0;
+    animation: ring 3s ease-out calc(2.2s + var(--i) * 1s) infinite;
+  }
+  @keyframes ring {
+    0% {
+      transform: scale(1);
+      opacity: 0.6;
+    }
+    70%,
+    100% {
+      transform: scale(1.7);
+      opacity: 0;
+    }
+  }
+  .step-t {
+    font-size: 1.25rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .step-d {
+    color: var(--muted);
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+
+  /* The line: vertical down the node column on phones, horizontal between node centres from 720px. */
+  .track {
+    position: absolute;
+    left: calc(var(--node) / 2 - 1px);
+    top: calc(var(--node) / 2);
+    bottom: 3rem;
+    width: 2px;
+    background: var(--border-strong);
+    border-radius: 2px;
+  }
+  .fill {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(180deg, var(--accent), var(--accent-bright));
+    box-shadow: 0 0 12px rgba(79, 156, 249, 0.6);
+    transform-origin: top;
+    transition: transform var(--run) cubic-bezier(0.45, 0, 0.25, 1) 0.3s;
+  }
+  .spark {
+    display: none;
   }
   @media (min-width: 720px) {
     .steps {
       grid-template-columns: repeat(3, 1fr);
+      gap: var(--gap);
+    }
+    .steps li {
+      grid-template-columns: 1fr;
+      justify-items: center;
+      text-align: center;
+      row-gap: 0.5rem;
+    }
+    .node {
+      grid-row: auto;
+      margin-bottom: 1rem;
+    }
+    .step-d {
+      max-width: 17rem;
+    }
+    .track {
+      left: calc((100% - 2 * var(--gap)) / 6);
+      right: calc((100% - 2 * var(--gap)) / 6);
+      top: calc(var(--node) / 2 - 1px);
+      bottom: auto;
+      width: auto;
+      height: 2px;
+    }
+    .fill {
+      background: linear-gradient(90deg, var(--accent), var(--accent-bright));
+      transform-origin: left;
+    }
+    .spark {
+      display: block;
+      position: absolute;
+      top: -1px;
+      left: 0;
+      width: 14%;
+      height: 4px;
+      border-radius: 4px;
+      background: linear-gradient(90deg, transparent, #fff, transparent);
+      opacity: 0;
+      animation: spark 4s ease-in-out 2.4s infinite;
     }
   }
-  .steps li {
-    position: relative;
-    border-top: 1px solid var(--border-strong);
-    padding-top: 1.25rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
+  @keyframes spark {
+    0% {
+      left: 0;
+      opacity: 0;
+    }
+    15%,
+    85% {
+      opacity: 0.9;
+    }
+    100% {
+      left: 86%;
+      opacity: 0;
+    }
   }
-  .steps li::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    width: var(--fill, 100%);
-    height: 2px;
-    top: -1.5px;
-    background: linear-gradient(90deg, var(--accent), var(--accent-bright));
-    box-shadow: 0 0 12px rgba(79, 156, 249, 0.6);
-    transition: width 1.2s var(--ease) 0.2s;
+  /* Before the section is in view: line empty, nodes unlit. */
+  @media (min-width: 720px) {
+    :global(.js) .timeline:not(.in) .fill {
+      transform: scaleX(0);
+    }
   }
-  /* With motion on, the line starts empty and fills to each step's share once it scrolls into view. */
-  :global(.js) .steps:not(.in) li::before {
-    width: 0;
+  @media (max-width: 719px) {
+    :global(.js) .timeline:not(.in) .fill {
+      transform: scaleY(0);
+    }
   }
-  .step-t {
-    font-size: 1.35rem;
-    font-weight: 600;
-    letter-spacing: -0.01em;
+  :global(.js) .timeline:not(.in) .node {
+    border-color: var(--border-strong);
+    background: var(--card);
+    box-shadow: 0 0 0 6px var(--bg);
+    color: var(--faint);
   }
 
   .motto {
