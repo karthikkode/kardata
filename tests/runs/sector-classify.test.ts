@@ -287,6 +287,39 @@ describe("classifyCompany", () => {
     );
   });
 
+  it("forceWeb sends Muse to the live site on top of the pages our server fetched", async () => {
+    site.routes.set("/", (_req, res) => sendText(res, homePage()));
+    const sectorId = await makeSector("Skincare");
+    const companyId = await makeCompany("Readable Co", site.baseUrl);
+    const seen: { web?: boolean; prompt: string }[] = [];
+    const call: ClassifierCall = async ({ web, prompt }) => {
+      seen.push({ web, prompt });
+      return {
+        json: {
+          business_type: "dtc_brand",
+          primary_category: "skincare",
+          sells_own_products: true,
+          has_online_store: true,
+          ships_to: [],
+          confidence: "high",
+          reason: "Muse read the live shop.",
+          quote: "buy our serum online today",
+          quote_source_id: null,
+        },
+        usage: USAGE,
+      };
+    };
+    const outcome = await classifyCompany(handle.db, { sectorId, companyId, call, fetchOptions: ALLOW, forceWeb: true });
+    expect(outcome.apolloOnly).toBe(false);
+    expect(outcome.webFallback).toBe(true);
+    expect(seen[0]?.web).toBe(true);
+    expect(seen[0]?.prompt).toContain("Acme Skin");
+    expect(seen[0]?.prompt).toContain("left the verdict open");
+    const row = await rowFor(sectorId, companyId);
+    expect(row?.promptVersion).toBe("v2-web");
+    expect(row?.confidence).toBe("high");
+  });
+
   it("classifies a company without any website from Apollo only and requires low confidence", async () => {
     const sectorId = await makeSector("Skincare");
     const companyId = await makeCompany("No Site Co", null);

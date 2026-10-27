@@ -60,6 +60,10 @@ export interface SectorPreflightStartInput {
    * confidence (their site was unreadable or thin). Implies onlyPending false.
    */
   onlyLowConfidence?: boolean;
+  /** Re-classify only companies with this derived eligibility (for example review). Implies onlyPending false. */
+  eligibility?: ("eligible" | "review" | "ineligible")[];
+  /** Muse reads every site itself with its web tools, even when our fetch worked. */
+  forceWeb?: boolean;
   budget?: JobBudget;
 }
 
@@ -71,10 +75,11 @@ export async function startSectorPreflight(
   await resolveProfileForSector(db, input.sectorId);
   // No rubric, no preflight either (only legacy skincare may use defaults).
   await getRubric(db, input.sectorId);
-  if (input.onlyLowConfidence && input.onlyPending === true) {
-    throw new DomainError("invalid_input", "onlyLowConfidence re-classifies done companies; drop onlyPending");
+  const rerun = input.onlyLowConfidence === true || (input.eligibility?.length ?? 0) > 0;
+  if (rerun && input.onlyPending === true) {
+    throw new DomainError("invalid_input", "onlyLowConfidence and eligibility re-classify done companies; drop onlyPending");
   }
-  const onlyPending = input.onlyLowConfidence ? false : (input.onlyPending ?? true);
+  const onlyPending = rerun ? false : (input.onlyPending ?? true);
   const members = await db
     .select({ companyId: sectorCompanies.companyId })
     .from(sectorCompanies)
@@ -101,6 +106,14 @@ export async function startSectorPreflight(
     const lowSet = new Set(low.map((r) => r.companyId));
     companyIds = companyIds.filter((id) => lowSet.has(id));
   }
+  if (input.eligibility?.length) {
+    const matching = await db
+      .select({ companyId: sectorCompanies.companyId })
+      .from(sectorCompanies)
+      .where(and(eq(sectorCompanies.sectorId, input.sectorId), inArray(sectorCompanies.eligibility, input.eligibility)));
+    const matchSet = new Set(matching.map((r) => r.companyId));
+    companyIds = companyIds.filter((id) => matchSet.has(id));
+  }
   if (onlyPending) {
     const done = await db
       .select({ companyId: sectorPreflight.companyId })
@@ -117,6 +130,7 @@ export async function startSectorPreflight(
     id: jobId,
     sectorId: input.sectorId,
     onlyPending,
+    forceWeb: input.forceWeb ?? false,
     maxCompanies: cap,
     maxInputTokens: maxTokens,
     maxHours,
@@ -415,7 +429,7 @@ export async function sectorPreflightCompanies(
 export interface SectorRunnerDeps {
   pollMs?: number;
   pool?: number;
-  classify?: (input: { sectorId: string; companyId: string; runId: string }) => Promise<unknown>;
+  classify?: (input: { sectorId: string; companyId: string; runId: string; forceWeb: boolean }) => Promise<unknown>;
   /** Available RAM in MB (default: reads /proc/meminfo; null = unknown, proceed). */
   memAvailableMB?: () => number | null;
   /** Create the classify run row (default: createSectorRun). */
@@ -493,7 +507,15 @@ export async function startPipeline(
 
 export function createSectorRunner(db: Db, deps: SectorRunnerDeps): SectorRunner {
   const pollMs = deps.pollMs ?? 15_000;
-  const drive = deps.classify ?? ((input) => classifyCompany(db, { sectorId: input.sectorId, companyId: input.companyId, runId: input.runId }));
+  const drive =
+    deps.classify ??
+    ((input) =>
+      classifyCompany(db, {
+        sectorId: input.sectorId,
+        companyId: input.companyId,
+        runId: input.runId,
+        forceWeb: input.forceWeb,
+      }));
   const actives = new Set<string>();
   let timer: ReturnType<typeof setInterval> | null = null;
   let ticking = false;
@@ -579,7 +601,7 @@ export function createSectorRunner(db: Db, deps: SectorRunnerDeps): SectorRunner
       .where(eq(sectorPreflightJobs.id, job.id));
     actives.add(itemId);
     void Promise.resolve()
-      .then(() => drive({ sectorId, companyId, runId }))
+      .then(() => drive({ sectorId, companyId, runId, forceWeb: job.forceWeb }))
       .catch(() => undefined)
       .finally(() => {
         actives.delete(itemId);
