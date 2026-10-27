@@ -38,6 +38,50 @@ describe("evaluateClassification (default skincare rubric)", () => {
   });
 });
 
+describe("evaluateClassification (low confidence, garden-style rubric)", () => {
+  const GARDEN = {
+    eligible: {
+      businessTypes: ["dtc_brand"],
+      primaryCategories: ["outdoor_furniture", "growing"],
+      requireSellsOwnProducts: true,
+      requireHasOnlineStore: true,
+    },
+    review: { businessTypes: ["brand_retail_only", "unknown"], primaryCategories: [], lowConfidence: true },
+  };
+  const low = (businessType: string, primaryCategory: string) => ({
+    ...DTC,
+    businessType,
+    primaryCategory,
+    confidence: "low",
+  });
+
+  it("reviews a possible qualifier", () => {
+    expect(evaluateClassification(low("dtc_brand", "outdoor_furniture"), GARDEN)).toEqual({
+      eligibility: "review",
+      reason: "needs review: low confidence, possible dtc_brand/outdoor_furniture",
+    });
+    expect(evaluateClassification(low("brand_retail_only", "growing"), GARDEN).eligibility).toBe("review");
+    expect(evaluateClassification(low("unknown", "other"), GARDEN).eligibility).toBe("review");
+  });
+
+  it("rejects a clear non-qualifier even when unsure", () => {
+    expect(evaluateClassification(low("retailer_marketplace", "outdoor_furniture"), GARDEN).eligibility).toBe("ineligible");
+    expect(evaluateClassification(low("distributor_wholesaler", "other"), GARDEN).eligibility).toBe("ineligible");
+    expect(evaluateClassification(low("dtc_brand", "other"), GARDEN).eligibility).toBe("ineligible");
+  });
+
+  it("still reviews an unsure retail-only brand outside the categories via its type", () => {
+    expect(evaluateClassification(low("brand_retail_only", "other"), GARDEN).reason).toBe(
+      "needs review: business_type brand_retail_only",
+    );
+  });
+
+  it("is off when the rubric disables it", () => {
+    const off = { ...GARDEN, review: { ...GARDEN.review, lowConfidence: false } };
+    expect(evaluateClassification(low("dtc_brand", "outdoor_furniture"), off).eligibility).toBe("eligible");
+  });
+});
+
 describe("deriveForCompany", () => {
   it("is pending without a classification", () => {
     expect(deriveForCompany({ classification: null, override: null, rubric: DEFAULT_SKINCARE_RUBRIC })).toEqual({

@@ -69,6 +69,18 @@ export interface ClassifiedFields {
 
 export type DerivedEligibility = "eligible" | "review" | "ineligible";
 
+/**
+ * Could this classification still be in scope? Its type is one the rubric
+ * accepts or reviews, and its category is one the rubric accepts or reviews
+ * ("other" counts only when the type is unknown too).
+ */
+function isPossibleQualifier(c: ClassifiedFields, rubric: EligibilityRubric): boolean {
+  const types = [...rubric.eligible.businessTypes, ...rubric.review.businessTypes];
+  const categories = [...rubric.eligible.primaryCategories, ...rubric.review.primaryCategories];
+  if (!types.includes(c.businessType)) return false;
+  return categories.includes(c.primaryCategory) || (c.primaryCategory === "other" && c.businessType === "unknown");
+}
+
 /** Pure rule evaluation over one classification. */
 export function evaluateClassification(
   c: ClassifiedFields,
@@ -76,11 +88,16 @@ export function evaluateClassification(
 ): { eligibility: DerivedEligibility; reason: string } {
   const e = rubric.eligible;
   const r = rubric.review;
-  // Uncertainty jumps the queue: a low-confidence classification (always the
-  // case for Apollo-only input) needs review even when its types match the
-  // eligible rule.
-  if (r.lowConfidence && c.confidence === "low") {
-    return { eligibility: "review", reason: "needs review: low confidence" };
+  // Uncertainty jumps the queue, but only for a possible qualifier: a
+  // low-confidence classification (always the case for Apollo-only input)
+  // needs review when its type and category could still be in scope, even if
+  // they match the eligible rule. A clear non-qualifier (a retailer, an
+  // off-category brand) falls through to the normal rules.
+  if (r.lowConfidence && c.confidence === "low" && isPossibleQualifier(c, rubric)) {
+    return {
+      eligibility: "review",
+      reason: `needs review: low confidence, possible ${c.businessType}/${c.primaryCategory}`,
+    };
   }
   if (
     e.businessTypes.includes(c.businessType) &&
