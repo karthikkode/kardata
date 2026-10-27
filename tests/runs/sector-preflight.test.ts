@@ -19,6 +19,7 @@ import {
   sectorPreflightResume,
   sectorPreflightRetryFailed,
   sectorPreflightStatus,
+  sectorPreflightCompanies,
   sectorPreflightSummary,
   startPipeline,
   startSectorPreflight,
@@ -414,6 +415,40 @@ describe("sectorPreflightSummary", () => {
     expect(dtc?.examples).toHaveLength(1);
     expect(dtc?.examples[0]?.name).toBe("A Co");
     expect(b).toBeTruthy();
+  });
+});
+
+describe("sectorPreflightCompanies", () => {
+  it("lists per-company classifications with filters and paging", async () => {
+    const sectorId = await makeSector("Skincare");
+    const a = await addCompany(sectorId, "A Co");
+    const b = await addCompany(sectorId, "B Co");
+    await addCompany(sectorId, "C Co");
+    const runner = createSectorRunner(handle.db, {
+      pool: 3,
+      classify: async ({ sectorId: s, companyId, runId }) => {
+        const patch = companyId === a ? {} : { businessType: "clinic_medical", primaryCategory: "other" };
+        await succeedCall(patch)({ sectorId: s, companyId, runId });
+      },
+    });
+    await startSectorPreflight(handle.db, { sectorId, companyIds: [a, b] });
+    await runner.tick();
+    await settle();
+    await runner.tick();
+    await settle();
+    await runner.tick();
+    const all = await sectorPreflightCompanies(handle.db, { sectorId });
+    expect(all.total).toBe(2);
+    expect(all.rows.map((r) => r.name)).toEqual(["A Co", "B Co"]);
+    expect(all.rows[0]?.eligibility).toBe("eligible");
+    const out = await sectorPreflightCompanies(handle.db, { sectorId, eligibility: ["ineligible"] });
+    expect(out.rows.map((r) => r.companyId)).toEqual([b]);
+    expect(out.rows[0]?.businessType).toBe("clinic_medical");
+    const page = await sectorPreflightCompanies(handle.db, { sectorId, limit: 1, offset: 1 });
+    expect(page.total).toBe(2);
+    expect(page.rows.map((r) => r.name)).toEqual(["B Co"]);
+    expect((await sectorPreflightCompanies(handle.db, { sectorId, confidence: ["low"] })).total).toBe(0);
+    await expect(sectorPreflightCompanies(handle.db, { sectorId, limit: 0 })).rejects.toThrow(/limit/);
   });
 });
 

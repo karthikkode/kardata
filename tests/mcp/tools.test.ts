@@ -128,6 +128,7 @@ const EXPECTED_TOOLS = [
   "sector_preflight_cancel",
   "sector_preflight_retry_failed",
   "sector_preflight_summary",
+  "sector_preflight_companies",
   "sector_rules_get",
   "sector_rules_set",
   "company_eligibility_override",
