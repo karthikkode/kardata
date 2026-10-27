@@ -1,5 +1,6 @@
 ---
 import Base from "../../layouts/Base.astro";
+import PageHeader from "../../components/PageHeader.astro";
 import { BOOKING, SITE } from "../../config";
 import "../../styles/page.css";
 
@@ -23,10 +24,8 @@ const calVars = {
 ---
 <Base title="Book a call" description={`Book a ${BOOKING.minutes}-minute call about your brand's data.`}>
   <link rel="preconnect" href="https://app.cal.com" slot="head" />
-  <section class="wrap page">
-    <span class="eyebrow">Book a call</span>
-    <h1>Book a {BOOKING.minutes}-minute call</h1>
-
+  <PageHeader eyebrow="Book a call" title={`Book a ${BOOKING.minutes}-minute call`} />
+  <section class="wrap page-body">
     <div class="booking">
       <aside class="details">
         <ul class="facts">
@@ -148,9 +147,6 @@ const calVars = {
 </script>
 
 <style>
-  h1 {
-    margin-bottom: 2.5rem;
-  }
   .booking {
     display: grid;
     border: 1px solid var(--border);

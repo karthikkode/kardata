@@ -4,6 +4,7 @@
 import { CALL_LABEL } from "../../config";
 import { Image } from "astro:assets";
 import Base from "../../layouts/Base.astro";
+import PageHeader from "../../components/PageHeader.astro";
 import BookButton from "../../components/BookButton.astro";
 import FounderCard from "../../components/FounderCard.astro";
 import portrait from "../../assets/karthik-portrait.jpg";
@@ -29,19 +30,19 @@ const pillars = [
 ];
 ---
 <Base title="About" description="I help D2C brands see where time and money leak between their systems.">
-  <article class="wrap page">
-    <span class="eyebrow">Who I am</span>
-    <h1 class="title">I help D2C brands see where time and money leak between their systems.</h1>
-    <p class="lead">
-      Your store, Amazon, your retailers, your warehouse and your accounts each hold part of the picture. My work is
-      the gap between them that nobody owns.
-    </p>
+  <PageHeader
+    eyebrow="Who I am"
+    title="I help D2C brands see where time and money leak between their systems."
+    lead="Your store, Amazon, your retailers, your warehouse and your accounts each hold part of the picture. My work is the gap between them that nobody owns."
+  />
+  <article class="wrap page-body">
 
-    <Image src={portrait} alt="Sai Karthik" widths={[600, 1200]} sizes="(min-width: 72rem) 72rem, 100vw" class="portrait" loading="eager" />
-
-    <FounderCard>
-      <p class="motto">AI only where it pays for itself.</p>
-    </FounderCard>
+    <div class="intro">
+      <Image src={portrait} alt="Sai Karthik" widths={[600, 1200]} sizes="(min-width: 900px) 22rem, 100vw" class="portrait" loading="eager" />
+      <FounderCard>
+        <p class="motto">AI only where it pays for itself.</p>
+      </FounderCard>
+    </div>
 
     <h2 class="how">How I work</h2>
     <div class="grid grid-2 pillars">
@@ -53,23 +54,38 @@ const pillars = [
       ))}
     </div>
 
-    <div class="cta-row"><BookButton label={CALL_LABEL} size="lg" /></div>
+    <div class="cta-band">
+      <p>Start with one question.</p>
+      <BookButton label={CALL_LABEL} size="lg" />
+    </div>
   </article>
 </Base>
 
 <style>
-  .title {
-    max-width: 44rem;
+  /* Photo and founder card side by side, so the page has one clear starting point. */
+  .intro {
+    display: grid;
+    gap: 1.5rem;
+    align-items: center;
   }
-  .page :global(.portrait) {
+  @media (min-width: 900px) {
+    .intro {
+      grid-template-columns: 22rem minmax(0, 1fr);
+      gap: 2.5rem;
+    }
+  }
+  .intro :global(.portrait) {
     width: 100%;
-    height: auto;
-    max-height: 32rem;
+    aspect-ratio: 4 / 5;
     object-fit: cover;
-    object-position: 50% 30%;
+    object-position: 50% 25%;
     border-radius: var(--radius-xl);
     border: 1px solid var(--border);
-    margin: 2.5rem 0 1.5rem;
+  }
+  @media (max-width: 899px) {
+    .intro :global(.portrait) {
+      max-width: 22rem;
+    }
   }
   .pillars {
     margin-top: 1rem;

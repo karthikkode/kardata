@@ -1,9 +1,10 @@
 ---
-// Copy from docs/business/offer.md (the audit section), in "I" voice. Draft until the owner signs it off.
+// Copy from docs/business/offer.md (the audit section), in "I" voice.
 // Never add prices, guarantee figures, retainers or builds here (D-58).
 import { BOOKING, CALL_LABEL } from "../../config";
 import Base from "../../layouts/Base.astro";
 import BookButton from "../../components/BookButton.astro";
+import PageHeader from "../../components/PageHeader.astro";
 import "../../styles/page.css";
 
 const types = [
@@ -25,69 +26,91 @@ const types = [
 ];
 ---
 <Base title="The audit" description="One business question, answered from your own data, at a fixed price. You keep the report.">
-  <article class="wrap page narrow">
-    <span class="eyebrow">The audit</span>
-    <h1>One business question, answered from your own data</h1>
-    <p class="lead">
-      Whatever the problem, it starts the same way: one business question, answered from your own data, at a fixed
-      price. You keep the report, whatever happens next.
-    </p>
+  <PageHeader
+    eyebrow="The audit"
+    title="One business question, answered from your own data"
+    lead="Whatever the problem, it starts the same way: one business question, answered from your own data, at a fixed price. You keep the report, whatever happens next."
+  />
 
-    <h2>What it answers</h2>
-    <p>We pick one question together on the call. Most fall into one of three types:</p>
-    <div class="types">
-      {types.map((t) => (
-        <div class="card">
-          <h3>{t.name}</h3>
-          <p class="q">{t.question}</p>
-          <p class="data"><span class="eyebrow">Typical data</span> {t.data}</p>
+  <article class="wrap page-body">
+    <section class="doc">
+      <h2>What it answers</h2>
+      <div>
+        <p>We pick one question together on the call. Most fall into one of three types:</p>
+        <div class="types">
+          {types.map((t) => (
+            <div class="card">
+              <h3>{t.name}</h3>
+              <p class="q">{t.question}</p>
+              <p class="data"><span class="label">Typical data</span>{t.data}</p>
+            </div>
+          ))}
         </div>
-      ))}
+        <p>
+          If your problem sits outside all three, I take it on only if one export can answer it within the audit
+          window. Otherwise I say so plainly and offer to scope it separately.
+        </p>
+      </div>
+    </section>
+
+    <section class="doc">
+      <h2>What you get</h2>
+      <div>
+        <ol class="numbered">
+          <li><strong>What repeats:</strong> the 3–5 patterns going unnoticed, with counts.</li>
+          <li><strong>What it costs:</strong> recoverable value per month, with the method shown.</li>
+          <li><strong>What to fix first:</strong> the two fixes I'd do first, each with its expected effect and effort.</li>
+          <li><strong>What's ready for AI:</strong> which patterns could be automated now, and which need cleanup first.</li>
+          <li><strong>Readout call:</strong> 45 minutes.</li>
+        </ol>
+        <p>You keep the report and the working sheet whatever happens next.</p>
+        <p>
+          <strong>What it costs</strong> is worked out the same way every time: hours spent on repeatable work, times
+          their hourly cost, plus revenue at risk that the data ties to a cause that can be fixed. The method and the
+          inputs are in the report, so you can check the maths.
+        </p>
+      </div>
+    </section>
+
+    <section class="doc">
+      <h2>How it runs</h2>
+      <div>
+        <ol class="numbered">
+          <li><strong>A {BOOKING.minutes}-minute call.</strong> We find the one question worth answering.</li>
+          <li><strong>A 30-minute kickoff,</strong> once you've decided to go ahead.</li>
+          <li><strong>Read-only exports</strong> from the systems that hold the answer.</li>
+          <li><strong>The report and a 45-minute readout call.</strong></li>
+        </ol>
+        <p><strong>Price:</strong> a fixed price, quoted on the call once we know the question. Paid upfront.</p>
+      </div>
+    </section>
+
+    <section class="doc">
+      <h2>What I need from you</h2>
+      <div>
+        <ul>
+          <li>A 30-minute kickoff.</li>
+          <li>Read-only exports or API access.</li>
+          <li>One named contact.</li>
+        </ul>
+        <p>Nothing else is asked of your team.</p>
+      </div>
+    </section>
+
+    <section class="doc">
+      <h2>How your data is kept safe</h2>
+      <div>
+        <ul>
+          <li>Read-only exports, nothing changed in your systems.</li>
+          <li>I don't build dashboards, change your tools, or do anything that needs write access during the audit.</li>
+        </ul>
+      </div>
+    </section>
+
+    <div class="cta-band">
+      <p>Start with one question.</p>
+      <BookButton label={CALL_LABEL} size="lg" />
     </div>
-    <p>
-      If your problem sits outside all three, I take it on only if one export can answer it within the audit window.
-      Otherwise I say so plainly and offer to scope it separately.
-    </p>
-
-    <h2>What you get</h2>
-    <ol>
-      <li><strong>What repeats:</strong> the 3–5 patterns going unnoticed, with counts.</li>
-      <li><strong>What it costs:</strong> recoverable value per month, with the method shown.</li>
-      <li><strong>What to fix first:</strong> the two fixes I'd do first, each with its expected effect and effort.</li>
-      <li><strong>What's ready for AI:</strong> which patterns could be automated now, and which need cleanup first.</li>
-      <li><strong>Readout call:</strong> 45 minutes.</li>
-    </ol>
-    <p>You keep the report and the working sheet whatever happens next.</p>
-    <p>
-      <strong>What it costs</strong> is worked out the same way every time: hours spent on repeatable work, times
-      their hourly cost, plus revenue at risk that the data ties to a cause that can be fixed. The method and the
-      inputs are in the report, so you can check the maths.
-    </p>
-
-    <h2>How it runs</h2>
-    <ol>
-      <li><strong>A {BOOKING.minutes}-minute call.</strong> We find the one question worth answering.</li>
-      <li><strong>A 30-minute kickoff,</strong> once you've decided to go ahead.</li>
-      <li><strong>Read-only exports</strong> from the systems that hold the answer.</li>
-      <li><strong>The report and a 45-minute readout call.</strong></li>
-    </ol>
-    <p><strong>Price:</strong> a fixed price, quoted on the call once we know the question. Paid upfront.</p>
-
-    <h2>What I need from you</h2>
-    <ul>
-      <li>A 30-minute kickoff.</li>
-      <li>Read-only exports or API access.</li>
-      <li>One named contact.</li>
-    </ul>
-    <p>Nothing else is asked of your team.</p>
-
-    <h2>How your data is kept safe</h2>
-    <ul>
-      <li>Read-only exports, nothing changed in your systems.</li>
-      <li>I don't build dashboards, change your tools, or do anything that needs write access during the audit.</li>
-    </ul>
-
-    <div class="cta-row"><BookButton label={CALL_LABEL} size="lg" /></div>
   </article>
 </Base>
 
@@ -95,21 +118,49 @@ const types = [
   .types {
     display: grid;
     gap: 0.75rem;
-    margin: 1.5rem 0;
+    margin: 1.25rem 0;
+  }
+  .types .card {
+    padding: 1.25rem 1.4rem;
   }
   .types h3 {
     font-size: 1.05rem;
   }
   .types .q {
     color: var(--fg);
-    margin: 0.6rem 0 0;
+    margin: 0.5rem 0 0;
   }
   .types .data {
     margin: 0.75rem 0 0;
     font-size: 0.9rem;
   }
-  .types .eyebrow {
-    font-size: 0.65rem;
-    margin-right: 0.4rem;
+  .types .label {
+    display: block;
+    margin-bottom: 0.2rem;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--accent-bright);
+  }
+  .numbered {
+    list-style: none;
+    padding: 0;
+    counter-reset: n;
+  }
+  .numbered li {
+    counter-increment: n;
+    position: relative;
+    padding-left: 2.5rem;
+    margin: 0.85rem 0;
+  }
+  .numbered li::before {
+    content: counter(n, decimal-leading-zero);
+    position: absolute;
+    left: 0;
+    top: 0.2rem;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--accent-bright);
   }
 </style>

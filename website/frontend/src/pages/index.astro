@@ -7,6 +7,7 @@ import BookButton from "../components/BookButton.astro";
 import SectionHeading from "../components/SectionHeading.astro";
 import PostCard from "../components/PostCard.astro";
 import { getPosts } from "../lib/collection";
+import { readingMinutes } from "../lib/posts";
 import FounderCard from "../components/FounderCard.astro";
 
 const latest = (await getPosts()).slice(0, 3);
@@ -130,9 +131,9 @@ const faq = [
     <section class="section" aria-labelledby="blog">
       <div class="wrap">
         <SectionHeading eyebrow="05" title="From the blog" id="blog" />
-        <div class="narrow">
+        <div class="posts">
           {latest.map((p) => (
-            <PostCard id={p.id} title={p.data.title} summary={p.data.summary} date={p.data.date} draft={p.data.draft} />
+            <PostCard id={p.id} title={p.data.title} summary={p.data.summary} date={p.data.date} minutes={readingMinutes(p.body)} draft={p.data.draft} />
           ))}
         </div>
         <p><a href="/blog/" class="more">All posts</a></p>
@@ -243,6 +244,11 @@ const faq = [
     font-family: var(--font-mono);
     font-size: 0.8rem;
     color: var(--accent-bright);
+  }
+  .posts {
+    display: grid;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
   }
   .more {
     font-size: 0.9375rem;

@@ -19,7 +19,7 @@ const { title, summary, date, synthetic, draft, image } = post.data;
 ---
 <Base title={title} description={summary} image={image} type="article" publishedTime={date} noindex={draft}>
   <article class="wrap post">
-    <header class="post-head narrow">
+    <header class="post-head">
       <p class="meta">
         <a href="/blog/">Blog</a>
         <span aria-hidden="true">/</span>
@@ -32,13 +32,13 @@ const { title, summary, date, synthetic, draft, image } = post.data;
       <p class="lead">{summary}</p>
     </header>
 
-    {synthetic && <div class="narrow"><SyntheticNotice /></div>}
+    {synthetic && <SyntheticNotice />}
 
     <div class="prose">
       <Content />
     </div>
 
-    <footer class="post-end narrow">
+    <footer class="post-end">
       <p>This is what I look for in an audit.</p>
       <BookButton label={CALL_LABEL} size="lg" />
     </footer>
@@ -46,12 +46,16 @@ const { title, summary, date, synthetic, draft, image } = post.data;
 </Base>
 
 <style>
+  /* One centred reading column: header, body and the closing call share the same edges. */
   .post {
+    max-width: calc(var(--measure) + 2 * var(--gutter));
     padding-top: 4rem;
     padding-bottom: 5rem;
   }
   .post-head {
     margin-bottom: 2.5rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid var(--border);
   }
   .meta {
     display: flex;
@@ -77,8 +81,10 @@ const { title, summary, date, synthetic, draft, image } = post.data;
   }
   .post-end {
     margin-top: 4rem;
-    padding-top: 2rem;
-    border-top: 1px solid var(--border);
+    padding: 1.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    background: var(--card);
   }
   .post-end p {
     font-size: 1.125rem;
