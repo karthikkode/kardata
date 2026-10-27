@@ -1813,10 +1813,18 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
           .boolean()
           .optional()
           .describe("Re-classify only low-confidence companies (unreadable or thin sites); implies onlyPending false"),
+        eligibility: z
+          .array(z.enum(["eligible", "review", "ineligible"]))
+          .optional()
+          .describe("Re-classify only companies with this eligibility (review pass: [\"review\"]); implies onlyPending false"),
+        forceWeb: z
+          .boolean()
+          .optional()
+          .describe("Muse reads every site itself with its web tools, even when our fetch worked (review pass)"),
         budget: jobBudget,
       },
     },
-    async ({ sectorId, onlyPending, maxCompanies, companyIds, onlyLowConfidence, budget }) =>
+    async ({ sectorId, onlyPending, maxCompanies, companyIds, onlyLowConfidence, eligibility, forceWeb, budget }) =>
       wrap(async () => {
         const result = await startSectorPreflight(db, {
           sectorId,
@@ -1824,6 +1832,8 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
           maxCompanies: maxCompanies ?? undefined,
           companyIds: companyIds ?? undefined,
           onlyLowConfidence: onlyLowConfidence ?? undefined,
+          eligibility: eligibility ?? undefined,
+          forceWeb: forceWeb ?? undefined,
           budget: budget ?? undefined,
         });
         return { summary: `sector job ${result.jobId}: ${result.companies} companies`, data: result };

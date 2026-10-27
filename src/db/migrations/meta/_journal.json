@@ -225,6 +225,13 @@
       "when": 1792950006000,
       "tag": "0031_preflight_prompt_hash",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1792950007000,
+      "tag": "0032_preflight_force_web",
+      "breakpoints": true
     }
   ]
 }

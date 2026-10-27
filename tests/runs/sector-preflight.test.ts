@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { DbHandle } from "../../src/db/client.js";
 import {
   companies,
@@ -163,6 +163,39 @@ describe("startSectorPreflight", () => {
     await expect(
       startSectorPreflight(handle.db, { sectorId, onlyLowConfidence: true, onlyPending: true }),
     ).rejects.toThrow(/drop onlyPending/);
+  });
+
+  it("runs a review pass: only review companies, with forceWeb carried to the classifier", async () => {
+    const sectorId = await makeSector("Skincare");
+    const a = await addCompany(sectorId, "A Co");
+    const b = await addCompany(sectorId, "B Co");
+    await handle.db
+      .update(sectorCompanies)
+      .set({ eligibility: "review" })
+      .where(and(eq(sectorCompanies.sectorId, sectorId), eq(sectorCompanies.companyId, b)));
+    const seen: { companyId: string; forceWeb: boolean }[] = [];
+    const runner = createSectorRunner(handle.db, {
+      pool: 2,
+      classify: async (input) => {
+        seen.push({ companyId: input.companyId, forceWeb: input.forceWeb });
+        await succeedCall()(input);
+      },
+    });
+    const { jobId, companies } = await startSectorPreflight(handle.db, {
+      sectorId,
+      eligibility: ["review"],
+      forceWeb: true,
+    });
+    expect(companies).toBe(1);
+    await runner.tick();
+    await settle();
+    await runner.tick();
+    expect(await itemStatuses(jobId)).toEqual(["succeeded"]);
+    expect(seen).toEqual([{ companyId: b, forceWeb: true }]);
+    await expect(
+      startSectorPreflight(handle.db, { sectorId, eligibility: ["review"], onlyPending: true }),
+    ).rejects.toThrow(/drop onlyPending/);
+    expect(a).toBeTruthy();
   });
 
   it("starts a subset by companyIds and rejects outsiders", async () => {

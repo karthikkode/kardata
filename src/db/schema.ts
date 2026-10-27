@@ -966,6 +966,8 @@ export const sectorPreflightJobs = pgTable("sector_preflight_jobs", {
   sectorId: uuid("sector_id").references(() => sectors.id, { onDelete: "set null" }),
   status: bulkJobStatus("status").notNull().default("running"),
   onlyPending: boolean("only_pending").notNull().default(true),
+  /** Review pass: Muse reads every site itself, even when our fetch worked. */
+  forceWeb: boolean("force_web").notNull().default(false),
   maxCompanies: integer("max_companies"),
   maxInputTokens: bigint("max_input_tokens", { mode: "number" }),
   maxHours: doublePrecision("max_hours"),

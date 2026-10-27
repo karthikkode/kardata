@@ -253,6 +253,8 @@ export interface ClassifyCompanyInput {
    * before the async drive starts). Created here when absent.
    */
   runId?: string;
+  /** Review pass: Muse reads the site with its web tools even when our fetch worked. */
+  forceWeb?: boolean;
 }
 
 /** Insert a running sector-preflight run row for the feeder to link. */
@@ -297,7 +299,7 @@ export async function classifyCompany(db: Db, input: ClassifyCompanyInput): Prom
   const fetched = await fetchInputs(db, runId, company, input.fetchOptions ?? {});
   // Our server could not read the site (blocked, script-only, down): Muse
   // reads it with its own web tools instead of classifying blind.
-  let web = fetched.apolloOnly && fetched.origin !== null;
+  let web = fetched.origin !== null && (fetched.apolloOnly || input.forceWeb === true);
   const promptFor = (withWeb: boolean): string =>
     buildClassifierPrompt(
       {
