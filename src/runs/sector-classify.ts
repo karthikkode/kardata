@@ -41,6 +41,8 @@ const PAGE_TEXT_BUDGET = 30_000;
 const SUBPAGE_MAX = 2;
 const CLASSIFY_STALL_MS = 120_000;
 const APOLLO_DESCRIPTION_MAX = 500;
+/** Below this much readable text across all pages, the site counts as unread. */
+export const THIN_PAGES_MIN_CHARS = 400;
 const PROMPT_VERSION = "v2";
 /** Same prompt, site read by Muse's web tools (marks the stored row). */
 const PROMPT_VERSION_WEB = "v2-web";
@@ -155,6 +157,14 @@ function pageText(result: FetchResult): string {
   return /html/i.test(contentType) || raw.trimStart().startsWith("<") ? extractText(raw) : raw;
 }
 
+/**
+ * Readable characters across pages: markup and whitespace stripped. A
+ * script-only shell or an empty site builder page scores near zero.
+ */
+export function readableChars(pages: { text: string }[]): number {
+  return pages.reduce((sum, p) => sum + p.text.replace(/<[^>]*>/g, " ").replace(/\s+/g, "").length, 0);
+}
+
 interface FetchedInputs {
   pages: ClassifierPage[];
   shopify: string | null;
@@ -194,7 +204,9 @@ async function fetchInputs(
     pages.push({ sourceId: result.source.id, url: result.source.finalUrl, text });
     if (remaining <= 0) break;
   }
-  if (pages.length === 0) return { pages, shopify: null, apolloOnly: true, origin };
+  // Nothing, or nothing readable (script shells, empty builder pages): treat
+  // the site as unread so Muse reads it with its own web tools.
+  if (readableChars(pages) < THIN_PAGES_MIN_CHARS) return { pages: [], shopify: null, apolloOnly: true, origin };
   // One cheap Shopify probe, no locale fallbacks.
   let shopify: string | null = null;
   try {
