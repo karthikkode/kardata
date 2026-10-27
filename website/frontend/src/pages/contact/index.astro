@@ -1,0 +1,51 @@
+---
+import Base from "../../layouts/Base.astro";
+import BookButton from "../../components/BookButton.astro";
+import PageHeader from "../../components/PageHeader.astro";
+import { CALL_LABEL, SITE } from "../../config";
+import "../../styles/page.css";
+---
+<Base title="Contact" description="How to reach kardata.">
+  <PageHeader eyebrow="Contact" title="Contact" lead="The quickest way to talk is a call. For anything else, email or LinkedIn." />
+  <section class="wrap page-body">
+    <div class="grid grid-2 ways">
+      <a class="card way" href={`mailto:${SITE.email}`}>
+        <span class="label">Email</span>
+        <span class="value">{SITE.email}</span>
+      </a>
+      <a class="card way" href={SITE.linkedin} rel="me noopener">
+        <span class="label">LinkedIn</span>
+        <span class="value">Sai Karthik</span>
+      </a>
+    </div>
+    <div class="cta-band">
+      <p>Prefer to talk?</p>
+      <BookButton label={CALL_LABEL} size="lg" />
+    </div>
+  </section>
+</Base>
+
+<style>
+  .way {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    text-decoration: none;
+    transition: border-color 0.15s;
+  }
+  .way:hover {
+    border-color: var(--border-strong);
+  }
+  .label {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--accent-bright);
+  }
+  .value {
+    color: var(--fg);
+    font-size: 1.1rem;
+    font-weight: 500;
+  }
+</style>

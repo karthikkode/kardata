@@ -1,0 +1,322 @@
+/* Tokens carried over from the v1 site (dark palette, blue accent, Inter + JetBrains Mono). */
+:root {
+  --bg: #0a0c10;
+  --surface: #10141b;
+  --card: #141924;
+  --border: #1f2733;
+  --border-strong: #2d3a4a;
+  --fg: #f2f5f9;
+  --muted: #9aa7b8;
+  --faint: #7e8aa0;
+  --accent: #4f9cf9;
+  --accent-bright: #79b8ff;
+  --on-accent: #06121f;
+  --good: #34d399;
+  --warn: #fbbf24;
+  --bad: #f87171;
+
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+
+  --radius: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --wrap: 68rem;
+  --measure: 42rem;
+  --gutter: 1.25rem;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  scrollbar-gutter: stable;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: rgba(79, 156, 249, 0.3);
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+a {
+  color: var(--accent-bright);
+  text-underline-offset: 3px;
+}
+
+a:hover {
+  color: var(--fg);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  text-wrap: balance;
+  margin: 0;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+.wrap {
+  max-width: var(--wrap);
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
+
+.narrow {
+  max-width: var(--measure);
+}
+
+/* A narrow page keeps the site's left edge; only its line length is limited. */
+.wrap.narrow {
+  max-width: var(--wrap);
+}
+.wrap.narrow > * {
+  max-width: var(--measure);
+}
+
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -4rem;
+  z-index: 100;
+  background: var(--accent);
+  color: var(--on-accent);
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.skip-link:focus {
+  top: 1rem;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Section rhythm */
+.section {
+  padding: 5.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.eyebrow {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--accent-bright);
+}
+
+.section-title {
+  margin-top: 1rem;
+  font-size: clamp(1.75rem, 3.5vw, 2.25rem);
+  max-width: 40rem;
+}
+
+.lead {
+  color: var(--muted);
+  font-size: 1.125rem;
+  line-height: 1.7;
+  max-width: 38rem;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.faint {
+  color: var(--faint);
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0 1.25rem;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.btn svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.btn-primary:hover {
+  background: var(--accent-bright);
+  color: var(--on-accent);
+}
+
+.btn-outline {
+  border-color: var(--border-strong);
+  color: var(--fg);
+  background: transparent;
+}
+
+.btn-outline:hover {
+  background: var(--card);
+  color: var(--fg);
+}
+
+.btn-lg {
+  min-height: 3rem;
+  padding: 0 1.6rem;
+  font-size: 1rem;
+}
+
+/* Badges (v1 style) */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--card);
+  color: var(--muted);
+  padding: 0.25rem 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.badge-accent {
+  border-color: rgba(79, 156, 249, 0.3);
+  background: rgba(79, 156, 249, 0.1);
+  color: var(--accent-bright);
+}
+
+.badge-warn {
+  border-color: rgba(251, 191, 36, 0.3);
+  background: rgba(251, 191, 36, 0.1);
+  color: var(--warn);
+}
+
+/* Cards: a faint top light, and a lift with a blue edge on hover. */
+.card {
+  position: relative;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 40%), var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 1.5rem;
+  transition: border-color 0.25s, translate 0.25s var(--ease), box-shadow 0.25s;
+}
+
+.card:hover {
+  border-color: rgba(79, 156, 249, 0.35);
+  translate: 0 -2px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(79, 156, 249, 0.08);
+}
+
+/* Scroll reveal. Only active when Base.astro's script added .js, so content never stays hidden. */
+.js .reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.7s var(--ease), transform 0.7s var(--ease);
+  transition-delay: var(--stagger, 0s);
+}
+
+.js .reveal.in {
+  opacity: 1;
+  transform: none;
+}
+
+@media print {
+  .js .reveal {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.grid {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 720px) {
+  .grid-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .grid-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.placeholder {
+  border: 1px dashed var(--warn);
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.25rem;
+  color: var(--warn);
+  background: rgba(251, 191, 36, 0.06);
+  font-size: 0.9375rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

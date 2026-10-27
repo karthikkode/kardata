@@ -1,0 +1,94 @@
+---
+import { CALL_LABEL } from "../../config";
+import { render } from "astro:content";
+import Base from "../../layouts/Base.astro";
+import BookButton from "../../components/BookButton.astro";
+import SyntheticNotice from "../../components/SyntheticNotice.astro";
+import { getPosts } from "../../lib/collection";
+import { formatDate, readingMinutes } from "../../lib/posts";
+import "../../styles/prose.css";
+
+export async function getStaticPaths() {
+  const posts = await getPosts();
+  return posts.map((post) => ({ params: { slug: post.id }, props: { post } }));
+}
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+const { title, summary, date, synthetic, draft, image } = post.data;
+---
+<Base title={title} description={summary} image={image} type="article" publishedTime={date} noindex={draft}>
+  <article class="wrap post">
+    <header class="post-head">
+      <p class="meta">
+        <a href="/blog/">Blog</a>
+        <span aria-hidden="true">/</span>
+        <time datetime={date.toISOString()}>{formatDate(date)}</time>
+        <span aria-hidden="true">/</span>
+        <span>{readingMinutes(post.body)} min read</span>
+        {draft && <span class="badge badge-warn">Draft</span>}
+      </p>
+      <h1>{title}</h1>
+      <p class="lead">{summary}</p>
+    </header>
+
+    {synthetic && <SyntheticNotice />}
+
+    <div class="prose">
+      <Content />
+    </div>
+
+    <footer class="post-end">
+      <p>This is what I look for in an audit.</p>
+      <BookButton label={CALL_LABEL} size="lg" />
+    </footer>
+  </article>
+</Base>
+
+<style>
+  /* One centred reading column: header, body and the closing call share the same edges. */
+  .post {
+    max-width: calc(var(--measure) + 2 * var(--gutter));
+    padding-top: 4rem;
+    padding-bottom: 5rem;
+  }
+  .post-head {
+    margin-bottom: 2.5rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    align-items: center;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--faint);
+    margin: 0 0 1.25rem;
+  }
+  .meta a {
+    color: var(--accent-bright);
+    text-decoration: none;
+  }
+  h1 {
+    font-size: clamp(2rem, 5vw, 2.75rem);
+  }
+  .lead {
+    margin: 1rem 0 0;
+  }
+  .post-end {
+    margin-top: 4rem;
+    padding: 1.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    background: var(--card);
+  }
+  .post-end p {
+    font-size: 1.125rem;
+    color: var(--fg);
+    margin: 0 0 1.25rem;
+  }
+</style>

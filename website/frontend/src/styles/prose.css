@@ -1,0 +1,159 @@
+/* Reading layout for blog posts: one column, larger text, higher contrast than v1's grey. */
+.prose {
+  font-size: 1.125rem;
+  line-height: 1.75;
+  color: #dfe5ee;
+  max-width: var(--measure);
+}
+.prose > :first-child {
+  margin-top: 0;
+}
+.prose p,
+.prose ul,
+.prose ol,
+.prose blockquote,
+.prose table {
+  margin: 1.25em 0;
+}
+.prose h2 {
+  font-size: 1.6rem;
+  margin: 2.2em 0 0.6em;
+  color: var(--fg);
+}
+.prose h3 {
+  font-size: 1.25rem;
+  margin: 1.8em 0 0.5em;
+  color: var(--fg);
+}
+.prose strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+.prose li {
+  margin: 0.4em 0;
+}
+.prose li::marker {
+  color: var(--faint);
+}
+.prose blockquote {
+  padding: 0.25em 1.25em;
+  border-left: 3px solid var(--accent);
+  background: var(--surface);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  color: var(--fg);
+}
+.prose code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--accent-bright);
+  background: var(--surface);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+.prose pre {
+  padding: 1em 1.2em;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  overflow-x: auto;
+  font-size: 0.9rem;
+}
+.prose pre code {
+  background: none;
+  padding: 0;
+  color: var(--fg);
+}
+.prose hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 2.5em 0;
+}
+.prose img {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+}
+
+/* Tables scroll inside themselves on small screens. */
+.prose table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+  max-width: 100%;
+}
+.prose th,
+.prose td {
+  border: 1px solid var(--border);
+  padding: 0.55em 0.8em;
+  text-align: left;
+  vertical-align: top;
+}
+.prose th {
+  background: var(--surface);
+  color: var(--fg);
+  font-weight: 600;
+}
+
+/* Number kinds (D-45) */
+.kind {
+  display: inline-block;
+  margin-left: 0.3em;
+  padding: 0.05em 0.5em;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  font-family: var(--font-mono);
+  font-size: 0.68em;
+  line-height: 1.6;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  vertical-align: 0.15em;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.kind-study {
+  color: var(--good);
+  border-color: rgba(52, 211, 153, 0.35);
+}
+.kind-claim {
+  color: var(--accent-bright);
+  border-color: rgba(79, 156, 249, 0.35);
+}
+.kind-vendor {
+  color: #c4b5fd;
+  border-color: rgba(196, 181, 253, 0.35);
+}
+.kind-estimate {
+  color: var(--warn);
+  border-color: rgba(251, 191, 36, 0.35);
+}
+
+/* Sources (Markdown footnotes) */
+.prose sup a {
+  text-decoration: none;
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  padding: 0 0.15em;
+}
+.prose section.footnotes {
+  margin-top: 3.5em;
+  padding-top: 1.5em;
+  border-top: 1px solid var(--border);
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+.prose .sources-title {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--accent-bright);
+  margin: 0 0 1em;
+}
+.prose section.footnotes li {
+  margin: 0.6em 0;
+}
+.prose .data-footnote-backref {
+  text-decoration: none;
+  margin-left: 0.3em;
+}

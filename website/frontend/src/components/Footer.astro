@@ -1,0 +1,92 @@
+---
+import { NAV, SITE } from "../config";
+import LogoMark from "./LogoMark.astro";
+
+const year = new Date().getFullYear();
+---
+<footer class="site-footer">
+  <div class="wrap cols">
+    <div class="about">
+      <a href="/" class="brand" aria-label="kardata, home">
+        <LogoMark size={24} />
+        <span>kardata</span>
+      </a>
+      <p class="faint">A fixed-price audit of your own data, for brands that sell in more than one place.</p>
+    </div>
+    <nav aria-label="Footer">
+      <p class="eyebrow">Explore</p>
+      <ul>
+        <li><a href="/">Home</a></li>
+        {NAV.map((l) => <li><a href={l.href}>{l.label}</a></li>)}
+        <li><a href="/book/">Book a call</a></li>
+      </ul>
+    </nav>
+    <div>
+      <p class="eyebrow">Get in touch</p>
+      <ul>
+        <li><a href={`mailto:${SITE.email}`}>{SITE.email}</a></li>
+        <li><a href={SITE.linkedin} rel="me noopener">LinkedIn</a></li>
+        <li><a href="/contact/">Contact</a></li>
+        <li><a href="/privacy/">Privacy</a></li>
+        <li><a href="/rss.xml">RSS</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="wrap legal faint">© {year} kardata.co</div>
+</footer>
+
+<style>
+  .site-footer {
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    padding: 3rem 0 1.75rem;
+    font-size: 0.875rem;
+  }
+  .cols {
+    display: grid;
+    gap: 2rem;
+  }
+  @media (min-width: 720px) {
+    .cols {
+      grid-template-columns: minmax(0, 1fr) 11rem 13rem;
+      gap: 3rem;
+    }
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--fg);
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .about p {
+    max-width: 22rem;
+    margin: 0.9rem 0 0;
+    line-height: 1.6;
+  }
+  .eyebrow {
+    margin: 0;
+    font-size: 0.7rem;
+  }
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0.9rem 0 0;
+    display: grid;
+    gap: 0.55rem;
+  }
+  ul a {
+    color: var(--muted);
+    text-decoration: none;
+  }
+  ul a:hover {
+    color: var(--fg);
+  }
+  .legal {
+    margin-top: 2.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.8rem;
+  }
+</style>
