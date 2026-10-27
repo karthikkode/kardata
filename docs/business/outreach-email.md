@@ -21,7 +21,7 @@ planted question is answered inside the email.
 | Q4 | What do I gain? | One concrete upside in their words |
 | Q5 | Is that all you saw? | "This is just one pattern, seen from the outside. Your own data usually holds more of them." |
 | Q6 | What do you actually do? | The principle line + the audit paragraph (word for word) |
-| Q7 | What are you asking? | One soft ask: a 15-minute call |
+| Q7 | What are you asking? | One soft ask: a 30-minute call (D-60) |
 
 ## Voice (write like Karthik)
 
@@ -68,9 +68,9 @@ planted question is answered inside the email.
 **When the observation is a gap,** use a bridge instead: "Could this be a gap worth filling?"
 
 **Asks (rotate them; never the same wording twice in one thread):**
-1. "Would a 15-minute call be useful to see what might be hiding in your data?"
-2. "Would a 15-minute call be useful to see if there is something worth measuring here?"
-3. "Open to a 15-minute call to see what your data says?"
+1. "Would a 30-minute call be useful to see what might be hiding in your data?"
+2. "Would a 30-minute call be useful to see if there is something worth measuring here?"
+3. "Open to a 30-minute call to see what your data says?"
 
 **Subjects:**
 - their fact, 3–8 words, under 50 characters, sentence case;
@@ -144,7 +144,7 @@ planted question is answered inside the email.
 > going unnoticed. You get a short report: what repeats, what it costs each week, and the two fixes I would do first.
 > Fixed fee, and the report is yours to keep.
 >
-> Would a 15-minute call be useful to see if there is something worth measuring here?
+> Would a 30-minute call be useful to see if there is something worth measuring here?
 >
 > Karthik
 > Data Guy, kardata.

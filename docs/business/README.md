@@ -18,9 +18,12 @@ and never change them.
 | [evidence-rules.md](evidence-rules.md) | What counts as evidence in an email, on a call or in content, and what never does |
 | [outreach-email.md](outreach-email.md) | Cold email: the reading order, voice, bans, fixed lines, follow-ups |
 | [outreach-calls.md](outreach-calls.md) | Cold calls: call map, discovery, exit signals, close, pre-call research |
+| [outreach-sequence.md](outreach-sequence.md) | How LinkedIn, calls and email work together; who to contact inside a company; manual only |
 | [deliverability.md](deliverability.md) | Sending setup that must be ready before any email goes out |
 | [funnel.md](funnel.md) | Benchmarks, funnel math, what we track, the review after every 100 contacts |
-| [content.md](content.md) | Case studies and LinkedIn: structure, rules against AI-sounding writing, checks before publishing |
+| [website.md](website.md) | kardata.co: its job in the funnel, pages, home page copy, blog and booking requirements |
+| [content.md](content.md) | Content: audience, theme, the shape of every piece, mix, channels, writing rules, checks |
+| [content-plan.md](content-plan.md) | The next 10 posts: the owner's problem, concept, sourced case and source status for each |
 | [decisions.md](decisions.md) | Every business decision, with its date, plus the decisions still open |
 
 ## Standard for every file here

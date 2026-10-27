@@ -66,8 +66,14 @@ scoring, the 8 problem dimensions in `docs/business/problem-bar.md`, the citatio
 
 ## Frontend (parked, unnumbered)
 
-Parked until the first paid client. No frontend is planned, staged or built before then.
-The service stays backend-only and MCP-driven.
+A frontend for `kardata-server` stays parked until the first paid client. The service stays backend-only and
+MCP-driven.
+
+## Website (separate track, D-56)
+
+The public site kardata.co (blog, call booking, later the brainstorming agent from D-51) is built now, as its own
+project in `website/`. Its plans are in `docs/plans/website/` and run separately from the server stages. Hosting and
+deploy facts: `website/README.md`.
 
 ## Later (not planned yet; do not build)
 

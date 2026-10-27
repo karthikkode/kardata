@@ -7,3 +7,5 @@ dist/
 !tests/fixtures/**
 var/
 test-results/
+website/**/.next/
+website/**/out/
