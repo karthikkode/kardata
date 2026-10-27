@@ -1,14 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { DbHandle } from "../../src/db/client.js";
-import { eq } from "drizzle-orm";
 import {
   companies,
   facts,
-  researchRuns,
   sectors,
   sectorCompanies,
-  sources,
 } from "../../src/db/schema.js";
 import {
   companyRevenueTruth,
