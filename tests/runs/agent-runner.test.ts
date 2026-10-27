@@ -689,6 +689,31 @@ describe("agent runner", () => {
     expect(row.error ?? "").toMatch(/^areas without status: /);
   });
 
+  it("fails a run whose areas are all blocked, and keeps one done area a success", async () => {
+    const fx = makeFixture({ scriptFor: () => ({ events: [COMPLETED] }) });
+    const names = (area.enumValues as readonly string[]).filter((n) => n !== "other");
+    for (const oneDone of [false, true]) {
+      const companyId = await makeCompany(oneDone ? "Half Co" : "Blocked Co");
+      await freshCollect(companyId);
+      const started = await researchStart(handle.db, { companyIds: [companyId] });
+      const runId = (started.runs[0] as { runId: string }).runId;
+      await recordEvent(handle.db, runId, "agent_finish", { summary: "s" });
+      for (const [i, name] of names.entries()) {
+        const done = oneDone && i === 0;
+        await setAreaStatus(handle.db, { runId, area: name, status: done ? "done" : "blocked", reason: done ? null : "tool outputs redacted" });
+      }
+      await fx.runner.tick();
+      await drain(runId);
+      const row = await runRow(runId);
+      if (oneDone) {
+        expect(row.status).toBe("succeeded");
+      } else {
+        expect(row.status).toBe("failed");
+        expect(row.error).toBe("all areas blocked: tool outputs redacted");
+      }
+    }
+  });
+
   it("fails non-zero exits with the last error", async () => {
     const byRun = new Map<string, FakeScript>();
     const fx = makeFixture({

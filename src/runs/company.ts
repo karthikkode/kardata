@@ -83,7 +83,8 @@ function feedLane(desc: CompanyJobDescription): number {
   return desc.nextStage === "collect" ? 1 : 0;
 }
 /** First consecutive failure in these classes requeues the stage instead of parking the job. */
-const TRANSIENT_AUTO_RETRY = new Set(["stall", "usage_limit"]);
+/** all_blocked: a research session that wrote nothing citable gets one fresh try. */
+const TRANSIENT_AUTO_RETRY = new Set(["stall", "usage_limit", "all_blocked"]);
 
 export interface StartCompanyJobInput {
   companyId: string;
