@@ -32,7 +32,10 @@ export const EXTRACT_AREAS = [...PROMPT_AREAS];
 export const EXTRACT_NOTES_BUDGET = 60_000;
 export const SYNTHESIS_AREA = "synthesis";
 const SOURCE_TEXT_MAX = 15_000;
-const EXTRACT_STALL_MS = 120_000;
+/** Muse can sit silent for minutes under load; 120s killed most pilot calls (2026-10-27). */
+export const EXTRACT_STALL_MS = 300_000;
+/** A failed extractor call (stall, container exit) is retried this many times. */
+export const EXTRACT_CALL_RETRIES = 1;
 
 type AreaName = (typeof areaEnum.enumValues)[number];
 
@@ -676,7 +679,17 @@ async function extractOneArea(
         ? assembleSynthesisPrompt(gathered)
         : assembleAreaPrompt(area, vocab, gathered);
     const callStarted = Date.now();
-    const result = await call({ runId: run.id, area, prompt });
+    let result: ExtractorCallResult | undefined;
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        result = await call({ runId: run.id, area, prompt });
+        break;
+      } catch (err) {
+        if (attempt >= EXTRACT_CALL_RETRIES) throw err;
+        const message = err instanceof Error ? err.message : String(err);
+        await recordEvent(db, run.id, "log", { extractionRetry: { area, attempt: attempt + 1, error: message.slice(0, 300) } });
+      }
+    }
     outcome.usage = result.usage;
     // Provider-call log; logging must never fail the extraction.
     try {
@@ -752,6 +765,20 @@ export async function runExtraction(
   }
   await recordEvent(db, run.id, "log", { grounding: { ...verification } });
   return { areas, usage, verification };
+}
+
+/**
+ * Company jobs: an extraction with any failed area call (after retries) is a
+ * failed stage, never a silent success with nothing written. The job can
+ * then be retried (company_job_retry reruns extraction only).
+ */
+export function assertExtractionComplete(outcome: RunExtractionOutcome): void {
+  const failed = outcome.areas.filter((a) => a.error !== null);
+  if (failed.length === 0) return;
+  const first = failed[0]?.error ?? "";
+  throw new Error(
+    `extraction incomplete: ${failed.length} of ${outcome.areas.length} area calls failed (${failed.map((a) => a.area).join(", ")}): ${first.slice(0, 200)}`,
+  );
 }
 
 /**
