@@ -928,6 +928,8 @@ export const sectorPreflight = pgTable(
     quote: text("quote"),
     quoteSourceId: uuid("quote_source_id"),
     verification: verificationStatus("verification").notNull().default("unverified"),
+    promptVersion: text("prompt_version"),
+    profileHash: text("profile_hash"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
