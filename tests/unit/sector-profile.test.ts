@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { PRIMARY_CATEGORIES } from "../../src/domain/sector-preflight/classify.js";
-import { DEFAULT_SKINCARE_RUBRIC } from "../../src/domain/sector-preflight/eligibility.js";
+import {
+  DEFAULT_SKINCARE_RUBRIC,
+  SCOPE_ADJACENT_CATEGORIES,
+  SCOPE_CORE_CATEGORIES,
+  SKIN_KEYWORDS,
+} from "../../src/domain/sector-preflight/eligibility.js";
 import {
   SKINCARE_PROFILE,
   categoryKeys,
@@ -82,18 +87,44 @@ describe("rubric validation against the profile", () => {
 });
 
 describe("SKINCARE_PROFILE matches the old constants field for field", () => {
-  it("carries the same categories, scope lists and keywords", () => {
+  it("equals the pre-5.4 constants exactly: categories, scope, keywords, hints", () => {
+    expect(SKINCARE_PROFILE).toEqual({
+      categories: [
+        { key: "skincare", label: "Skincare", description: "Skin care products: cleansers, serums, moisturisers, SPF, treatments." },
+        { key: "haircare", label: "Haircare", description: "Hair care products: shampoo, conditioner, styling, treatments." },
+        { key: "cosmetics_makeup", label: "Cosmetics & makeup", description: "Colour cosmetics and makeup." },
+        { key: "body_bath", label: "Body & bath", description: "Body care, bath, hand and foot care." },
+        { key: "fragrance", label: "Fragrance", description: "Perfume, fragrance, home scent." },
+        { key: "supplements_wellness", label: "Supplements & wellness", description: "Supplements and wellness products and devices." },
+        { key: "mens_grooming", label: "Men's grooming", description: "Men's grooming and shaving products." },
+        { key: "other", label: "Other", description: "A real business whose main lane is none of the listed categories." },
+      ],
+      scope: {
+        coreCategories: ["skincare", "body_bath", "mens_grooming"],
+        adjacentCategories: ["haircare", "cosmetics_makeup", "fragrance", "supplements_wellness"],
+        scopeKeywords: [
+          "skin", "derma", "dermat", "collagen", "elastin", "retinol", "retinoid", "tretinoin",
+          "hyaluron", "niacinamide", "peptid", "ceramid", "moisturiz", "moisturis", "serum",
+          "acne", "eczema", "psoriasis", "rosacea", "sunscreen", "sun screen", "suncare",
+          "sun care", "spf", "exfoliat", "cleanser", "facial", "face wash", "facewash",
+          "toner", "lotion", "night cream", "day cream", "eye cream", "vitamin c", "glycolic",
+          "salicylic", "azelaic", "kojic", "anti-ag", "antiag", "wrinkle", "dark spot",
+          "hyperpigment", "melasma", "skin barrier",
+        ],
+      },
+      classifierHints: {
+        serviceExamples: "spa, salon, barbershop, beauty services without own product line",
+        retailerExamples: "beauty store, pharmacy chain, marketplace selling other brands",
+        supplierExamples: "raw ingredients, packaging, or equipment supplier",
+      },
+    });
+    // And against the surviving pre-5.4 constants themselves, not just literals.
     expect(categoryKeys(SKINCARE_PROFILE)).toEqual([...PRIMARY_CATEGORIES]);
-    expect(SKINCARE_PROFILE.scope.coreCategories).toEqual(["skincare", "body_bath", "mens_grooming"]);
-    expect(SKINCARE_PROFILE.scope.adjacentCategories).toEqual([
-      "haircare",
-      "cosmetics_makeup",
-      "fragrance",
-      "supplements_wellness",
-    ]);
-    expect(SKINCARE_PROFILE.scope.scopeKeywords).toContain("skin");
-    expect(SKINCARE_PROFILE.scope.scopeKeywords).toContain("hyaluron");
-    expect(SKINCARE_PROFILE.scope.scopeKeywords.length).toBeGreaterThanOrEqual(40);
+    expect(SKINCARE_PROFILE.scope.coreCategories).toEqual([...SCOPE_CORE_CATEGORIES]);
+    expect(SKINCARE_PROFILE.scope.adjacentCategories).toEqual([...SCOPE_ADJACENT_CATEGORIES]);
+    expect(SKINCARE_PROFILE.scope.scopeKeywords).toEqual([...SKIN_KEYWORDS]);
+    expect(SKINCARE_PROFILE.scope.coreCategories).toEqual(DEFAULT_SKINCARE_RUBRIC.eligible.primaryCategories);
+    expect(SKINCARE_PROFILE.scope.adjacentCategories).toEqual(DEFAULT_SKINCARE_RUBRIC.review.primaryCategories);
     expect(profileHash(SKINCARE_PROFILE)).toHaveLength(16);
   });
 });

@@ -109,10 +109,10 @@ export interface DerivedTriple {
 // its own store, and the products are skincare-related. Hair, makeup,
 // fragrance and supplements count only when skin-related; everything else
 // (including low-confidence rows without skin evidence) is out.
-const SCOPE_CORE_CATEGORIES = ["skincare", "body_bath", "mens_grooming"];
-const SCOPE_ADJACENT_CATEGORIES = ["haircare", "cosmetics_makeup", "fragrance", "supplements_wellness"];
+export const SCOPE_CORE_CATEGORIES = ["skincare", "body_bath", "mens_grooming"];
+export const SCOPE_ADJACENT_CATEGORIES = ["haircare", "cosmetics_makeup", "fragrance", "supplements_wellness"];
 
-const SKIN_KEYWORDS = [
+export const SKIN_KEYWORDS = [
   "skin",
   "derma",
   "dermat",
