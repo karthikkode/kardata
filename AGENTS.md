@@ -39,6 +39,17 @@ current plan: the one file in `docs/plans/website/` with `Status: current`. Its 
    - anything left unfinished.
 5. Stuck more than 45 minutes on one item: write it under "Blocked" with the exact error, then move on.
 
+## Who decides (D-65)
+Claude (the reviewer and operator) makes the operational calls: pipeline runs, retries, research quality,
+which companies are reachable or go on the sheet, data fixes, harness changes, and merging and deploying
+`kardata-server` once CI passes. Don't hand the owner small decisions; the owner isn't following closely, so a
+decision made by the owner would be uninformed. Report what was decided and why, in a line, after the fact.
+Ask the owner only for:
+- secrets, passwords or accounts;
+- spending money;
+- business rules in `docs/business/` that the data can't settle (offer, pricing, ICP definition);
+- anything sent to people outside (emails, posts), and website pushes and deploys (rules below).
+
 ## Website (`website/`)
 - **Live since 2026-10-27** at https://kardata.co: an Astro static site in `website/frontend/` (Node 22).
   Start at `website/README.md` for hosting, VM and deploy facts. Its stack is the website plan's, not the server
@@ -67,7 +78,8 @@ current plan: the one file in `docs/plans/website/` with `Status: current`. Its 
   `tests/fixtures/`, which holds synthetic data only.
 - Commit secrets. `.env*` is gitignored except `.env.example`.
 - Run destructive database commands (drop, truncate, reset) against anything except the dev or test database.
-- Push, merge, deploy or change GitHub settings without the owner's explicit go for that action.
+- Push, merge, deploy or change GitHub settings without a go for that action. The owner has given a standing go
+  for `kardata-server` work once CI passes (D-65). Website pushes and deploys still need their own go.
 - Add frameworks, services or dependencies the plan doesn't name. If one seems needed, propose it in the
   review instead.
 - Write long docs, catalogues, hash manifests or "evidence metadata". Code and tests are the deliverable.
