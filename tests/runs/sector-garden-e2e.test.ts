@@ -16,6 +16,12 @@ import { startPipeline } from "../../src/runs/sector.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
 
 const FIXTURES = resolve("tests/fixtures");
+/** Enough readable text that fake homepages are not thin pages. */
+const GARDEN_STORY =
+  "Our nursery grows vegetable seeds, flower bulbs and herbs on a family farm and ships them across the country. " +
+  "Every packet carries sowing notes, and our growers answer questions by email. Shop raised beds, planters and " +
+  "watering cans, join the seed club for seasonal boxes, and read the planting calendar before you sow this spring. " +
+  "Orders over forty dollars ship free, and every order includes a bonus packet of wildflower seeds for bees.";
 const USAGE = { inputTokens: 100, outputTokens: 10, cachedTokens: 0, reasoningTokens: 0, calls: 1 };
 
 // Synthetic test profile: kept in this test file only. The owner's real
@@ -119,7 +125,7 @@ beforeAll(async () => {
   await ensureMigrated(handle);
   server = createServer((_req, res) => {
     res.writeHead(200, { "content-type": "text/html" });
-    res.end("<html><head><title>t</title></head><body>we sell seeds and garden goods</body></html>");
+    res.end(`<html><head><title>t</title></head><body>we sell seeds and garden goods. ${GARDEN_STORY} ${GARDEN_STORY}</body></html>`);
   });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   const addr = server.address();

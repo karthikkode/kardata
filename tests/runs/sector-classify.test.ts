@@ -12,6 +12,7 @@ import {
 } from "../../src/db/schema.js";
 import {
   classifyCompany,
+  readableChars,
   type ClassifierCall,
 } from "../../src/runs/sector-classify.js";
 import { SKINCARE_PROFILE, setProfile } from "../../src/domain/sector-preflight/profile.js";
@@ -72,8 +73,16 @@ async function rowFor(sectorId: string, companyId: string) {
 }
 
 function homePage(): string {
-  return `<html><body><h1>Acme Skin</h1><p>buy our serum online today with free shipping</p><a href="/about">About</a><a href="/shop">Shop all</a></body></html>`;
+  return `<html><body><h1>Acme Skin</h1><p>buy our serum online today with free shipping</p><p>${STORY}</p><a href="/about">About</a><a href="/shop">Shop all</a></body></html>`;
 }
+
+/** Enough readable text that the homepage is not a thin page. */
+const STORY =
+  "Acme Skin makes small-batch serums, cleansers and moisturisers in Melbourne. Every formula is tested on " +
+  "sensitive skin, packed in recyclable glass and shipped from our own studio. Our founders started in a kitchen " +
+  "in 2015 and now ship across Australia and New Zealand. Join the club for refills, early access to new " +
+  "launches and free samples with every order over fifty dollars. Read the ingredient notes on every product " +
+  "page, book a free skin consult, or visit the studio on Saturdays to try everything before you buy.";
 
 describe("classifyCompany", () => {
   it("fetches pages, classifies, grounds the quote, and logs the call", async () => {
@@ -206,6 +215,36 @@ describe("classifyCompany", () => {
     // Muse could not read the site either (no quote): the verdict stays low.
     await classifyCompany(handle.db, { sectorId, companyId, call: webCall(null), fetchOptions: ALLOW });
     expect((await rowFor(sectorId, companyId))?.confidence).toBe("low");
+  });
+
+  it("treats a script-only homepage as unread and hands it to Muse's web tools", async () => {
+    site.routes.set("/", (_req, res) =>
+      sendText(res, `<html><head><script>window.app = {};</script></head><body><div id="root"></div></body></html>`),
+    );
+    const sectorId = await makeSector("Skincare");
+    const companyId = await makeCompany("Shell Co", site.baseUrl);
+    const seen: (boolean | undefined)[] = [];
+    const call: ClassifierCall = async ({ web }) => {
+      seen.push(web);
+      return {
+        json: {
+          business_type: "unknown",
+          primary_category: "other",
+          sells_own_products: false,
+          has_online_store: false,
+          ships_to: [],
+          confidence: "low",
+          reason: "Muse could not read it either.",
+          quote: null,
+          quote_source_id: null,
+        },
+        usage: USAGE,
+      };
+    };
+    const outcome = await classifyCompany(handle.db, { sectorId, companyId, call, fetchOptions: ALLOW });
+    expect(outcome.webFallback).toBe(true);
+    expect(seen).toEqual([true]);
+    expect(readableChars([{ text: "<div></div>  \n" }])).toBe(0);
   });
 
   it("classifies a company without any website from Apollo only and requires low confidence", async () => {
