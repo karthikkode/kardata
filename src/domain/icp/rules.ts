@@ -165,8 +165,8 @@ export const EXCLUSION_RULES: BucketRule[] = [
     key: "not_d2c",
     label: "Not a real D2C brand",
     allowNotes: true,
-    question: "Is it not a real D2C brand (clinic, salon, spa, distributor, agency, dead or parked site)?",
-    routes: [{ factKeys: ["business_model.dtc_store", "decisions.online_store_active_oct_2026"] }],
+    question: "Is it not a real D2C brand (a service business, distributor, agency, or a dead or parked site)?",
+    routes: [{ factKeys: ["business_model.dtc_store", "decisions.online_store_active"] }],
   },
 ];
 
