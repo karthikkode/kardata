@@ -24,6 +24,7 @@ and never change them.
 | [website.md](website.md) | kardata.co: its job in the funnel, pages, home page copy, blog and booking requirements |
 | [content.md](content.md) | Content: audience, theme, the shape of every piece, mix, channels, writing rules, checks |
 | [content-plan.md](content-plan.md) | The next 10 posts: the owner's problem, concept, sourced case and source status for each |
+| [sector-selection.md](sector-selection.md) | How we pick the next sector: what people buy again, scored on a sample first |
 | [decisions.md](decisions.md) | Every business decision, with its date, plus the decisions still open |
 
 ## Standard for every file here
