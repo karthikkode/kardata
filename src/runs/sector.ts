@@ -344,7 +344,7 @@ export interface SectorPreflightCompaniesInput {
   eligibility?: ("eligible" | "review" | "ineligible")[];
   confidence?: ("high" | "medium" | "low")[];
   promptVersion?: string;
-  /** Only rows classified under an older version of the sector profile. */
+  /** Only rows classified under different category keys (the hash covers keys, not descriptions). */
   staleProfile?: boolean;
   companyIds?: string[];
   limit?: number;
