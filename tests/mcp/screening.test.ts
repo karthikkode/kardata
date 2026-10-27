@@ -63,15 +63,10 @@ async function makeSectorWithCompanies(name: string, count: number): Promise<{ s
 }
 
 describe("step 0 tools", () => {
-  it("collect_sector starts a job for the sector", async () => {
-    const { sectorId } = await makeSectorWithCompanies("Collect", 3);
-    const started = dataOf(await call("collect_sector", { sectorId }));
-    expect(started.items).toBe(3);
-    const status = dataOf(await call("job_status", { jobId: started.jobId as string }));
-    const job = status.job as { kind: string; status: string };
-    expect(job.kind).toBe("collect");
-    expect(job.status).toBe("running");
-    expect((status.counts as { queued: number }).queued).toBe(3);
+  it("removed bulk job tools are gone (collect_sector, job_status)", async () => {
+    const { sectorId } = await makeSectorWithCompanies("Collect", 1);
+    expect(await call("collect_sector", { sectorId })).toMatchObject({ isError: true });
+    expect(await call("job_status", { jobId: "00000000-0000-0000-0000-000000000000" })).toMatchObject({ isError: true });
   });
 
   it("company_screen filters and returns ids", async () => {
