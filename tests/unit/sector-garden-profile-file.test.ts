@@ -32,8 +32,9 @@ describe("docs/plans/stage-5.4-garden-profile.json (first non-skincare profile)"
     expect(profile.scope.coreCategories).toEqual(GARDEN_KEYS);
     expect(profile.scope.adjacentCategories).toEqual([]);
     expect(profile.classifierHints).toEqual({
-      serviceExamples: "landscaping, lawn and garden maintenance, garden design, tree surgery",
-      retailerExamples: "garden centres, DIY chains, multi-brand online outdoor retailers",
+      serviceExamples: "landscaping, lawn and garden maintenance, garden design, tree surgery, florists and flower delivery",
+      retailerExamples:
+        "garden centres, DIY and hardware chains, national store chains that sell mainly through their own stores even with own-label ranges, department stores, multi-brand online outdoor retailers",
       supplierExamples: "growers selling only to trade, horticultural wholesalers",
     });
   });
