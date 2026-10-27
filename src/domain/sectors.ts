@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { asc, count, desc, eq, sql } from "drizzle-orm";
-import { imports, sectorCompanies, sectors, type Import } from "../db/schema.js";
+import { companies, imports, sectorCompanies, sectors, type Import } from "../db/schema.js";
 import type { Db, DbLike } from "../db/client.js";
 import { getImportDirs } from "../lib/env.js";
 import { DomainError, isUniqueViolation } from "./errors.js";
@@ -204,4 +204,20 @@ export async function listSectors(db: Db): Promise<SectorSummary[]> {
 
 export async function getSector(db: Db, id: string): Promise<SectorDetail> {
   return detailOf(db, id);
+}
+
+/**
+ * The sector a company-scoped call should use: the given sector, else the
+ * company's only sector. Anything else is ambiguous and refused.
+ */
+export async function resolveCompanySector(db: Db, companyId: string, sectorId?: string): Promise<string> {
+  if (sectorId) return sectorId;
+  const [company] = await db.select({ id: companies.id }).from(companies).where(eq(companies.id, companyId));
+  if (!company) throw new DomainError("not_found", `company not found: ${companyId}`);
+  const rows = await db
+    .select({ sectorId: sectorCompanies.sectorId })
+    .from(sectorCompanies)
+    .where(eq(sectorCompanies.companyId, companyId));
+  if (rows.length === 1 && rows[0]) return rows[0].sectorId;
+  throw new DomainError("invalid_input", `company is in ${rows.length} sectors; pass sectorId`);
 }

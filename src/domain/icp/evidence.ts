@@ -316,7 +316,7 @@ export async function icpEvidence(db: Db, sectorId: string, companyId: string, n
       .select()
       .from(sectorPreflight)
       .where(and(eq(sectorPreflight.sectorId, sectorId), eq(sectorPreflight.companyId, companyId))),
-    companyRevenueTruth(db, companyId),
+    companyRevenueTruth(db, companyId, sectorId),
   ]);
   const sourceIds = [...new Set([...factRows, ...recordRows].flatMap((r) => r.sourceIds ?? []))];
   const sourceMap = new Map<string, EvidenceSource>();

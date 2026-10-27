@@ -38,6 +38,7 @@ import {
   sectorRevenueReclassify,
   sectorTierSummary,
 } from "../domain/tiering.js";
+import { resolveCompanySector } from "../domain/sectors.js";
 import { companyJobLive } from "../domain/company-jobs/live.js";
 import {
   estimateInflightBurn,
@@ -1452,11 +1453,12 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         "Operator (read-only): D-55 revenue truth for one company: revenue used, its source, any rejected figure and why, staff and its source, tier, score, layer or watchlist/excluded, and flags.",
       inputSchema: {
         companyId: z.string().describe("Company UUID"),
+        sectorId: z.string().optional().describe("Sector UUID (resolved from the company's only sector when omitted)"),
       },
     },
-    async ({ companyId }) =>
+    async ({ companyId, sectorId }) =>
       wrap(async () => {
-        const truth = await companyRevenueTruth(db, companyId);
+        const truth = await companyRevenueTruth(db, companyId, await resolveCompanySector(db, companyId, sectorId));
         return {
           summary: `tier ${truth.tier ?? "-"} layer ${truth.layer ?? "-"} (${truth.status})`,
           data: truth,
@@ -2017,11 +2019,14 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
     {
       description:
         "Operator (read-only): a company's latest ICP check: each signal, exclusion and flag with its verdict, cited evidence (quote, date, URL) and observation, plus today's tier, layer and status.",
-      inputSchema: { companyId },
+      inputSchema: {
+        companyId,
+        sectorId: z.string().optional().describe("Sector UUID (resolved from the company's only sector when omitted)"),
+      },
     },
-    async ({ companyId: id }) =>
+    async ({ companyId: id, sectorId }) =>
       wrap(async () => {
-        const view = await companyIcpView(db, id);
+        const view = await companyIcpView(db, id, await resolveCompanySector(db, id, sectorId));
         return {
           summary: view.check
             ? `score ${view.check.score}, ${view.status}, tier ${view.tier ?? "-"} layer ${view.layer ?? "-"}`

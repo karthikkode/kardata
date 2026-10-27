@@ -9,6 +9,7 @@ import {
   sources,
 } from "../db/schema.js";
 import { DomainError } from "./errors.js";
+import { getProfileOrNull } from "./sector-preflight/profile.js";
 import { addFacts } from "./research/facts.js";
 
 /**
@@ -142,6 +143,7 @@ export interface StaffCount {
 }
 
 export interface RevenueTruthInput {
+  tiering?: { apolloMinPerStaff: number; staffEstimatePerHead: number; publicCheckPerStaff: number };
   publicRevenue: {
     amount: number;
     sourceName: string;
@@ -191,11 +193,18 @@ export function pickStaff(candidates: StaffCount[]): StaffCount | null {
   return candidates[0] ?? null;
 }
 
+/** Lowest revenue that earns a tier; below it a company is not contacted. */
+export const REVENUE_FLOOR = 500_000;
+
+export function belowFloorReason(): string {
+  return `below $${REVENUE_FLOOR / 1000}k revenue: not contacted`;
+}
+
 export function tierForRevenue(revenue: number | null): Tier {
   if (revenue === null) return null;
   if (revenue >= 10_000_000) return "A";
   if (revenue >= 2_000_000) return "B";
-  if (revenue >= 500_000) return "C";
+  if (revenue >= REVENUE_FLOOR) return "C";
   return null;
 }
 
@@ -213,7 +222,7 @@ export function computeRevenueTruth(input: RevenueTruthInput): RevenueTruth {
   if (input.publicRevenue && input.publicRevenue.amount > 0) {
     const pub = input.publicRevenue;
     const perStaff = staff && staff.count > 0 ? pub.amount / staff.count : null;
-    const flagged = perStaff !== null && perStaff > PUBLIC_CHECK_PER_STAFF;
+    const flagged = perStaff !== null && perStaff > (input.tiering?.publicCheckPerStaff ?? PUBLIC_CHECK_PER_STAFF);
     if (!flagged) {
       revenueUsed = pub.amount;
       revenueSource = "public";
@@ -250,7 +259,7 @@ export function computeRevenueTruth(input: RevenueTruthInput): RevenueTruth {
   if (!used && input.vendorRevenue !== null && input.vendorRevenue.amount > 0) {
     const perStaff =
       staff && staff.count > 0 ? input.vendorRevenue.amount / staff.count : null;
-    if (perStaff !== null && perStaff >= APOLLO_MIN_PER_STAFF) {
+    if (perStaff !== null && perStaff >= (input.tiering?.apolloMinPerStaff ?? APOLLO_MIN_PER_STAFF)) {
       revenueUsed = input.vendorRevenue.amount;
       revenueSource = input.vendorRevenue.sourceName.toLowerCase().startsWith("apollo")
         ? "apollo"
@@ -264,13 +273,13 @@ export function computeRevenueTruth(input: RevenueTruthInput): RevenueTruth {
         reason: "rejected: below $75k per staff",
       };
       if (staff && staff.count > 0) {
-        revenueUsed = staff.count * STAFF_ESTIMATE_PER_HEAD;
+        revenueUsed = staff.count * (input.tiering?.staffEstimatePerHead ?? STAFF_ESTIMATE_PER_HEAD);
         revenueSource = "staff_estimate";
       }
     }
   }
   if (!used && revenueUsed === null && staff && staff.count > 0) {
-    revenueUsed = staff.count * STAFF_ESTIMATE_PER_HEAD;
+    revenueUsed = staff.count * (input.tiering?.staffEstimatePerHead ?? STAFF_ESTIMATE_PER_HEAD);
     revenueSource = "staff_estimate";
   }
 
@@ -294,7 +303,7 @@ export function computeRevenueTruth(input: RevenueTruthInput): RevenueTruth {
     status = "watchlist";
   } else if (revenueUsed !== null && tier === null) {
     status = "excluded";
-    exclusionReason = "below $500k revenue: not contacted";
+    exclusionReason = belowFloorReason();
   } else {
     status = "contactable";
   }
@@ -345,9 +354,8 @@ export async function recordVerdicts(db: Db, verdicts: VerdictInput[]): Promise<
         source: v.source,
       })
       .onConflictDoUpdate({
-        target: companyVerdicts.companyId,
+        target: [companyVerdicts.companyId, companyVerdicts.sectorId],
         set: {
-          sectorId: v.sectorId,
           score: v.score,
           signals: v.signals,
           status: v.status,
@@ -479,9 +487,11 @@ function factAmount(row: { valueNum: unknown; valueJson: unknown }): number | nu
   return null;
 }
 
-export async function companyRevenueTruth(db: Db, companyId: string): Promise<RevenueTruth & { companyId: string }> {
+export async function companyRevenueTruth(db: Db, companyId: string, sectorId: string): Promise<RevenueTruth & { companyId: string }> {
   const [company] = await db.select({ id: companies.id }).from(companies).where(eq(companies.id, companyId));
   if (!company) throw new DomainError("not_found", `company not found: ${companyId}`);
+  const profile = await getProfileOrNull(db, sectorId);
+  const pressSources = profile?.tiering.pressSources ?? [];
   const rows = await db
     .select()
     .from(factsCurrent)
@@ -510,7 +520,7 @@ export async function companyRevenueTruth(db: Db, companyId: string): Promise<Re
       const storedKind =
         typeof qualifiers["source_kind"] === "string" ? (qualifiers["source_kind"] as string) : null;
       if (source !== "") {
-        const kind = classifyRevenueSourceKind(source, storedKind);
+        const kind = classifyRevenueSourceKind(source, storedKind, pressSources);
         if (isPublicKind(kind)) {
           publicRevenue = { amount, sourceName: source, kind };
         } else {
@@ -538,7 +548,7 @@ export async function companyRevenueTruth(db: Db, companyId: string): Promise<Re
   const [verdict] = await db
     .select()
     .from(companyVerdicts)
-    .where(eq(companyVerdicts.companyId, companyId));
+    .where(and(eq(companyVerdicts.companyId, companyId), eq(companyVerdicts.sectorId, sectorId)));
 
   const [confirmation] = await db
     .select()
@@ -553,6 +563,7 @@ export async function companyRevenueTruth(db: Db, companyId: string): Promise<Re
   }
 
   const truth = computeRevenueTruth({
+    tiering: profile?.tiering,
     publicRevenue,
     vendorRevenue,
     staff: pickStaff(staffCandidates),
@@ -597,7 +608,7 @@ export async function sectorSheetRows(db: Db, sectorId: string): Promise<SheetRo
     .where(eq(sectorCompanies.sectorId, sectorId));
   const rows: SheetRow[] = [];
   for (const m of members) {
-    const truth = await companyRevenueTruth(db, m.companyId);
+    const truth = await companyRevenueTruth(db, m.companyId, sectorId);
     if (truth.status !== "contactable" || !truth.tier || truth.layer === null) continue;
     rows.push({
       companyId: m.companyId,
@@ -681,10 +692,10 @@ export async function sectorTierSummary(db: Db, sectorId: string): Promise<Secto
     const verdicts = await db
       .select({ companyId: companyVerdicts.companyId })
       .from(companyVerdicts)
-      .where(inArray(companyVerdicts.companyId, batch));
+      .where(and(inArray(companyVerdicts.companyId, batch), eq(companyVerdicts.sectorId, sectorId)));
     withVerdicts += verdicts.length;
     for (const v of verdicts) {
-      const truth = await companyRevenueTruth(db, v.companyId);
+      const truth = await companyRevenueTruth(db, v.companyId, sectorId);
       byStatus[truth.status] = (byStatus[truth.status] ?? 0) + 1;
       if (truth.revenueSource) {
         byRevenueSource[truth.revenueSource] = (byRevenueSource[truth.revenueSource] ?? 0) + 1;
