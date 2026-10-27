@@ -97,10 +97,10 @@ function okRecord(r: UpsertRecordResult | undefined) {
 }
 
 describe("seed registry", () => {
-  it("holds 29 approved fact keys and 11 approved record types", async () => {
+  it("holds 33 approved fact keys and 11 approved record types", async () => {
     const keys = await handle.db.select().from(factKeys).where(eq(factKeys.createdBy, "seed"));
     const types = await handle.db.select().from(recordTypes).where(eq(recordTypes.createdBy, "seed"));
-    expect(keys).toHaveLength(29);
+    expect(keys).toHaveLength(33);
     expect(types).toHaveLength(11);
     expect(keys.every((k) => k.status === "approved")).toBe(true);
     expect(types.every((t) => t.status === "approved")).toBe(true);

@@ -1001,3 +1001,38 @@ export const sectorPreflightItems = pgTable(
   (t) => [uniqueIndex("sector_preflight_items_job_company_idx").on(t.jobId, t.companyId)],
 );
 export type SectorPreflightItem = typeof sectorPreflightItems.$inferSelect;
+
+// ---- Stage 5.3: ICP verdicts (signal score + contact status per company) ----
+
+export const companyVerdicts = pgTable("company_verdicts", {
+  companyId: uuid("company_id")
+    .primaryKey()
+    .references(() => companies.id, { onDelete: "cascade" }),
+  sectorId: uuid("sector_id")
+    .notNull()
+    .references(() => sectors.id, { onDelete: "cascade" }),
+  score: integer("score").notNull(),
+  signals: jsonb("signals").notNull().default({}),
+  status: text("status").notNull().default("watchlist"),
+  exclusionReason: text("exclusion_reason"),
+  source: text("source").notNull().default(""),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+export type CompanyVerdict = typeof companyVerdicts.$inferSelect;
+
+// Human verdict on a flagged (over $1M per staff) public revenue figure.
+export const revenueConfirmations = pgTable("revenue_confirmations", {
+  companyId: uuid("company_id")
+    .primaryKey()
+    .references(() => companies.id, { onDelete: "cascade" }),
+  decision: text("decision").notNull(),
+  reason: text("reason").notNull().default(""),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+export type RevenueConfirmation = typeof revenueConfirmations.$inferSelect;

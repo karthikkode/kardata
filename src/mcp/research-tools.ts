@@ -31,6 +31,15 @@ import {
   searchAll,
 } from "../domain/research/reads.js";
 import { preflightReportSchema, savePreflightReportForRun } from "../domain/company-jobs/preflight.js";
+import {
+  companyRevenueTruth,
+  recordRevenueConfirmation,
+  recordVerdicts,
+  sectorRevenueReclassify,
+  sectorSheetRows,
+  sectorTierSummary,
+  sheetCsv,
+} from "../domain/tiering.js";
 import { companyJobLive } from "../domain/company-jobs/live.js";
 import {
   estimateInflightBurn,
@@ -1422,6 +1431,130 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
           summary: `${view.jobs.length} jobs, ${view.runs.length} runs for "${view.company.name}"`,
           data: view,
         };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_revenue_truth",
+    {
+      description:
+        "Operator (read-only): D-55 revenue truth for one company: revenue used, its source, any rejected figure and why, staff and its source, tier, score, layer or watchlist/excluded, and flags.",
+      inputSchema: {
+        companyId: z.string().describe("Company UUID"),
+      },
+    },
+    async ({ companyId }) =>
+      wrap(async () => {
+        const truth = await companyRevenueTruth(db, companyId);
+        return {
+          summary: `tier ${truth.tier ?? "-"} layer ${truth.layer ?? "-"} (${truth.status})`,
+          data: truth,
+        };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_tier_summary",
+    {
+      description:
+        "Operator (read-only): sector counts by tier x layer (contactable), by revenue source, and by contact status, computed from stored facts and verdicts (D-55).",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+      },
+    },
+    async ({ sectorId }) =>
+      wrap(async () => {
+        const summary = await sectorTierSummary(db, sectorId);
+        return {
+          summary: `${summary.companiesWithVerdicts} companies with verdicts`,
+          data: summary,
+        };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_verdict_record",
+    {
+      description:
+        "Operator: record ICP verdicts (signal score, signals, contact status) for up to 200 companies. This is the only write path for verdicts.",
+      inputSchema: {
+        verdicts: z
+          .array(
+            z.object({
+              companyId: z.string(),
+              sectorId: z.string(),
+              score: z.number().int().min(0).max(6),
+              signals: z.record(z.string(), z.boolean()).default({}),
+              status: z.enum(["contactable", "watchlist", "excluded", "research_incomplete"]),
+              exclusionReason: z.string().nullable().optional(),
+              source: z.string().min(1),
+            }),
+          )
+          .min(1)
+          .max(200),
+      },
+    },
+    async ({ verdicts }) =>
+      wrap(async () => {
+        const result = await recordVerdicts(db, verdicts);
+        return { summary: `${result.recorded} verdict(s) recorded`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_revenue_confirm",
+    {
+      description:
+        "Operator: confirm or reject a flagged public revenue figure (over $1M per staff) for one company, with a reason. Only a confirmed figure may set the tier; a rejected figure stays visible and the next source down is used.",
+      inputSchema: {
+        companyId: z.string().describe("Company UUID"),
+        decision: z.enum(["confirm", "reject"]).describe("confirm = the brand's own figure; reject = parent/group or wrong"),
+        reason: z.string().min(1).describe("Why, in plain words"),
+      },
+    },
+    async ({ companyId, decision, reason }) =>
+      wrap(async () => {
+        const result = await recordRevenueConfirmation(db, { companyId, decision, reason });
+        return { summary: `${decision}: ${reason}`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_revenue_reclassify",
+    {
+      description:
+        "Operator: stamp source_kind onto stored revenue figures that lack one (filing, press, interview, company_statement, vendor_estimate, award_entry), so vendor estimates stop counting as public. Writes superseding facts through the standard fact path.",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+      },
+    },
+    async ({ sectorId }) =>
+      wrap(async () => {
+        const result = await sectorRevenueReclassify(db, sectorId);
+        return { summary: `${result.stamped} revenue figures stamped`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_sheet_export",
+    {
+      description:
+        "Operator: write var/analysis/companies-<date>.csv with only the contactable companies (D-55 tiers), one block per tier, sorted by layer then score.",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+      },
+    },
+    async ({ sectorId }) =>
+      wrap(async () => {
+        const { mkdir, writeFile } = await import("node:fs/promises");
+        const { join } = await import("node:path");
+        const rows = await sectorSheetRows(db, sectorId);
+        const date = new Date().toISOString().slice(0, 10);
+        const dir = join(process.cwd(), "var", "analysis");
+        await mkdir(dir, { recursive: true });
+        const path = join(dir, `companies-${date}.csv`);
+        await writeFile(path, sheetCsv(rows), "utf8");
+        return { summary: `${rows.length} contactable companies written to ${path}`, data: { path, rows: rows.length } };
       }),
   );
 

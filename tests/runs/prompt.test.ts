@@ -153,10 +153,10 @@ describe("buildResearchPrompt", () => {
 });
 
 describe("prompt versions", () => {
-  it("lists v0, v1, v1.1, v1.2, v1.3 and v1.4 with v1.4 latest", () => {
-    expect(availablePromptVersions()).toEqual(["v0", "v1", "v1.1", "v1.2", "v1.3", "v1.4"]);
-    expect(latestPromptVersion()).toBe("v1.4");
-    expect(resolvePromptVersion()).toBe("v1.4");
+  it("lists v0, v1, v1.1, v1.2, v1.3, v1.4 and v1.5 with v1.5 latest", () => {
+    expect(availablePromptVersions()).toEqual(["v0", "v1", "v1.1", "v1.2", "v1.3", "v1.4", "v1.5"]);
+    expect(latestPromptVersion()).toBe("v1.5");
+    expect(resolvePromptVersion()).toBe("v1.5");
     expect(resolvePromptVersion("v0")).toBe("v0");
   });
 
@@ -222,6 +222,15 @@ describe("prompt versions", () => {
     expect(prompt).toContain("relied-upon passages");
     expect(prompt).toContain("Never write test or probe data to kardata");
     expect(prompt).toContain("depth and citations, not structuring");
+    expect(prompt).not.toContain("{{");
+  });
+
+  it("renders v1.5 with plausibility, citation and decisions rules", () => {
+    const prompt = buildResearchPrompt(ctx({ run: { promptVersion: "v1.5" } }));
+    expect(prompt).toContain("Revenue plausibility");
+    expect(prompt).toContain("disputed");
+    expect(prompt).toContain("Citations are source IDs, never URLs");
+    expect(prompt).toContain("exact company name in quotes, without the domain anchor");
     expect(prompt).not.toContain("{{");
   });
 

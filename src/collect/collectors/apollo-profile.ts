@@ -53,7 +53,9 @@ export const apolloProfileCollector: Collector = {
         items.push({
           key: "financials.revenue_estimate",
           value: revenue,
-          qualifiers: { source: "apollo" },
+          // Vendor estimate: never clean. The tier rule (D-55) later marks it
+          // accepted or rejected against staff; until then it is unverified.
+          qualifiers: { source: "apollo", estimate_kind: "vendor", estimate_status: "unverified" },
           sourceIds,
           confidence: "medium",
         });

@@ -61,7 +61,11 @@ describe("apollo_profile collector", () => {
     const revenue = byKey.get("financials.revenue_estimate");
     expect(revenue?.valueJson).toEqual({ amount: 25000000 });
     expect(revenue?.currency).toBe("USD");
-    expect(revenue?.qualifiers).toEqual({ source: "apollo" });
+    expect(revenue?.qualifiers).toEqual({
+      source: "apollo",
+      estimate_kind: "vendor",
+      estimate_status: "unverified",
+    });
     const funding = byKey.get("financials.total_funding");
     expect(funding?.valueJson).toEqual({ amount: 5000000 });
     expect(funding?.currency).toBe("USD");
