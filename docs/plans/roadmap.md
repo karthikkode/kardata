@@ -53,6 +53,9 @@ complete only when all of them are complete.
   sits idle behind deterministic work. See `stage-5.2-worker-pools.md`.
 - **5.3 — Revenue truth (done)** and **5.4 — Sector profiles (done):** D-55 tiers; preflight
   for any sector. See their stage plans.
+- **5.5 — ICP check and outreach sheet (current).** The ICP check (6 signals, exclusions)
+  becomes a stage of each company job, stores its observations for every company, and the
+  sheet export gains tracking columns. See `stage-5.5-icp-check.md`.
 
 **The order of operations for a sector is in `pipeline.md`** (every step is an MCP tool).
 

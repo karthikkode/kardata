@@ -2,39 +2,54 @@ Status: reference · Last updated: 2026-10-27
 
 # The sector pipeline (runbook)
 
-How a sector goes from an Apollo export to a call list. Every step is a standard MCP tool
-(`npx tsx scripts/mcp-call.ts <tool> '<json>'`). If a step has no tool, add the tool first
-(AGENTS.md). Business rules are in `docs/business/icp.md`; this file is only the order.
+How a sector goes from an Apollo export to an outreach sheet. It has four steps. Every operation is a standard MCP
+tool (`npx tsx scripts/mcp-call.ts <tool> '<json>'`). If an operation has no tool, add the tool first (AGENTS.md).
+Business rules live in `docs/business/icp.md`. This file only gives the order.
 
-| # | Step | Tools | What it decides | Muse cost |
-|---|---|---|---|---|
-| 1 | Create the sector and import | `sector_create` (with `profile`, `csvPaths`) | Who is in the sector | none |
-| 2 | Sector preflight | `sector_preflight_start`, `_status`, `_summary`, `_companies` | Is it a D2C brand in this sector, with its own store? | ~45K per company, ~140K when Muse reads the site itself |
-| 3 | Settle the unsure | `sector_preflight_start` with `onlyLowConfidence`, then `eligibility: ["review"], forceWeb: true` | Same question, with Muse reading the live site | as above |
-| 4 | Owner calls | `company_eligibility_override` (always with a note) | Borderline cases | none |
-| 5 | Deep research | `pipeline_start`, `pipeline_status`, `pipeline_checkpoint_set`, `company_jobs_list` | Collect, research, extraction, grounding per company | the expensive step |
-| 6 | Revenue and tier | `company_revenue_truth`, `company_revenue_confirm`, `sector_tier_summary` | Tier A/B/C from D-55 revenue | none |
-| 7 | ICP verdict | `company_verdict_record` | Signal score (layer), exclusions | **no standard job yet** (see below) |
-| 8 | Call list | `company_sheet_export` | Contactable companies, by tier, then layer | none |
+| # | Step | Tools | What it decides |
+|---|---|---|---|
+| 1 | **Sector creation** | `sector_create` (with `profile`, `csvPaths`), `sector_profile_get/set`, `sector_rules_set` | Who is in the sector, and its categories |
+| 2 | **Sector preflight** | `sector_preflight_start`, `_status`, `_summary`, `_companies`, `company_eligibility_override` | Is it a D2C brand in this sector, with its own online store? → eligible list |
+| 3 | **Deep research + ICP check** on each eligible company | `pipeline_start`, `company_job_start`, `pipeline_status`, `pipeline_checkpoint_set`, `batch_scorecard`; ICP: `sector_icp_start`, `company_icp_get` (stage 5.5) | Facts, records, revenue; signal score, exclusions, status. Stored for **every** company, whether it passes or not |
+| 4 | **Tier and sheet** | `company_revenue_truth`, `company_revenue_confirm`, `sector_tier_summary`, `sector_icp_companies`, `company_sheet_export` | Tier A/B/C (D-55 revenue), layer (signal score), and the outreach sheet for manual tracking |
 
-## Step notes
+## Step 1: Sector creation
 
-- **Steps 2–4 only answer "is it in the sector".** They are not the ICP check: revenue, HQ, data team,
-  parent company, stack and signals all come from step 5 onwards.
-- **Website reads (step 2):** our fetcher first; if it gets nothing or a thin page, Muse reads the site
-  with its own web tools (`prompt_version = v2-web`). Never spoof a browser.
-- **Profile changes:** `sector_profile_set`. Changing category text does not mark rows stale
-  (`staleProfile` covers category keys only), so re-run the affected companies by `eligibility` or
-  `companyIds`.
-- **Concurrency:** `sector_preflight_concurrency_set` and the company pool settings are live MCP
-  settings. Don't deploy while a sector preflight job runs (the deploy drain only waits for company jobs).
-- **Deep research (step 5)** runs only on eligible companies. Start with a checkpoint
-  (`pipeline_checkpoint_set`) and check a small batch with `batch_scorecard` before the whole sector.
+- The profile sets the categories, scope and classifier hints. The rubric sets what is eligible.
+- Category text changes don't mark rows stale: `staleProfile` covers category keys only. Re-run the affected
+  companies by `eligibility` or `companyIds`.
 
-## Gap: step 7 has no standard job
+## Step 2: Sector preflight
 
-Tier (step 6) is computed from stored facts. The **signal score and the exclusions** are only
-stored: `company_verdict_record` is a write path, and the 2026-10-26 skincare scores came from a
-one-off ICP check. Before a sector's call list, this needs a standard job that scores the 6 signals
-and the exclusions in `icp.md` from stored facts and records, with evidence per point
-(`evidence-rules.md`). Plan it as its own stage.
+- It only answers "is it in the sector". It is **not** the ICP check: revenue, HQ, data team, parent company, stack
+  and signals all come in step 3.
+- **Website reads:** our fetcher goes first. If it gets nothing or a thin page, Muse reads the site with its own web
+  tools (`prompt_version = v2-web`). Never spoof a browser.
+- **Settling the unsure:**
+  1. `sector_preflight_start` with `onlyLowConfidence`;
+  2. then with `eligibility: ["review"], forceWeb: true`;
+  3. the owner's calls (or Claude's, when the owner delegates) go through `company_eligibility_override`, always
+     with a note.
+- **Muse cost:** about 45K tokens per company, and about 140–260K when Muse reads the site itself.
+- Don't deploy while a preflight job runs: the deploy drain only waits for company jobs.
+
+## Step 3: Deep research and the ICP check
+
+- Runs only on eligible companies. Start with a pilot: about 10 companies through `company_job_start`, or
+  `pipeline_start` with `pipeline_checkpoint_set`. Check it with `batch_scorecard` before the whole sector.
+- The checkpoint pause stops promotion only. Jobs already scheduled finish.
+- Old `created` jobs from another sector wait in the queue (oldest first). Check `company_jobs_list` before you raise
+  the checkpoint.
+- **The ICP check** scores the 6 signals and the exclusions from stored, quoted, dated evidence only
+  (`evidence-rules.md`). Every company gets a verdict with its observations: contactable, watchlist, excluded or
+  research incomplete.
+- **Until stage 5.5 ships,** this check has no standard job. Don't score companies by hand; wait for 5.5.
+
+## Step 4: Tier and the outreach sheet
+
+- The tier comes from revenue (D-55: A $10M+, B $2–10M, C $500k–2M, under $500k not contacted). Source order: public
+  figure, then Apollo, then staff estimate. Flagged public figures need `company_revenue_confirm`.
+- Layer = 7 − signal score. Score 0–1 is the watchlist and is never contacted.
+- `company_sheet_export` writes `var/analysis/companies-<date>.csv` (gitignored): contactable companies by tier, then
+  layer, with observations and blank tracking columns. The owner imports it into the Google Sheet. All outreach is
+  manual.
