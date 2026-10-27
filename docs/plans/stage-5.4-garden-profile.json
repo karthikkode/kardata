@@ -1,20 +1,43 @@
 {
-  "name": "garden",
-  "description": "Garden and outdoor living D2C brands (synthetic test sector)",
+  "name": "garden-outdoor",
+  "description": "Garden and outdoor living D2C brands",
   "categories": [
-    { "key": "growing", "label": "Growing", "description": "Seeds, bulbs, plants, compost and soil care." },
-    { "key": "tools_watering", "label": "Tools & watering", "description": "Hand tools, power tools, hoses, irrigation and watering systems." },
-    { "key": "outdoor_decor", "label": "Outdoor decor", "description": "Garden decor, furniture, lighting and structures." }
+    { "key": "growing", "label": "Growing", "description": "Seeds, bulbs, plants, compost, plant food, growing media." },
+    { "key": "tools_watering", "label": "Tools & watering", "description": "Hand and power tools, hoses, irrigation, sprinklers." },
+    { "key": "planters_structures", "label": "Planters & structures", "description": "Pots, planters, raised beds, greenhouses, sheds, storage." },
+    { "key": "outdoor_furniture", "label": "Outdoor furniture", "description": "Furniture, parasols, cushions, pergolas." },
+    { "key": "outdoor_cooking_heating", "label": "Outdoor cooking & heating", "description": "BBQs, grills, pizza ovens, fire pits, patio heaters." },
+    { "key": "lighting_decor", "label": "Lighting & decor", "description": "Garden lighting, ornaments, garden giftware." },
+    { "key": "wildlife", "label": "Wildlife", "description": "Bird feeders, bird food, insect houses." },
+    { "key": "lawn_care", "label": "Lawn care", "description": "Lawn feed and seed, mowers, smart lawn devices." }
   ],
   "scope": {
-    "coreCategories": ["growing"],
+    "coreCategories": [
+      "growing",
+      "tools_watering",
+      "planters_structures",
+      "outdoor_furniture",
+      "outdoor_cooking_heating",
+      "lighting_decor",
+      "wildlife",
+      "lawn_care"
+    ],
     "adjacentCategories": [],
     "scopeKeywords": []
   },
   "rubric": {
     "eligible": {
       "businessTypes": ["dtc_brand"],
-      "primaryCategories": ["growing"],
+      "primaryCategories": [
+        "growing",
+        "tools_watering",
+        "planters_structures",
+        "outdoor_furniture",
+        "outdoor_cooking_heating",
+        "lighting_decor",
+        "wildlife",
+        "lawn_care"
+      ],
       "requireSellsOwnProducts": true,
       "requireHasOnlineStore": true
     },
@@ -25,8 +48,8 @@
     }
   },
   "classifierHints": {
-    "serviceExamples": "landscaping or garden-design service without its own product line",
-    "retailerExamples": "garden centre or DIY chain selling other brands",
-    "supplierExamples": "grower or materials supplier selling only to trade"
+    "serviceExamples": "landscaping, lawn and garden maintenance, garden design, tree surgery",
+    "retailerExamples": "garden centres, DIY chains, multi-brand online outdoor retailers",
+    "supplierExamples": "growers selling only to trade, horticultural wholesalers"
   }
 }
