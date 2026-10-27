@@ -29,6 +29,10 @@ import { dockerClassifierCall, type ClassifierCall } from "./sector-classify.js"
  * server's decision, an append-only check row, and the verdict.
  */
 
+/** The judge reads a ~25K-token pack and reasons; 120s killed calls in the pilot. */
+export const ICP_STALL_MS = 300_000;
+export const ICP_CALL_RETRIES = 1;
+
 /** Verdicts recorded by hand with this source prefix are never overwritten by a check. */
 export const OVERRIDE_SOURCE_PREFIX = "override:";
 
@@ -105,10 +109,15 @@ export async function runIcpCheck(db: Db, input: RunIcpInput): Promise<RunIcpOut
     const prompt = buildIcpPrompt(pack);
     const started = Date.now();
     let result;
-    try {
-      result = await (input.call ?? dockerClassifierCall)({ runId, prompt, schema: icpSchema() });
-    } catch (err) {
-      return fail(`icp judge call failed: ${err instanceof Error ? err.message : String(err)}`);
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        result = await (input.call ?? dockerClassifierCall)({ runId, prompt, schema: icpSchema(), stallMs: ICP_STALL_MS });
+        break;
+      } catch (err) {
+        if (attempt >= ICP_CALL_RETRIES) {
+          return fail(`icp judge call failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
     }
     await logIcpCall(db, { ...run, status: "running" } as ResearchRun, {
       seq: 1,

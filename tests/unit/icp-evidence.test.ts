@@ -60,7 +60,7 @@ describe("usableOrigin", () => {
     expect(usableOrigin({ verification: "verified_value", createdBy: "extractor:x" })).toBe("grounded");
     expect(usableOrigin({ verification: "unverified", createdBy: "collector:jobs" })).toBe("collector");
     expect(usableOrigin({ verification: "quote_mismatch", createdBy: "collector:jobs" })).toBeNull();
-    expect(usableOrigin({ verification: "doc_only", createdBy: "extractor:x" })).toBeNull();
+    expect(usableOrigin({ verification: "doc_only", createdBy: "extractor:x" })).toBe("notes");
     expect(usableOrigin({ verification: "unverified", createdBy: "extractor:x" })).toBeNull();
   });
 });
@@ -78,7 +78,27 @@ describe("buildPack", () => {
       now: NOW,
     });
     expect(pack.buckets.tool_sprawl.map((i) => i.value)).toEqual(["Gorgias"]);
-    expect(pack.dropped.unverified).toBe(2);
+    expect(pack.dropped.unverified).toBe(1);
+    expect(pack.dropped.notesOnly).toBe(1);
+  });
+
+  it("lets research-note facts support exclusions, never signals, and routes parent keys by prefix", () => {
+    const pack = buildPack({
+      facts: [
+        fact({ key: "financials.ownership", valueText: "subsidiary of a listed group", verification: "doc_only" }),
+        fact({ key: "financials.parent_consolidated_sales", valueText: "9.2B", verification: "doc_only" }),
+        fact({ key: "business_model.marketplace", valueText: "Amazon", verification: "doc_only" }),
+      ],
+      records: [],
+      sources,
+      now: NOW,
+    });
+    expect(pack.buckets.parent_company.map((i) => [i.key, i.origin])).toEqual([
+      ["financials.ownership", "notes"],
+      ["financials.parent_consolidated_sales", "notes"],
+    ]);
+    expect(pack.buckets.channels).toEqual([]);
+    expect(pack.dropped.notesOnly).toBe(1);
   });
 
   it("drops job posts older than 6 months, keeps fresh ones", () => {

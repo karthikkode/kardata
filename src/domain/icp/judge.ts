@@ -111,6 +111,7 @@ function itemLine(item: EvidenceItem): string {
   const parts = [`[${item.ref}] ${item.key}: ${item.value}`];
   if (item.quote) parts.push(`quote: "${item.quote}"`);
   parts.push(`${item.date} (${item.dateKind})`);
+  if (item.origin === "notes") parts.push("from research notes, not matched to a stored page");
   if (item.url) parts.push(item.url);
   return `- ${parts.join(" | ")}`;
 }
@@ -175,8 +176,9 @@ export interface IcpDecision {
   flags: BucketResult[];
 }
 
-function checkAnswer(key: BucketKey, a: Answer, pack: EvidencePack, all: Set<string>): BucketResult {
+function checkAnswer(key: BucketKey, a: Answer, pack: EvidencePack, all: Set<string>, notes: Set<string>): BucketResult {
   const own = new Set(pack.buckets[key].map((i) => i.ref));
+  const rule = [...SIGNAL_RULES, ...EXCLUSION_RULES, ...FLAG_RULES].find((r) => r.key === key);
   const refs = a.evidence_refs.filter((r) => all.has(r));
   const droppedRefs = a.evidence_refs.filter((r) => !all.has(r));
   let counted = a.verdict === "yes";
@@ -187,6 +189,9 @@ function checkAnswer(key: BucketKey, a: Answer, pack: EvidencePack, all: Set<str
   } else if (counted && !refs.some((r) => own.has(r))) {
     counted = false;
     note = "no cited evidence belongs to this question";
+  } else if (counted && !rule?.allowNotes && refs.every((r) => notes.has(r))) {
+    counted = false;
+    note = "only research-note evidence; signals need a checked source";
   }
   return { key, verdict: a.verdict, counted, refs, droppedRefs, observation: a.observation, note };
 }
@@ -194,9 +199,10 @@ function checkAnswer(key: BucketKey, a: Answer, pack: EvidencePack, all: Set<str
 /** Verdict from a checked judgement (icp.md sections 2 and 5, problem-bar.md). */
 export function decideIcp(pack: EvidencePack, judgement: Judgement): IcpDecision {
   const all = new Set(Object.values(pack.buckets).flatMap((items) => items.map((i) => i.ref)));
+  const notes = new Set(Object.values(pack.buckets).flatMap((items) => items.filter((i) => i.origin === "notes").map((i) => i.ref)));
   const consumed = new Set<string>();
   const signals = SIGNAL_RULES.map((rule) => {
-    const result = checkAnswer(rule.key, judgement.signals[rule.key as SignalKey], pack, all);
+    const result = checkAnswer(rule.key, judgement.signals[rule.key as SignalKey], pack, all, notes);
     // Independence: a signal resting only on evidence another signal already
     // used is the same signal counted twice.
     if (result.counted && result.refs.every((r) => consumed.has(r))) {
@@ -208,7 +214,7 @@ export function decideIcp(pack: EvidencePack, judgement: Judgement): IcpDecision
   });
   const exclusions = EXCLUSION_RULES.map((rule) => {
     const key = rule.key as ExclusionKey;
-    const result = checkAnswer(key, judgement.exclusions[key], pack, all);
+    const result = checkAnswer(key, judgement.exclusions[key], pack, all, notes);
     if (key === "parent_company" && result.counted) {
       const a = judgement.exclusions.parent_company;
       const owner = pack.buckets.parent_company.filter((i) => i.key === "leader").map((i) => i.ref);
@@ -219,7 +225,7 @@ export function decideIcp(pack: EvidencePack, judgement: Judgement): IcpDecision
     }
     return result;
   });
-  const flags = FLAG_RULES.map((rule) => checkAnswer(rule.key, judgement.flags[rule.key as FlagKey], pack, all));
+  const flags = FLAG_RULES.map((rule) => checkAnswer(rule.key, judgement.flags[rule.key as FlagKey], pack, all, notes));
   const score = signals.filter((s) => s.counted).length;
   const applied = exclusions.find((e) => e.counted);
   let status: ContactStatus;

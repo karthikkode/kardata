@@ -19,7 +19,7 @@ function pack(fill: Partial<Record<BucketKey, EvidenceItem[]>>, revenue: Partial
   ) as EvidencePack["buckets"];
   return {
     buckets,
-    dropped: { unverified: 0, undated: 0, stale: 0 },
+    dropped: { unverified: 0, notesOnly: 0, undated: 0, stale: 0 },
     usable: Object.values(buckets).flat().length,
     companyId: "c",
     sectorId: "s",
@@ -110,6 +110,23 @@ describe("decideIcp", () => {
     const small = pack({ channels: [item("r:1", "retailer", "Shop")], tool_sprawl: [item("f:3", "marketing.tool", "Klaviyo")] }, { revenueUsed: 300_000, tier: null });
     const d = decideIcp(small, judgement({ signals: { channels: yes(["r:1"]), tool_sprawl: yes(["f:3"]) } }));
     expect(d).toMatchObject({ status: "excluded", exclusionReason: "below $500k revenue: not contacted" });
+  });
+
+  it("never counts a signal resting only on research notes, but lets notes exclude", () => {
+    const notes = (ref: string, key: string, value: string): EvidenceItem => ({ ...item(ref, key, value), origin: "notes" });
+    const p = pack({
+      channels: [notes("f:n1", "business_model.marketplace", "Amazon")],
+      tool_sprawl: [item("f:3", "marketing.tool", "Klaviyo")],
+      parent_company: [notes("f:n2", "financials.ownership", "subsidiary of a listed group")],
+    });
+    const d = decideIcp(p, judgement({
+      signals: { channels: yes(["f:n1"]), tool_sprawl: yes(["f:3"]) },
+      exclusions: { parent_company: { ...yes(["f:n2"]), own_decision_maker: "no" } },
+    }));
+    expect(d.signals.find((s) => s.key === "channels")).toMatchObject({ counted: false, note: expect.stringMatching(/research-note/) });
+    expect(d.score).toBe(1);
+    expect(d.status).toBe("excluded");
+    expect(buildIcpPrompt(p)).toContain("from research notes, not matched to a stored page");
   });
 
   it("keeps the tech team as a flag, not an exclusion", () => {

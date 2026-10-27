@@ -64,9 +64,11 @@ export type ClassifierCall = (input: {
   prompt: string;
   schema: string;
   web?: boolean;
+  /** Silence allowed before the call is killed (default: by web mode). */
+  stallMs?: number;
 }) => Promise<ClassifierCallResult>;
 
-export const dockerClassifierCall: ClassifierCall = async ({ runId, prompt, schema, web }) => {
+export const dockerClassifierCall: ClassifierCall = async ({ runId, prompt, schema, web, stallMs }) => {
   const input = await prepareClassifyInput(prompt, schema);
   try {
     const child = spawn("docker", classifyRunArgs({ runId, inputDir: input.dir, web }), {
@@ -76,7 +78,7 @@ export const dockerClassifierCall: ClassifierCall = async ({ runId, prompt, sche
     child.stderr?.on("data", (chunk: Buffer) => {
       stderr = `${stderr}${chunk.toString("utf8")}`.slice(-2000);
     });
-    const handle = new MuseHandle(child, web ? CLASSIFY_WEB_STALL_MS : CLASSIFY_STALL_MS);
+    const handle = new MuseHandle(child, stallMs ?? (web ? CLASSIFY_WEB_STALL_MS : CLASSIFY_STALL_MS));
     let stall: string | null = null;
     const consume = (async () => {
       for await (const event of handle.events) {
