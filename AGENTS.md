@@ -49,6 +49,8 @@ Ask the owner only for:
 - spending money;
 - business rules in `docs/business/` that the data can't settle (offer, pricing, ICP definition);
 - anything sent to people outside (emails, posts), and website pushes and deploys (rules below).
+- adding or changing rows in the owner's outreach Google Sheets: show the rows first, write only after the
+  owner approves, and never touch rows or columns the owner has worked on.
 
 ## Website (`website/`)
 - **Live since 2026-10-27** at https://kardata.co: an Astro static site in `website/frontend/` (Node 22).
