@@ -1,0 +1,4 @@
+# Skincare log
+
+| Date | Note |
+|---|---|
