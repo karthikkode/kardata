@@ -10,6 +10,7 @@ import type { CollectRunResult } from "../../src/collect/run.js";
 import type { DbHandle } from "../../src/db/client.js";
 import { area, blobs, companies, providerCalls, researchRuns, runEvents, sources } from "../../src/db/schema.js";
 import { setAreaStatus } from "../../src/domain/research/status.js";
+import { saveDocument } from "../../src/domain/research/documents.js";
 import { PLAYWRIGHT_SERVER_CONFIG, RESEARCH_MUSE_ARGS } from "../../src/harness/docker.js";
 import type {
   AgentHarness,
@@ -138,11 +139,17 @@ async function freshCollect(companyId: string): Promise<void> {
   });
 }
 
-async function arrangeFinish(runId: string, areas = 7): Promise<void> {
+async function areaNote(runId: string, name: string): Promise<void> {
+  const [run] = await handle.db.select({ companyId: researchRuns.companyId }).from(researchRuns).where(eq(researchRuns.id, runId));
+  await saveDocument(handle.db, { companyId: run?.companyId as string, runId, path: `${name}/overview.md`, contentMd: `# ${name}`, createdBy: `agent:${runId}/main` });
+}
+
+async function arrangeFinish(runId: string, areas = 7, notes = true): Promise<void> {
   await recordEvent(handle.db, runId, "agent_finish", { summary: "s" });
   const names = (area.enumValues as readonly string[]).filter((n) => n !== "other");
   for (const name of names.slice(0, areas)) {
     await setAreaStatus(handle.db, { runId, area: name, status: "done", reason: null });
+    if (notes) await areaNote(runId, name);
   }
 }
 
@@ -701,6 +708,7 @@ describe("agent runner", () => {
       for (const [i, name] of names.entries()) {
         const done = oneDone && i === 0;
         await setAreaStatus(handle.db, { runId, area: name, status: done ? "done" : "blocked", reason: done ? null : "tool outputs redacted" });
+        if (done) await areaNote(runId, name);
       }
       await fx.runner.tick();
       await drain(runId);
@@ -712,6 +720,22 @@ describe("agent runner", () => {
         expect(row.error).toBe("all areas blocked: tool outputs redacted");
       }
     }
+  });
+
+  it("fails a run that marks areas done but writes only a summary note", async () => {
+    const fx = makeFixture({ scriptFor: () => ({ events: [COMPLETED] }) });
+    const companyId = await makeCompany("Summary Co");
+    await freshCollect(companyId);
+    const started = await researchStart(handle.db, { companyIds: [companyId] });
+    const runId = (started.runs[0] as { runId: string }).runId;
+    await arrangeFinish(runId, 7, false);
+    await saveDocument(handle.db, { companyId, runId, path: "summary.md", contentMd: "# all in one", createdBy: `agent:${runId}/main` });
+
+    await fx.runner.tick();
+    await drain(runId);
+    const row = await runRow(runId);
+    expect(row.status).toBe("failed");
+    expect(row.error).toBe("no area notes: 7 of 7 done areas have no agent note");
   });
 
   it("fails non-zero exits with the last error", async () => {

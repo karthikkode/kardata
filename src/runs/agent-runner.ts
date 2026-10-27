@@ -9,6 +9,7 @@ import {
   area,
   areaStatuses,
   companies,
+  documents,
   researchRuns,
   runEvents,
   sources,
@@ -233,6 +234,33 @@ async function allAreasBlocked(db: Db, runId: string): Promise<string | null> {
   const research = rows.filter((r) => r.area !== "other");
   if (research.length === 0 || research.some((r) => r.status !== "blocked")) return null;
   return research[0]?.reason ?? "blocked";
+}
+
+/**
+ * Done research areas with no agent note of their own, when that is more than
+ * half of them (null otherwise). Extraction reads per-area notes, so a session
+ * that files one summary under "other" leaves nothing to extract.
+ */
+async function areasWithoutNotes(db: Db, runId: string): Promise<{ missing: number; done: number } | null> {
+  const done = (
+    await db
+      .select({ area: areaStatuses.area })
+      .from(areaStatuses)
+      .where(and(eq(areaStatuses.runId, runId), eq(areaStatuses.status, "done")))
+  )
+    .map((r) => r.area)
+    .filter((a) => a !== "other");
+  if (done.length === 0) return null;
+  const noted = new Set(
+    (
+      await db
+        .select({ area: documents.area })
+        .from(documents)
+        .where(and(eq(documents.runId, runId), eq(documents.isCurrent, true), like(documents.createdBy, "agent:%")))
+    ).map((r) => r.area),
+  );
+  const missing = done.filter((a) => !noted.has(a)).length;
+  return missing * 2 > done.length ? { missing, done: done.length } : null;
 }
 
 const FORENSIC_HARNESS_MAX = 10;
@@ -561,6 +589,11 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
       }
       if (missing.length > 0) {
         await finalize(runId, "partial", `areas without status: ${missing.join(", ")}`, outcome);
+        return;
+      }
+      const unnoted = await areasWithoutNotes(db, runId);
+      if (unnoted !== null) {
+        await finalize(runId, "failed", `no area notes: ${unnoted.missing} of ${unnoted.done} done areas have no agent note`, outcome);
         return;
       }
       await finalize(runId, "succeeded", null, outcome);

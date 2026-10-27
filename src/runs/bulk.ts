@@ -484,6 +484,7 @@ export function classifyRunError(run: ResearchRun): { errorClass: string; error:
   if (/time limit/i.test(text)) return { errorClass: "time_limit", error: text };
   if (/server stopped/i.test(text)) return { errorClass: "server_stopped", error: text };
   if (/^all areas blocked/i.test(text)) return { errorClass: "all_blocked", error: text };
+  if (/^no area notes/i.test(text)) return { errorClass: "no_notes", error: text };
   return { errorClass: "failed", error: text };
 }
 

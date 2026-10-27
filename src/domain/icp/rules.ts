@@ -125,7 +125,7 @@ export const SIGNAL_RULES: BucketRule[] = [
   {
     key: "tool_sprawl",
     label: "Tool sprawl",
-    question: "Are 2+ tools doing the same job, or 4+ ad networks running?",
+    question: "Are 2+ distinct tools doing the same job (same category), or 4+ distinct ad networks running?",
     routes: [{ factKeys: ["marketing.tool", "marketing.channel_active"] }],
   },
 ];
