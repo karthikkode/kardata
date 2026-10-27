@@ -250,6 +250,43 @@ describe("classifyCompany", () => {
     expect(CLASSIFY_WEB_STALL_MS).toBeGreaterThanOrEqual(300_000);
   });
 
+  it("falls back to the Apollo-only verdict when Muse's web read stalls", async () => {
+    site.routes.set("/", (_req, res) => sendText(res, "denied", 403));
+    const sectorId = await makeSector("Skincare");
+    const companyId = await makeCompany("Hang Co", site.baseUrl);
+    const seen: (boolean | undefined)[] = [];
+    const call: ClassifierCall = async ({ web, prompt }) => {
+      seen.push(web);
+      if (web) throw new Error("classifier container exited 143: no events for 300000ms (stall): x");
+      expect(prompt).toContain("Never browse");
+      return {
+        json: {
+          business_type: "unknown",
+          primary_category: "other",
+          sells_own_products: false,
+          has_online_store: false,
+          ships_to: [],
+          confidence: "low",
+          reason: "Apollo record only.",
+          quote: null,
+          quote_source_id: null,
+        },
+        usage: USAGE,
+      };
+    };
+    const outcome = await classifyCompany(handle.db, { sectorId, companyId, call, fetchOptions: ALLOW });
+    expect(seen).toEqual([true, false]);
+    expect(outcome.webFallback).toBe(false);
+    expect((await rowFor(sectorId, companyId))?.promptVersion).toBe("v2");
+
+    const broken: ClassifierCall = async () => {
+      throw new Error("classifier container exited 1: boom");
+    };
+    await expect(classifyCompany(handle.db, { sectorId, companyId, call: broken, fetchOptions: ALLOW })).rejects.toThrow(
+      /boom/,
+    );
+  });
+
   it("classifies a company without any website from Apollo only and requires low confidence", async () => {
     const sectorId = await makeSector("Skincare");
     const companyId = await makeCompany("No Site Co", null);
