@@ -36,9 +36,7 @@ import {
   recordRevenueConfirmation,
   recordVerdicts,
   sectorRevenueReclassify,
-  sectorSheetRows,
   sectorTierSummary,
-  sheetCsv,
 } from "../domain/tiering.js";
 import { companyJobLive } from "../domain/company-jobs/live.js";
 import {
@@ -126,6 +124,7 @@ import {
 } from "../domain/screening.js";
 import { DomainError } from "../domain/errors.js";
 import { companyIcpView, sectorIcpCompanies } from "../domain/icp/reads.js";
+import { allCheckedCsv, allCheckedRows, outreachCsv, outreachSheetRows } from "../domain/icp/sheet.js";
 import {
   type AuthContext,
   agentLabelSchema,
@@ -1553,22 +1552,34 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
     "company_sheet_export",
     {
       description:
-        "Operator: write var/analysis/companies-<date>.csv with only the contactable companies (D-55 tiers), one block per tier, sorted by layer then score.",
+        "Operator: write var/analysis/companies-<date>.csv for manual outreach tracking: contactable companies only (D-55 tiers), one block per tier, by layer then score, with company id, signals met, the ICP check's observations (date, URL), tech team flag, buyer order by staff size (roles only), and blank tracking columns. includeAll also writes companies-<date>-all.csv: every checked company with its status and why.",
       inputSchema: {
         sectorId: z.string().describe("Sector UUID"),
+        includeAll: z.boolean().optional().describe("Also write every checked company with status and exclusion reason"),
       },
     },
-    async ({ sectorId }) =>
+    async ({ sectorId, includeAll }) =>
       wrap(async () => {
         const { mkdir, writeFile } = await import("node:fs/promises");
         const { join } = await import("node:path");
-        const rows = await sectorSheetRows(db, sectorId);
+        const rows = await outreachSheetRows(db, sectorId);
         const date = new Date().toISOString().slice(0, 10);
         const dir = join(process.cwd(), "var", "analysis");
         await mkdir(dir, { recursive: true });
         const path = join(dir, `companies-${date}.csv`);
-        await writeFile(path, sheetCsv(rows), "utf8");
-        return { summary: `${rows.length} contactable companies written to ${path}`, data: { path, rows: rows.length } };
+        await writeFile(path, outreachCsv(rows), "utf8");
+        let allPath: string | null = null;
+        let allRows = 0;
+        if (includeAll) {
+          const all = await allCheckedRows(db, sectorId);
+          allPath = join(dir, `companies-${date}-all.csv`);
+          await writeFile(allPath, allCheckedCsv(all), "utf8");
+          allRows = all.length;
+        }
+        return {
+          summary: `${rows.length} contactable companies written to ${path}${allPath ? `; ${allRows} checked companies to ${allPath}` : ""}`,
+          data: { path, rows: rows.length, allPath, allRows },
+        };
       }),
   );
 
