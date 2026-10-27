@@ -297,24 +297,36 @@ export async function classifyCompany(db: Db, input: ClassifyCompanyInput): Prom
   const fetched = await fetchInputs(db, runId, company, input.fetchOptions ?? {});
   // Our server could not read the site (blocked, script-only, down): Muse
   // reads it with its own web tools instead of classifying blind.
-  const web = fetched.apolloOnly && fetched.origin !== null;
-  const prompt = buildClassifierPrompt(
-    {
-      company,
-      description: apolloDescription(company),
-      pages: fetched.pages,
-      shopify: fetched.shopify,
-      apolloOnly: fetched.apolloOnly,
-      webOrigin: web ? fetched.origin : null,
-    },
-    profile,
-  );
+  let web = fetched.apolloOnly && fetched.origin !== null;
+  const promptFor = (withWeb: boolean): string =>
+    buildClassifierPrompt(
+      {
+        company,
+        description: apolloDescription(company),
+        pages: fetched.pages,
+        shopify: fetched.shopify,
+        apolloOnly: fetched.apolloOnly,
+        webOrigin: withWeb ? fetched.origin : null,
+      },
+      profile,
+    );
+  let prompt = promptFor(web);
   let result: ClassifierCallResult;
   const started = Date.now();
   try {
     result = await call({ runId, prompt, schema: classifierSchemaFor(profile), web });
   } catch (err) {
-    return fail(`classifier call failed: ${err instanceof Error ? err.message : String(err)}`);
+    const message = err instanceof Error ? err.message : String(err);
+    // Some sites hang Muse's own fetch forever: a stalled web read falls back
+    // to the Apollo-only verdict (low confidence) instead of failing the item.
+    if (!web || !message.includes("(stall)")) return fail(`classifier call failed: ${message}`);
+    web = false;
+    prompt = promptFor(false);
+    try {
+      result = await call({ runId, prompt, schema: classifierSchemaFor(profile), web });
+    } catch (retryErr) {
+      return fail(`classifier call failed: ${retryErr instanceof Error ? retryErr.message : String(retryErr)}`);
+    }
   }
   const durationMs = Date.now() - started;
   let classification: Classification;
