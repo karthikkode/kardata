@@ -25,6 +25,9 @@ const categoryKey = z
 
 export const sectorProfileSchema = z
   .object({
+    name: z.string().min(1).max(120).optional(),
+    description: z.string().max(2000).optional(),
+    rubric: z.unknown().optional(),
     categories: z
       .array(
         z
