@@ -16,13 +16,21 @@ export const CLASSIFY_INPUT_MOUNT = "/input";
 export const CLASSIFY_PROMPT_FILE = "prompt.md";
 export const CLASSIFY_SCHEMA_FILE = "schema.json";
 
-/** Tool-less lockdown plus the pinned model; no MCP servers are configured. */
+/**
+ * Tool-less lockdown plus the pinned model, contributor mode and medium
+ * effort (owner's run config; Muse defaults to high); no MCP servers are
+ * configured.
+ */
 export const CLASSIFY_MUSE_ARGS = [
   "--disable-web-tools",
   "--disable-shell",
   "--disable-write",
+  "--contributor-mode",
+  "on",
   "--model",
   "muse-spark-1.3",
+  "--reasoning-effort",
+  "medium",
   "--disable-reminders",
   "--no-foreign-personal-context",
   "--max-model-steps",
