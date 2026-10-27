@@ -183,7 +183,7 @@ export const area = pgEnum("area", [
 ]);
 export type Area = (typeof area.enumValues)[number];
 
-export const runKind = pgEnum("run_kind", ["collect", "agent", "manual", "sector_preflight"]);
+export const runKind = pgEnum("run_kind", ["collect", "agent", "manual", "sector_preflight", "icp"]);
 export const runStatus = pgEnum("run_status", [
   "queued",
   "running",
@@ -213,6 +213,8 @@ export const companyJobStage = pgEnum("company_job_stage", [
   // Pipeline-stage vocabulary shared by runs and provider_calls; sector
   // preflight is not a company stage but is logged like one.
   "sector_preflight",
+  // Stage 5.5: the ICP check, run after extraction or by a sector job.
+  "icp",
 ]);
 export const sourceStatus = pgEnum("source_status", [
   "ok",
@@ -968,6 +970,8 @@ export const sectorPreflightJobs = pgTable("sector_preflight_jobs", {
   onlyPending: boolean("only_pending").notNull().default(true),
   /** Review pass: Muse reads every site itself, even when our fetch worked. */
   forceWeb: boolean("force_web").notNull().default(false),
+  /** What each item runs: the preflight classifier, or the ICP check (Stage 5.5). */
+  kind: text("kind").notNull().default("preflight"),
   maxCompanies: integer("max_companies"),
   maxInputTokens: bigint("max_input_tokens", { mode: "number" }),
   maxHours: doublePrecision("max_hours"),
@@ -1027,6 +1031,35 @@ export const companyVerdicts = pgTable("company_verdicts", {
     .$onUpdate(() => new Date()),
 });
 export type CompanyVerdict = typeof companyVerdicts.$inferSelect;
+
+// ---- Stage 5.5: ICP checks (append-only; the latest one writes the verdict) ----
+
+export const companyIcpChecks = pgTable(
+  "company_icp_checks",
+  {
+    id: uuid("id").primaryKey(),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    sectorId: uuid("sector_id")
+      .notNull()
+      .references(() => sectors.id, { onDelete: "cascade" }),
+    runId: uuid("run_id").references(() => researchRuns.id, { onDelete: "set null" }),
+    promptVersion: text("prompt_version").notNull(),
+    packHash: text("pack_hash").notNull(),
+    score: integer("score").notNull(),
+    status: text("status").notNull(),
+    exclusionReason: text("exclusion_reason"),
+    /** Per-signal, per-exclusion and per-flag results with cited refs and observations. */
+    results: jsonb("results").$type<Record<string, unknown>>().notNull(),
+    /** The evidence items the results cite, as the judge saw them. */
+    evidence: jsonb("evidence").$type<unknown[]>().notNull().default([]),
+    usage: jsonb("usage").$type<Record<string, unknown> | null>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("company_icp_checks_company_idx").on(t.companyId, t.createdAt)],
+);
+export type CompanyIcpCheck = typeof companyIcpChecks.$inferSelect;
 
 // Human verdict on a flagged (over $1M per staff) public revenue figure.
 export const revenueConfirmations = pgTable("revenue_confirmations", {

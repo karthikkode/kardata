@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "../db/client.js";
 import {
   companies,
   companyJobs,
   jobEvents,
   researchRuns,
+  sectorCompanies,
   type CompanyJob,
   type ResearchRun,
 } from "../db/schema.js";
@@ -42,6 +43,7 @@ import {
   type JobBudget,
 } from "./bulk.js";
 import { extractRun } from "./extract.js";
+import { runIcpCheck } from "./icp.js";
 import { latestPromptVersion } from "./prompt.js";
 import { cancelRun, startCollect } from "./queue.js";
 import {
@@ -758,6 +760,8 @@ export interface CompanyRunnerDeps {
   extractionMax?: number;
   beginStage?: (job: CompanyJob, stage: CompanyStage) => Promise<BeginStageOutcome>;
   runExtraction?: (job: CompanyJob, researchRunId: string) => Promise<void>;
+  /** ICP check after extraction (Stage 5.5; default: runJobIcp). */
+  icpCheck?: (job: CompanyJob) => Promise<unknown>;
   agentLoad?: () => Promise<EngineLoad>;
   collectLoad?: () => Promise<EngineLoad>;
 }
@@ -773,6 +777,35 @@ export function realCompanyDeps(db: Db): Pick<CompanyRunnerDeps, "beginStage" | 
     beginStage: (job, stage) => beginStageReal(db, job, stage),
     runExtraction: (_job, researchRunId) => extractRun(db, researchRunId).then(() => undefined),
   };
+}
+
+/** The sector a company job's ICP check runs in: its latest eligible membership. */
+export async function icpSectorFor(db: Db, companyId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ sectorId: sectorCompanies.sectorId })
+    .from(sectorCompanies)
+    .where(
+      and(
+        eq(sectorCompanies.companyId, companyId),
+        eq(sectorCompanies.eligibility, "eligible"),
+        isNull(sectorCompanies.removedAt),
+      ),
+    )
+    .orderBy(desc(sectorCompanies.createdAt))
+    .limit(1);
+  return row?.sectorId ?? null;
+}
+
+/**
+ * Run the ICP check for a job whose extraction just finished. The check is
+ * not a counted stage: a failure is logged on the job and the company is
+ * picked up by sector_icp_start (onlyMissing), so research is never lost.
+ */
+export async function runJobIcp(db: Db, job: CompanyJob): Promise<{ checked: boolean; reason?: string }> {
+  const sectorId = await icpSectorFor(db, job.companyId);
+  if (!sectorId) return { checked: false, reason: "no eligible sector membership" };
+  await runIcpCheck(db, { sectorId, companyId: job.companyId, companyJobId: job.id });
+  return { checked: true };
 }
 
 async function countActiveRuns(db: Db, kind: "agent" | "collect"): Promise<number> {
@@ -796,6 +829,7 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
   const clock = deps.clock ?? Date.now;
   const beginStage = deps.beginStage ?? ((job, stage) => beginStageReal(db, job, stage));
   const runExtraction = deps.runExtraction ?? ((_job, researchRunId) => extractRun(db, researchRunId).then(() => undefined));
+  const icpCheck = deps.icpCheck ?? ((job: CompanyJob) => runJobIcp(db, job));
   const agentLoad =
     deps.agentLoad ??
     (async () => ({ active: await countActiveRuns(db, "agent"), max: await effectiveMaxAgents(db) }));
@@ -953,6 +987,13 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
     if (!marked) return loadCompanyJob(db, job.id);
     await spendReconcile(await loadCompanyJob(db, job.id));
     await logJobEvent(db, job.id, "stage_done", "extraction", { runId: subjob.id });
+    try {
+      const outcome = await icpCheck(await loadCompanyJob(db, job.id));
+      await logJobEvent(db, job.id, "icp_done", null, (outcome ?? {}) as Record<string, unknown>);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await logJobEvent(db, job.id, "icp_failed", null, { error: message.slice(0, 500) });
+    }
     const after = await describeCompanyJob(db, job.id);
     // Fresh status: the pool drives minutes after the offer, and the job
     // may have been paused or terminated meanwhile — never complete those.

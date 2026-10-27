@@ -381,6 +381,39 @@ describe("stage machine", () => {
     expect((await describeCompanyJob(handle.db, jobId)).derived).toBe("complete");
   });
 
+  it("runs the ICP check after extraction; a failed check is logged and the job still completes", async () => {
+    for (const fail of [false, true]) {
+      const companyId = await makeCompany(fail ? "Icp Fail Co" : "Icp Co");
+      const { jobId } = await startCompanyJob(handle.db, { companyId });
+      const world = fakeWorld();
+      const checked: string[] = [];
+      const runner = createCompanyRunner(
+        handle.db,
+        world.deps({
+          icpCheck: async (job) => {
+            checked.push(job.id);
+            if (fail) throw new Error("judge down");
+            return { checked: true };
+          },
+        }),
+      );
+      await fileReport(jobId, companyId);
+      await runner.tick();
+      for (const stage of ["preflight", "collect", "research"] as const) {
+        const sub = await latestSubjob(jobId, stage);
+        if (!sub) throw new Error(`no ${stage} subjob`);
+        await flipRun(sub.id, "succeeded");
+        await runner.tick();
+      }
+      await vi.waitFor(async () => expect((await jobRow(jobId)).status).toBe("completed"));
+      expect(checked).toEqual([jobId]);
+      const events = await handle.db.select().from(jobEvents).where(eq(jobEvents.jobId, jobId));
+      const types = events.map((e) => e.type);
+      expect(types).toContain(fail ? "icp_failed" : "icp_done");
+      expect(types.indexOf(fail ? "icp_failed" : "icp_done")).toBeLessThan(types.indexOf("job_completed"));
+    }
+  });
+
   it("pauses after 3 consecutive same-class failures, then resumes with a retry", async () => {
     const companyId = await makeCompany("Acme");
     const { jobId } = await startCompanyJob(handle.db, { companyId });

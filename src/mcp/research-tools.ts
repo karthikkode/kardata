@@ -36,9 +36,7 @@ import {
   recordRevenueConfirmation,
   recordVerdicts,
   sectorRevenueReclassify,
-  sectorSheetRows,
   sectorTierSummary,
-  sheetCsv,
 } from "../domain/tiering.js";
 import { companyJobLive } from "../domain/company-jobs/live.js";
 import {
@@ -94,6 +92,7 @@ import {
 } from "../runs/settings.js";
 import {
   startPipeline,
+  startSectorIcp,
   startSectorPreflight,
   sectorPreflightCancel,
   sectorPreflightList,
@@ -124,6 +123,8 @@ import {
   screenCompanies,
 } from "../domain/screening.js";
 import { DomainError } from "../domain/errors.js";
+import { companyIcpView, sectorIcpCompanies } from "../domain/icp/reads.js";
+import { allCheckedCsv, allCheckedRows, outreachCsv, outreachSheetRows } from "../domain/icp/sheet.js";
 import {
   type AuthContext,
   agentLabelSchema,
@@ -353,14 +354,21 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   registerTool(server, db, auth,
     "batch_scorecard",
     {
-      description: "Counts per run and per area for a batch: facts, records by type, reviews, documents, findings, primary-source share, grounding verification shares, new registry names, statuses, tokens, minutes, MCP calls, forbidden. Returns the scorecard.",
-      inputSchema: { batchId: z.string().describe("Batch UUID") },
+      description: "Counts per run and per area for a batch, or for a set of company jobs (a pilot): facts, records by type, reviews, documents, findings, primary-source share, grounding verification shares, new registry names, statuses, tokens, minutes, MCP calls, forbidden, and ICP outcomes (status and score counts, Muse tokens per company and per ICP check). Returns the scorecard.",
+      inputSchema: {
+        batchId: z.string().optional().describe("Batch UUID"),
+        companyJobIds: z.array(z.string()).min(1).max(500).optional().describe("Company job UUIDs (instead of batchId)"),
+      },
     },
-    async ({ batchId }) =>
+    async ({ batchId, companyJobIds }) =>
       wrap(async () => {
-        const result = await scorecard(db, { batchId });
+        if ((batchId === undefined) === (companyJobIds === undefined)) {
+          throw new DomainError("invalid_input", "pass exactly one of batchId or companyJobIds");
+        }
+        const result = await scorecard(db, { batchId: batchId ?? undefined, companyJobIds: companyJobIds ?? undefined });
+        const label = batchId ? `batch ${batchId}` : `${companyJobIds?.length ?? 0} company jobs`;
         return {
-          summary: `batch ${batchId}: ${result.totals.runs} runs, ${result.totals.facts} facts, ${result.totals.findings} findings`,
+          summary: `${label}: ${result.totals.runs} runs, ${result.totals.facts} facts, ${result.totals.findings} findings, ${result.icp.checked} ICP checks`,
           data: result,
         };
       }),
@@ -1481,7 +1489,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
     "company_verdict_record",
     {
       description:
-        "Operator: record ICP verdicts (signal score, signals, contact status) for up to 200 companies. This is the only write path for verdicts.",
+        "Operator: record ICP verdicts by hand (signal score, signals, contact status) for up to 200 companies. The ICP check (sector_icp_start) writes verdicts itself; a verdict whose source starts with \"override:\" is the owner's call and is never overwritten by a check.",
       inputSchema: {
         verdicts: z
           .array(
@@ -1544,22 +1552,34 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
     "company_sheet_export",
     {
       description:
-        "Operator: write var/analysis/companies-<date>.csv with only the contactable companies (D-55 tiers), one block per tier, sorted by layer then score.",
+        "Operator: write var/analysis/companies-<date>.csv for manual outreach tracking: contactable companies only (D-55 tiers), one block per tier, by layer then score, with company id, signals met, the ICP check's observations (date, URL), tech team flag, buyer order by staff size (roles only), and blank tracking columns. includeAll also writes companies-<date>-all.csv: every checked company with its status and why.",
       inputSchema: {
         sectorId: z.string().describe("Sector UUID"),
+        includeAll: z.boolean().optional().describe("Also write every checked company with status and exclusion reason"),
       },
     },
-    async ({ sectorId }) =>
+    async ({ sectorId, includeAll }) =>
       wrap(async () => {
         const { mkdir, writeFile } = await import("node:fs/promises");
         const { join } = await import("node:path");
-        const rows = await sectorSheetRows(db, sectorId);
+        const rows = await outreachSheetRows(db, sectorId);
         const date = new Date().toISOString().slice(0, 10);
         const dir = join(process.cwd(), "var", "analysis");
         await mkdir(dir, { recursive: true });
         const path = join(dir, `companies-${date}.csv`);
-        await writeFile(path, sheetCsv(rows), "utf8");
-        return { summary: `${rows.length} contactable companies written to ${path}`, data: { path, rows: rows.length } };
+        await writeFile(path, outreachCsv(rows), "utf8");
+        let allPath: string | null = null;
+        let allRows = 0;
+        if (includeAll) {
+          const all = await allCheckedRows(db, sectorId);
+          allPath = join(dir, `companies-${date}-all.csv`);
+          await writeFile(allPath, allCheckedCsv(all), "utf8");
+          allRows = all.length;
+        }
+        return {
+          summary: `${rows.length} contactable companies written to ${path}${allPath ? `; ${allRows} checked companies to ${allPath}` : ""}`,
+          data: { path, rows: rows.length, allPath, allRows },
+        };
       }),
   );
 
@@ -1951,6 +1971,93 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       wrap(async () => {
         const result = await sectorPreflightCompanies(db, input);
         return { summary: `${result.rows.length} of ${result.total} companies`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_icp_start",
+    {
+      description:
+        "Operator: run the ICP check (6 signals, exclusions, from stored evidence only) as a sector job. Default: sector members whose research job completed and that have no check yet. Track it with sector_icp_status; pause/resume/cancel/retry with the sector_preflight_* job tools.",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+        companyIds: z.array(z.string()).optional().describe("Check exactly these sector members (researched or not)"),
+        onlyMissing: z.boolean().optional().describe("Skip companies already checked in this sector (default true); false re-checks"),
+        maxCompanies: z.number().int().optional().describe("Cap the job at this many companies"),
+        budget: jobBudget,
+      },
+    },
+    async ({ sectorId, companyIds, onlyMissing, maxCompanies, budget }) =>
+      wrap(async () => {
+        const result = await startSectorIcp(db, {
+          sectorId,
+          companyIds: companyIds ?? undefined,
+          onlyMissing: onlyMissing ?? undefined,
+          maxCompanies: maxCompanies ?? undefined,
+          budget: budget ?? undefined,
+        });
+        return { summary: `icp job ${result.jobId}: ${result.companies} companies`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_icp_status",
+    {
+      description: "Operator (read-only): an ICP sector job's counts, active runs, tokens, ETA (same view as sector_preflight_status).",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        const status = await sectorPreflightStatus(db, id);
+        if (status.job.kind !== "icp") throw new DomainError("invalid_input", "not an ICP job; use sector_preflight_status");
+        return { summary: `icp job ${id}: ${status.job.status}`, data: status };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_icp_get",
+    {
+      description:
+        "Operator (read-only): a company's latest ICP check: each signal, exclusion and flag with its verdict, cited evidence (quote, date, URL) and observation, plus today's tier, layer and status.",
+      inputSchema: { companyId },
+    },
+    async ({ companyId: id }) =>
+      wrap(async () => {
+        const view = await companyIcpView(db, id);
+        return {
+          summary: view.check
+            ? `score ${view.check.score}, ${view.status}, tier ${view.tier ?? "-"} layer ${view.layer ?? "-"}`
+            : "no ICP check yet",
+          data: view,
+        };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_icp_companies",
+    {
+      description:
+        "Operator (read-only): the latest ICP check per sector member, with today's status, tier, layer, signals met and the tech team flag. Filter by status, tier or minimum score.",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+        status: z.array(z.enum(["contactable", "watchlist", "excluded", "research_incomplete"])).optional(),
+        tier: z.array(z.enum(["A", "B", "C"])).optional(),
+        minScore: z.number().int().min(0).max(6).optional(),
+        limit: z.number().int().optional().describe("1..500, default 50"),
+        offset: z.number().int().min(0).optional(),
+      },
+    },
+    async ({ sectorId, status, tier, minScore, limit, offset }) =>
+      wrap(async () => {
+        const result = await sectorIcpCompanies(db, {
+          sectorId,
+          status: status ?? undefined,
+          tier: tier ?? undefined,
+          minScore: minScore ?? undefined,
+          limit: limit ?? undefined,
+          offset: offset ?? undefined,
+        });
+        return { summary: `${result.total} checked companies`, data: result };
       }),
   );
 

@@ -567,6 +567,7 @@ export async function companyRevenueTruth(db: Db, companyId: string): Promise<Re
 }
 
 export interface SheetRow {
+  companyId: string;
   tier: string;
   layer: number;
   score: number;
@@ -576,6 +577,7 @@ export interface SheetRow {
   revenueUsed: number;
   revenueSource: string;
   flags: string;
+  staff: number | null;
 }
 
 function csvCell(value: string | number): string {
@@ -600,6 +602,7 @@ export async function sectorSheetRows(db: Db, sectorId: string): Promise<SheetRo
     const truth = await companyRevenueTruth(db, m.companyId);
     if (truth.status !== "contactable" || !truth.tier || truth.layer === null) continue;
     rows.push({
+      companyId: m.companyId,
       tier: truth.tier,
       layer: truth.layer,
       score: truth.score ?? 0,
@@ -616,6 +619,7 @@ export async function sectorSheetRows(db: Db, sectorId: string): Promise<SheetRo
               ? "estimated from staff"
               : (truth.revenueSource ?? ""),
       flags: truth.flags.join("; "),
+      staff: truth.staff?.count ?? null,
     });
   }
   const tierOrder: Record<string, number> = { A: 0, B: 1, C: 2 };

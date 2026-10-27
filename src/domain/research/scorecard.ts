@@ -1,15 +1,17 @@
-import { and, eq, inArray, like, or } from "drizzle-orm";
+import { and, eq, inArray, like, or, sql } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
 import {
   area,
   areaStatuses,
   companies,
+  companyIcpChecks,
   documents,
   factKeys,
   facts,
   findings,
   records,
   recordTypes,
+  providerCalls,
   researchRuns,
   runEvents,
   sources,
@@ -126,9 +128,22 @@ export interface BatchTotals {
   childrenIncluded: boolean;
 }
 
+/** ICP outcomes for the batch's companies (Stage 5.5): latest check per company. */
+export interface IcpOutcomes {
+  companies: number;
+  checked: number;
+  byStatus: Record<string, number>;
+  byScore: Record<string, number>;
+  /** Muse tokens (input + cached) per company across every logged call of the batch's runs. */
+  museTokensPerCompany: number | null;
+  /** Muse tokens (input + cached) per ICP judge call. */
+  icpTokensPerCheck: number | null;
+}
+
 export interface ScorecardResult {
   runs: RunScore[];
   totals: BatchTotals;
+  icp: IcpOutcomes;
 }
 
 const AREA_ORDER = (area.enumValues as readonly string[]).filter((a) => a !== "other");
@@ -234,7 +249,20 @@ function bumpType(into: Record<string, number>, type: string): void {
   into[type] = (into[type] ?? 0) + 1;
 }
 
-async function resolveRunIds(db: Db, input: { batchId?: string; runIds?: string[] }): Promise<string[]> {
+async function resolveRunIds(
+  db: Db,
+  input: { batchId?: string; runIds?: string[]; companyJobIds?: string[] },
+): Promise<string[]> {
+  if (input.companyJobIds !== undefined) {
+    const jobIds = [...new Set(input.companyJobIds)];
+    if (jobIds.length === 0) throw new DomainError("invalid_input", "at least one company job id is required");
+    const rows = await db
+      .select({ id: researchRuns.id })
+      .from(researchRuns)
+      .where(inArray(researchRuns.companyJobId, jobIds));
+    if (rows.length === 0) throw new DomainError("not_found", "no runs for these company jobs");
+    return rows.map((r) => r.id);
+  }
   if (input.batchId !== undefined) {
     const rows = await db
       .select({ id: researchRuns.id })
@@ -262,7 +290,7 @@ async function resolveRunIds(db: Db, input: { batchId?: string; runIds?: string[
  */
 export async function scorecard(
   db: Db,
-  input: { batchId?: string; runIds?: string[] },
+  input: { batchId?: string; runIds?: string[]; companyJobIds?: string[] },
 ): Promise<ScorecardResult> {
   const runIds = await resolveRunIds(db, input);
   const runs = await db
@@ -568,7 +596,9 @@ export async function scorecard(
     .where(and(inArray(sources.runId, runIds), eq(sources.via, "muse_fetch")));
   for (const row of fallbackRows) at(row.runId).searches.museFetchFallbacks += 1;
 
-  return assemble(scores);
+  const assembled = assemble(scores);
+  const companyIds = [...new Set(assembled.runs.map((r) => r.companyId))];
+  return { ...assembled, icp: await icpOutcomes(db, runIds, companyIds) };
 }
 
 // Rows with a null or unexpected area still count toward run totals.
@@ -589,7 +619,7 @@ function emptyAreaDetached(score: RunScore, name: string | null): AreaScore {
   return bucket;
 }
 
-function assemble(scores: Map<string, RunScore>): ScorecardResult {
+function assemble(scores: Map<string, RunScore>): Omit<ScorecardResult, "icp"> {
   const runs = [...scores.values()].sort((a, b) => (a.companyName ?? "").localeCompare(b.companyName ?? ""));
   const totals: BatchTotals = {
     runs: runs.length,
@@ -670,4 +700,36 @@ function assemble(scores: Map<string, RunScore>): ScorecardResult {
     totals.searches.withCapturePct = round2(hits / totals.searches.total);
   }
   return { runs, totals };
+}
+
+async function icpOutcomes(db: Db, runIds: string[], companyIds: string[]): Promise<IcpOutcomes> {
+  const out: IcpOutcomes = {
+    companies: companyIds.length,
+    checked: 0,
+    byStatus: {},
+    byScore: {},
+    museTokensPerCompany: null,
+    icpTokensPerCheck: null,
+  };
+  if (companyIds.length === 0) return out;
+  const checks = await db
+    .selectDistinctOn([companyIcpChecks.companyId], { status: companyIcpChecks.status, score: companyIcpChecks.score })
+    .from(companyIcpChecks)
+    .where(inArray(companyIcpChecks.companyId, companyIds))
+    .orderBy(companyIcpChecks.companyId, sql`${companyIcpChecks.createdAt} desc`);
+  for (const c of checks) {
+    out.checked += 1;
+    out.byStatus[c.status] = (out.byStatus[c.status] ?? 0) + 1;
+    out.byScore[String(c.score)] = (out.byScore[String(c.score)] ?? 0) + 1;
+  }
+  const calls = await db
+    .select({ stage: providerCalls.stage, tokens: sql<string>`sum(${providerCalls.inputTokens} + ${providerCalls.cachedTokens})`, n: sql<string>`count(*)` })
+    .from(providerCalls)
+    .where(inArray(providerCalls.runId, runIds))
+    .groupBy(providerCalls.stage);
+  const total = calls.reduce((sum, c) => sum + Number(c.tokens ?? 0), 0);
+  if (total > 0) out.museTokensPerCompany = Math.round(total / companyIds.length);
+  const icp = calls.find((c) => c.stage === "icp");
+  if (icp && Number(icp.n) > 0) out.icpTokensPerCheck = Math.round(Number(icp.tokens) / Number(icp.n));
+  return out;
 }
