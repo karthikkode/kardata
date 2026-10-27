@@ -1,0 +1,32 @@
+{
+  "name": "garden",
+  "description": "Garden and outdoor living D2C brands (synthetic test sector)",
+  "categories": [
+    { "key": "growing", "label": "Growing", "description": "Seeds, bulbs, plants, compost and soil care." },
+    { "key": "tools_watering", "label": "Tools & watering", "description": "Hand tools, power tools, hoses, irrigation and watering systems." },
+    { "key": "outdoor_decor", "label": "Outdoor decor", "description": "Garden decor, furniture, lighting and structures." }
+  ],
+  "scope": {
+    "coreCategories": ["growing"],
+    "adjacentCategories": [],
+    "scopeKeywords": []
+  },
+  "rubric": {
+    "eligible": {
+      "businessTypes": ["dtc_brand"],
+      "primaryCategories": ["growing"],
+      "requireSellsOwnProducts": true,
+      "requireHasOnlineStore": true
+    },
+    "review": {
+      "businessTypes": ["brand_retail_only", "unknown"],
+      "primaryCategories": [],
+      "lowConfidence": true
+    }
+  },
+  "classifierHints": {
+    "serviceExamples": "landscaping or garden-design service without its own product line",
+    "retailerExamples": "garden centre or DIY chain selling other brands",
+    "supplierExamples": "grower or materials supplier selling only to trade"
+  }
+}

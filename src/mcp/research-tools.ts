@@ -2023,7 +2023,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       description: "Operator: launch company jobs for a sector's eligible companies only (review/pending never included).",
       inputSchema: {
         sectorId: z.string().describe("Sector UUID"),
-        categories: z.array(z.string()).optional().describe("Only these primary categories (e.g. skincare, body_bath, mens_grooming)"),
+        categories: z.array(z.string()).optional().describe("Only these primary categories (from the sector profile, e.g. its core categories)"),
       },
     },
     async ({ sectorId, categories }) =>
