@@ -325,6 +325,93 @@ export async function sectorPreflightSummary(db: Db, sectorId: string): Promise<
   return { sectorId, buckets: [...buckets.values()].sort((a, b) => b.count - a.count) };
 }
 
+export interface SectorPreflightCompaniesInput {
+  sectorId: string;
+  eligibility?: ("eligible" | "review" | "ineligible")[];
+  confidence?: ("high" | "medium" | "low")[];
+  promptVersion?: string;
+  companyIds?: string[];
+  limit?: number;
+  offset?: number;
+}
+
+export interface SectorPreflightCompanyRow {
+  companyId: string;
+  name: string | null;
+  website: string | null;
+  country: string | null;
+  employees: number | null;
+  eligibility: string;
+  eligibilityReason: string | null;
+  businessType: string;
+  primaryCategory: string;
+  sellsOwnProducts: boolean;
+  hasOnlineStore: boolean;
+  confidence: string;
+  reason: string;
+  quote: string | null;
+  verification: string | null;
+  promptVersion: string | null;
+}
+
+/** Per-company classifications for one sector, filtered, ordered by name. */
+export async function sectorPreflightCompanies(
+  db: Db,
+  input: SectorPreflightCompaniesInput,
+): Promise<{ total: number; rows: SectorPreflightCompanyRow[] }> {
+  const limit = input.limit ?? 50;
+  if (!Number.isInteger(limit) || limit < 1 || limit > 500) throw new DomainError("invalid_input", "limit must be 1..500");
+  const offset = input.offset ?? 0;
+  if (!Number.isInteger(offset) || offset < 0) throw new DomainError("invalid_input", "offset must be >= 0");
+  const filters = [eq(sectorPreflight.sectorId, input.sectorId)];
+  if (input.eligibility?.length) filters.push(inArray(sectorCompanies.eligibility, input.eligibility));
+  if (input.confidence?.length) filters.push(inArray(sectorPreflight.confidence, input.confidence));
+  if (input.promptVersion) filters.push(eq(sectorPreflight.promptVersion, input.promptVersion));
+  if (input.companyIds?.length) filters.push(inArray(sectorPreflight.companyId, input.companyIds));
+  const where = and(...filters);
+  const from = db
+    .select({
+      companyId: sectorPreflight.companyId,
+      name: companies.name,
+      website: companies.website,
+      country: companies.country,
+      employees: companies.employees,
+      eligibility: sectorCompanies.eligibility,
+      eligibilityReason: sectorCompanies.eligibilityReason,
+      businessType: sectorPreflight.businessType,
+      primaryCategory: sectorPreflight.primaryCategory,
+      sellsOwnProducts: sectorPreflight.sellsOwnProducts,
+      hasOnlineStore: sectorPreflight.hasOnlineStore,
+      confidence: sectorPreflight.confidence,
+      reason: sectorPreflight.reason,
+      quote: sectorPreflight.quote,
+      verification: sectorPreflight.verification,
+      promptVersion: sectorPreflight.promptVersion,
+    })
+    .from(sectorPreflight)
+    .innerJoin(
+      sectorCompanies,
+      and(
+        eq(sectorCompanies.sectorId, sectorPreflight.sectorId),
+        eq(sectorCompanies.companyId, sectorPreflight.companyId),
+      ),
+    )
+    .innerJoin(companies, eq(companies.id, sectorPreflight.companyId));
+  const [count] = await db
+    .select({ n: sql<number>`count(*)` })
+    .from(sectorPreflight)
+    .innerJoin(
+      sectorCompanies,
+      and(
+        eq(sectorCompanies.sectorId, sectorPreflight.sectorId),
+        eq(sectorCompanies.companyId, sectorPreflight.companyId),
+      ),
+    )
+    .where(where);
+  const rows = await from.where(where).orderBy(asc(companies.name), asc(sectorPreflight.companyId)).limit(limit).offset(offset);
+  return { total: Number(count?.n ?? 0), rows };
+}
+
 export interface SectorRunnerDeps {
   pollMs?: number;
   pool?: number;

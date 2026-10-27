@@ -101,6 +101,7 @@ import {
   sectorPreflightResume,
   sectorPreflightRetryFailed,
   sectorPreflightStatus,
+  sectorPreflightCompanies,
   sectorPreflightSummary,
 } from "../runs/sector.js";
 import {
@@ -1917,6 +1918,28 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       wrap(async () => {
         const summary = await sectorPreflightSummary(db, sectorId);
         return { summary: `${summary.buckets.length} buckets`, data: summary };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_preflight_companies",
+    {
+      description:
+        "Operator: per-company classifications for a sector (eligibility, type, category, confidence, reason, quote), filtered, by name.",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+        eligibility: z.array(z.enum(["eligible", "review", "ineligible"])).optional(),
+        confidence: z.array(z.enum(["high", "medium", "low"])).optional(),
+        promptVersion: z.string().optional().describe("For example v2-web: rows Muse read with its web tools"),
+        companyIds: z.array(z.string()).optional(),
+        limit: z.number().int().optional().describe("1..500 (default 50)"),
+        offset: z.number().int().optional(),
+      },
+    },
+    async (input) =>
+      wrap(async () => {
+        const result = await sectorPreflightCompanies(db, input);
+        return { summary: `${result.rows.length} of ${result.total} companies`, data: result };
       }),
   );
 
