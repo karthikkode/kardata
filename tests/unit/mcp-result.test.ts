@@ -15,7 +15,7 @@ describe("tool results", () => {
     const res = await wrap(async () => {
       throw new DomainError("not_found", "company not found: x");
     });
-    expect(res.isError).toBe(true);
+    expect("isError" in res && res.isError).toBe(true);
     expect(res.content).toEqual([{ type: "text", text: "not_found: company not found: x" }]);
   });
 });
