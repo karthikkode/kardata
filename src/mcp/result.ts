@@ -4,8 +4,17 @@ export function text(text: string): { type: "text"; text: string } {
   return { type: "text", text };
 }
 
+/**
+ * Summary first, then the full data as JSON text. Clients that read only
+ * `content` (agent subsessions do) would otherwise see a one-line stub with
+ * no ids, and research runs could cite nothing (MCP spec: structured
+ * results should also be serialized into a text block).
+ */
 export function ok(summary: string, data: object) {
-  return { content: [text(summary)], structuredContent: data as Record<string, unknown> };
+  return {
+    content: [text(summary), text(JSON.stringify(data))],
+    structuredContent: data as Record<string, unknown>,
+  };
 }
 
 export function fail(code: string, message: string) {

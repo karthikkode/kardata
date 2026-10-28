@@ -124,10 +124,10 @@ describe("buildResearchPrompt", () => {
     expect(() => buildResearchPrompt(ctx({ run: { promptVersion: null } }))).toThrowError(/pre-versioning run; cannot re-render/);
   });
 
-  it("lists v1 through v1.6 with v1.6 latest", () => {
-    expect(availablePromptVersions()).toEqual(["v1", "v1.1", "v1.2", "v1.3", "v1.4", "v1.5", "v1.6"]);
-    expect(latestPromptVersion()).toBe("v1.6");
-    expect(resolvePromptVersion()).toBe("v1.6");
+  it("lists v1 through v1.7 with v1.7 latest", () => {
+    expect(availablePromptVersions()).toEqual(["v1", "v1.1", "v1.2", "v1.3", "v1.4", "v1.5", "v1.6", "v1.7"]);
+    expect(latestPromptVersion()).toBe("v1.7");
+    expect(resolvePromptVersion()).toBe("v1.7");
     expect(() => resolvePromptVersion("v0")).toThrowError(/unknown prompt version/);
   });
 
@@ -262,5 +262,15 @@ describe("research-v1.6 sector hints", () => {
     const without = buildResearchPrompt(ctx({ run: { promptVersion: "v1.6" } }));
     expect(without).toContain("none listed for this sector");
     expect(without).not.toContain("{{");
+  });
+});
+
+describe("research-v1.7 rules", () => {
+  it("asks for data-team searches, events as stated and the last sign of life", () => {
+    const prompt = buildResearchPrompt(ctx({ run: { promptVersion: "v1.7" } }));
+    expect(prompt).toContain("Data and tech team");
+    expect(prompt).toContain("never open LinkedIn");
+    expect(prompt).toContain("exactly as the source states it");
+    expect(prompt).toContain("Last sign of life");
   });
 });
