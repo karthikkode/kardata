@@ -2,6 +2,7 @@ import { load } from "cheerio";
 import { getRobotsTxt, type FetchResult } from "../fetch.js";
 import type { AreaOutcome, Collector, CollectorCtx, CollectorResult, FetchedPage, PageLink } from "./types.js";
 import {
+  alternateSiteBase,
   collectFetch,
   fetchFailure,
   siteBase,
@@ -147,7 +148,7 @@ export const siteCollector: Collector = {
   name: "site",
   areas: ["business_model", "decisions", "hiring"],
   run: async (ctx: CollectorCtx) => {
-    const base = siteBase(ctx);
+    let base = siteBase(ctx);
     if (!base) {
       const reason = "company has no website or domain";
       ctx.shared.site = { pages: [], productUrls: [], sitemapUrls: [], socialLinks: [] };
@@ -159,17 +160,35 @@ export const siteCollector: Collector = {
         ],
       };
     }
+    const robotsFor = (url: string) =>
+      getRobotsTxt(ctx.db, {
+        runId: ctx.runId,
+        companyId: ctx.companyId,
+        collector: "site",
+        url,
+        privateHostAllowlist: ctx.privateHostAllowlist,
+      });
+    let robots = await robotsFor(base);
+
+    let homeRes = await collectFetch(ctx, "site", `${base}/`);
+    // Apollo often stores www.<domain> where only the bare domain answers (or
+    // the other way round). A dead or erroring homepage gets one try at its
+    // twin; a bot wall or robots refusal does not, the site answered.
+    const homeStatus = homeRes.source.status;
+    const twin =
+      (!homeRes.text || homeStatus !== "ok") && homeStatus !== "blocked" && homeStatus !== "robots_disallowed"
+        ? alternateSiteBase(base)
+        : null;
+    if (twin) {
+      const twinRes = await collectFetch(ctx, "site", `${twin}/`);
+      if (twinRes.text && twinRes.source.status === "ok") {
+        base = twin;
+        homeRes = twinRes;
+        ctx.shared.siteBase = twin;
+        robots = await robotsFor(twin);
+      }
+    }
     const baseUrl = new URL(base);
-
-    const robots = await getRobotsTxt(ctx.db, {
-      runId: ctx.runId,
-      companyId: ctx.companyId,
-      collector: "site",
-      url: base,
-      privateHostAllowlist: ctx.privateHostAllowlist,
-    });
-
-    const homeRes = await collectFetch(ctx, "site", `${base}/`);
     if (!homeRes.text || homeRes.source.status !== "ok") {
       const message = fetchFailure(homeRes);
       ctx.shared.site = {

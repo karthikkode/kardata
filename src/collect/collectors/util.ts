@@ -38,6 +38,7 @@ export function fetchFailure(res: FetchResult): string {
 }
 
 export function siteBase(ctx: CollectorCtx): string | null {
+  if (ctx.shared.siteBase) return ctx.shared.siteBase;
   const { website, domain } = ctx.effective;
   if (website && /^https?:\/\//i.test(website.trim())) {
     try {
@@ -48,6 +49,15 @@ export function siteBase(ctx: CollectorCtx): string | null {
   }
   if (domain && domain.trim() !== "") return `https://${domain.trim()}`;
   return null;
+}
+
+/** The same site with "www." added or removed; null for an IP or a single-label host. */
+export function alternateSiteBase(base: string): string | null {
+  const url = new URL(base);
+  const host = url.hostname;
+  if (/^[\d.]+$/.test(host) || host.includes(":") || host.startsWith("[") || !host.includes(".")) return null;
+  url.hostname = host.startsWith("www.") ? host.slice(4) : `www.${host}`;
+  return url.origin;
 }
 
 export function loadHtml(html: string): CheerioAPI {
