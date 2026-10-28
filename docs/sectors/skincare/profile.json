@@ -43,16 +43,9 @@
   ],
   "scope": {
     "coreCategories": [
-      "skincare",
-      "body_bath",
-      "mens_grooming"
+      "skincare"
     ],
-    "adjacentCategories": [
-      "haircare",
-      "cosmetics_makeup",
-      "fragrance",
-      "supplements_wellness"
-    ],
+    "adjacentCategories": [],
     "scopeKeywords": [
       "skin",
       "derma",
