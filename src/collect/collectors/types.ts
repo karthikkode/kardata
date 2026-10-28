@@ -86,6 +86,8 @@ export interface ShopifyShared {
 }
 
 export interface RunShared {
+  /** Set by the site collector when only the www/bare twin of the stored site answers. */
+  siteBase?: string;
   site?: SiteShared;
   shopify?: ShopifyShared;
 }
