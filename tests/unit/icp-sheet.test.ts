@@ -41,7 +41,7 @@ function check(): CompanyIcpCheck {
     promptVersion: "icp-v1",
     packHash: "h",
     score: 2,
-    status: "contactable",
+    status: "icp_accepted",
     exclusionReason: null,
     results: {
       signals: [
@@ -89,12 +89,12 @@ describe("outreach sheet", () => {
     const csv = allCheckedCsv([
       {
         companyId: "id1", name: "Out Co", domain: "out.example", country: "Canada", checkedAt: "2026-10-27T10:00:00.000Z",
-        score: 3, status: "excluded", tier: "A", layer: 4, exclusionReason: "Has a data team: Head of Data", signalsMet: ["Tool sprawl"],
-        techTeam: false, revenueUsed: 1, revenueSource: "apollo",
+        score: 3, status: "icp_rejected", tier: "A", layer: 4, exclusionReason: "Has a data team: Head of Data", signalsMet: ["Tool sprawl"],
+        techTeam: false, revenueUsed: 1, revenueSource: "apollo", contactStatuses: [], contactable: false,
       },
     ]);
     const [header, line] = csv.trim().split("\n");
     expect(header).toBe(ALL_HEADER.join(","));
-    expect(line).toBe("Out Co,out.example,Canada,id1,excluded,A,4,3,Has a data team: Head of Data,Tool sprawl,2026-10-27");
+    expect(line).toBe("Out Co,out.example,Canada,id1,icp_rejected,A,4,3,Has a data team: Head of Data,Tool sprawl,2026-10-27");
   });
 });

@@ -2,7 +2,8 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
 import { companies, companyIcpChecks, sectorCompanies, type CompanyIcpCheck } from "../../db/schema.js";
 import { DomainError } from "../errors.js";
-import { companyRevenueTruth, type ContactStatus } from "../tiering.js";
+import { contactStatusesFor, isContactable, type ContactStatus } from "../contacts.js";
+import { companyRevenueTruth, type IcpStatus } from "../tiering.js";
 import type { BucketResult } from "./judge.js";
 import { SIGNAL_RULES } from "./rules.js";
 
@@ -46,7 +47,7 @@ export interface CompanyIcpView {
   checks: number;
   tier: string | null;
   layer: number | null;
-  status: ContactStatus;
+  status: IcpStatus;
   revenueUsed: number | null;
   revenueSource: string | null;
 }
@@ -76,7 +77,7 @@ export async function companyIcpView(db: Db, companyId: string, sectorId: string
 
 export interface SectorIcpCompaniesInput {
   sectorId: string;
-  status?: ContactStatus[];
+  status?: IcpStatus[];
   tier?: ("A" | "B" | "C")[];
   minScore?: number;
   limit?: number;
@@ -90,7 +91,7 @@ export interface SectorIcpCompanyRow {
   country: string | null;
   checkedAt: string;
   score: number;
-  status: ContactStatus;
+  status: IcpStatus;
   tier: string | null;
   layer: number | null;
   exclusionReason: string | null;
@@ -98,6 +99,9 @@ export interface SectorIcpCompanyRow {
   techTeam: boolean;
   revenueUsed: number | null;
   revenueSource: string | null;
+  /** D-67 contact statuses; contactable = an Apollo-verified email. */
+  contactStatuses: ContactStatus[];
+  contactable: boolean;
 }
 
 /** Latest check per sector member, with the tier and status the verdict gives today. */
@@ -123,9 +127,11 @@ export async function sectorIcpCompanies(
     )
     .where(eq(companyIcpChecks.sectorId, input.sectorId))
     .orderBy(companyIcpChecks.companyId, desc(companyIcpChecks.createdAt));
+  const contacts = await contactStatusesFor(db, checks.map((c) => c.check.companyId));
   const rows: SectorIcpCompanyRow[] = [];
   for (const c of checks) {
     const truth = await companyRevenueTruth(db, c.check.companyId, input.sectorId);
+    const contactStatuses = contacts.get(c.check.companyId) ?? [];
     rows.push({
       companyId: c.check.companyId,
       name: c.name,
@@ -141,6 +147,8 @@ export async function sectorIcpCompanies(
       techTeam: hasTechTeam(c.check),
       revenueUsed: truth.revenueUsed,
       revenueSource: truth.revenueSource,
+      contactStatuses,
+      contactable: isContactable(contactStatuses),
     });
   }
   const filtered = rows

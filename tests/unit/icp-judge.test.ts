@@ -61,7 +61,7 @@ const FULL = pack({
 describe("decideIcp", () => {
   it("scores two independent signals as contactable", () => {
     const d = decideIcp(FULL, judgement({ signals: { channels: yes(["r:1"]), tool_sprawl: yes(["f:3", "f:4"]) } }));
-    expect(d).toMatchObject({ score: 2, status: "contactable", exclusionReason: null });
+    expect(d).toMatchObject({ score: 2, status: "icp_accepted", exclusionReason: null });
   });
 
   it("drops a signal that cites refs outside the pack", () => {
@@ -76,8 +76,8 @@ describe("decideIcp", () => {
   });
 
   it("contacts a company with one signal (D-64) and watchlists one with none", () => {
-    expect(decideIcp(FULL, judgement({ signals: { hiring: yes(["r:2"]) } }))).toMatchObject({ score: 1, status: "contactable" });
-    expect(decideIcp(FULL, judgement({}))).toMatchObject({ score: 0, status: "watchlist" });
+    expect(decideIcp(FULL, judgement({ signals: { hiring: yes(["r:2"]) } }))).toMatchObject({ score: 1, status: "icp_accepted" });
+    expect(decideIcp(FULL, judgement({}))).toMatchObject({ score: 0, status: "icp_watchlist" });
   });
 
   it("counts two signals resting on the same job post once", () => {
@@ -92,25 +92,25 @@ describe("decideIcp", () => {
       signals: { channels: yes(["r:1"]), tool_sprawl: yes(["f:3"]) },
       exclusions: { data_team: yes(["r:5"], "Head of Data on staff") },
     }));
-    expect(d.status).toBe("excluded");
+    expect(d.status).toBe("icp_rejected");
     expect(d.exclusionReason).toMatch(/^Has a data team: Head of Data/);
   });
 
   it("excludes a multi-brand parent, unless the brand has its own decision maker", () => {
     const owned = decideIcp(FULL, judgement({ exclusions: { parent_company: { ...yes(["f:6"]), own_decision_maker: "no" } } }));
-    expect(owned.status).toBe("excluded");
+    expect(owned.status).toBe("icp_rejected");
     const kept = decideIcp(FULL, judgement({
       signals: { channels: yes(["r:1"]), tool_sprawl: yes(["f:3"]) },
       exclusions: { parent_company: { ...yes(["f:6", "r:7"]), own_decision_maker: "yes" } },
     }));
-    expect(kept.status).toBe("contactable");
+    expect(kept.status).toBe("icp_accepted");
     expect(kept.exclusions.find((e) => e.key === "parent_company")?.note).toMatch(/D-28/);
   });
 
   it("excludes revenue under $500k", () => {
     const small = pack({ channels: [item("r:1", "retailer", "Shop")], tool_sprawl: [item("f:3", "marketing.tool", "Klaviyo")] }, { revenueUsed: 300_000, tier: null });
     const d = decideIcp(small, judgement({ signals: { channels: yes(["r:1"]), tool_sprawl: yes(["f:3"]) } }));
-    expect(d).toMatchObject({ status: "excluded", exclusionReason: "below $500k revenue: not contacted" });
+    expect(d).toMatchObject({ status: "icp_rejected", exclusionReason: "below $500k revenue: not contacted" });
   });
 
   it("never counts a signal resting only on research notes, but lets notes exclude", () => {
@@ -126,7 +126,7 @@ describe("decideIcp", () => {
     }));
     expect(d.signals.find((s) => s.key === "channels")).toMatchObject({ counted: false, note: expect.stringMatching(/research-note/) });
     expect(d.score).toBe(1);
-    expect(d.status).toBe("excluded");
+    expect(d.status).toBe("icp_rejected");
     expect(buildIcpPrompt(p)).toContain("from research notes, not matched to a stored page");
   });
 
@@ -136,7 +136,7 @@ describe("decideIcp", () => {
       signals: { channels: yes(["r:1"]), tool_sprawl: yes(["f:3"]) },
       flags: { tech_team: yes(["r:8"]) },
     }));
-    expect(d.status).toBe("contactable");
+    expect(d.status).toBe("icp_accepted");
     expect(d.flags[0]).toMatchObject({ key: "tech_team", counted: true });
   });
 });
@@ -165,7 +165,7 @@ describe("mergeJudgements", () => {
       judgement({}),
     ]);
     expect(merged.exclusions.parent_company).toMatchObject({ verdict: "yes", own_decision_maker: "no" });
-    expect(decideIcp(FULL, merged).status).toBe("excluded");
+    expect(decideIcp(FULL, merged).status).toBe("icp_rejected");
   });
 });
 

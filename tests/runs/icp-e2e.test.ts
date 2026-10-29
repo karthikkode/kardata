@@ -175,12 +175,12 @@ describe("ICP check end to end (synthetic garden)", () => {
     const all = await allCheckedRows(handle.db, sectorId);
     const byName = Object.fromEntries(all.map((r) => [r.name, r]));
     expect(all).toHaveLength(COMPANIES.length);
-    expect(byName["Bramble & Bough"]).toMatchObject({ status: "contactable", tier: "A", score: 3, layer: 4 });
-    expect(byName["Pip & Trowel"]).toMatchObject({ status: "contactable", tier: "B", score: 2, layer: 5 });
-    expect(byName["Lone Fern"]).toMatchObject({ status: "contactable", score: 1, tier: "B", layer: 6 });
-    expect(byName["Metric Meadow"]?.status).toBe("excluded");
+    expect(byName["Bramble & Bough"]).toMatchObject({ status: "icp_accepted", tier: "A", score: 3, layer: 4 });
+    expect(byName["Pip & Trowel"]).toMatchObject({ status: "icp_accepted", tier: "B", score: 2, layer: 5 });
+    expect(byName["Lone Fern"]).toMatchObject({ status: "icp_accepted", score: 1, tier: "B", layer: 6 });
+    expect(byName["Metric Meadow"]?.status).toBe("icp_rejected");
     expect(byName["Metric Meadow"]?.exclusionReason).toMatch(/^Has a data team/);
-    expect(byName["Group Grove"]?.status).toBe("excluded");
+    expect(byName["Group Grove"]?.status).toBe("icp_rejected");
     expect(byName["Group Grove"]?.exclusionReason).toMatch(/^Owned by a listed or multi-brand company/);
     expect(byName["Quiet Acre"]).toMatchObject({ status: "research_incomplete" });
 

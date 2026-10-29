@@ -53,6 +53,9 @@ interface RecordWriteContext {
   bySource: Map<string, { id: string; companyId: string }>;
 }
 
+/** Field names that would hold a person's email or phone number. */
+const CONTACT_FIELD = /^(contact_)?(e-?mail|email_address|phone|phone_number|mobile|mobile_number|tel|telephone|whatsapp)$/i;
+
 export async function upsertRecords(
   db: DbLike,
   input: UpsertRecordsInput,
@@ -118,6 +121,12 @@ async function upsertOne(
   }
   if (typeof item.data !== "object" || item.data === null || Array.isArray(item.data)) {
     throw new DomainError("invalid_input", `record "${typeName}": data must be an object`);
+  }
+  // D-67: emails and phone numbers come only from Apollo, never from public research.
+  const contactFields = Object.keys(item.data).filter((k) => CONTACT_FIELD.test(k));
+  if (contactFields.length > 0) {
+    item = { ...item, data: Object.fromEntries(Object.entries(item.data).filter(([k]) => !CONTACT_FIELD.test(k))) };
+    warnings.push(`dropped contact fields (emails and phones come only from Apollo): ${contactFields.join(", ")}`);
   }
   if (Object.keys(item.data).length === 0) {
     throw new DomainError("invalid_input", `record "${typeName}": data is empty`);

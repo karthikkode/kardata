@@ -382,4 +382,27 @@ describe("verifyRunExtraction", () => {
     const [row] = await handle.db.select().from(facts).where(eq(facts.runId, runId));
     expect(row?.verification).toBe("unverified");
   });
+
+  it("drops email and phone fields from records: those come only from Apollo (D-67)", async () => {
+    const { companyId, runId } = await setup();
+    const src = await captured(companyId, runId, "Founder: Ada Wells.");
+    const [result] = await upsertRecords(handle.db, {
+      companyId,
+      runId,
+      createdBy: "extractor:hiring",
+      records: [
+        {
+          type: "test_leader",
+          data: { name: "Ada Wells", role: "Founder", email: "ada@x.example", Phone: "+1 555 0100" },
+          sourceIds: [src],
+          quote: "Founder: Ada Wells.",
+          quoteSourceId: src,
+        },
+      ],
+    });
+    expect(result).toMatchObject({ ok: true });
+    expect(result?.ok && result.warnings.some((w) => w.includes("email, Phone"))).toBe(true);
+    const [row] = await handle.db.select().from(records).where(eq(records.companyId, companyId));
+    expect(row?.data).toEqual({ name: "Ada Wells", role: "Founder" });
+  });
 });

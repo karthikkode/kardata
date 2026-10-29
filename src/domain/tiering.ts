@@ -7,6 +7,7 @@ import {
   revenueConfirmations,
   sectorCompanies,
 } from "../db/schema.js";
+import { contactStatusesFor, isContactable } from "./contacts.js";
 import { DomainError } from "./errors.js";
 import { getProfileOrNull } from "./sector-preflight/profile.js";
 
@@ -127,12 +128,12 @@ export function isPublicKind(kind: RevenueSourceKind): boolean {
 }
 export type Tier = "A" | "B" | "C" | null;
 /**
- * Lowest score that is contacted (D-64): one signal is a Layer 6 discovery
- * call; score 0 stays on the watchlist.
+ * Lowest score that is ICP accepted (D-64): one signal is a Layer 6 discovery
+ * call; score 0 goes to the ICP watchlist (D-67).
  */
-export const MIN_CONTACT_SCORE = 1;
+export const MIN_ACCEPTED_SCORE = 1;
 
-export type ContactStatus = "contactable" | "watchlist" | "excluded" | "research_incomplete";
+export type IcpStatus = "icp_accepted" | "icp_watchlist" | "icp_rejected" | "research_incomplete";
 
 export interface StaffCount {
   count: number;
@@ -152,7 +153,7 @@ export interface RevenueTruthInput {
   vendorRevenue: { amount: number; sourceName: string } | null;
   staff: StaffCount | null;
   score: number | null;
-  verdictStatus: ContactStatus | null;
+  verdictStatus: IcpStatus | null;
   exclusionReason?: string | null;
   plausibility?: string | null;
 }
@@ -168,7 +169,7 @@ export interface RevenueTruth {
   tier: Tier;
   score: number | null;
   layer: number | null;
-  status: ContactStatus;
+  status: IcpStatus;
   exclusionReason: string | null;
   flags: string[];
 }
@@ -287,23 +288,23 @@ export function computeRevenueTruth(input: RevenueTruthInput): RevenueTruth {
   }
 
   const score = input.score;
-  const layer = score !== null && score >= MIN_CONTACT_SCORE ? 7 - score : null;
+  const layer = score !== null && score >= MIN_ACCEPTED_SCORE ? 7 - score : null;
   const tier = tierForRevenue(revenueUsed);
 
-  let status: ContactStatus;
+  let status: IcpStatus;
   let exclusionReason: string | null = null;
-  if (input.verdictStatus === "excluded") {
-    status = "excluded";
-    exclusionReason = input.exclusionReason ?? "excluded";
+  if (input.verdictStatus === "icp_rejected") {
+    status = "icp_rejected";
+    exclusionReason = input.exclusionReason ?? "rejected";
   } else if (input.verdictStatus === "research_incomplete") {
     status = "research_incomplete";
-  } else if (score === null || score < MIN_CONTACT_SCORE) {
-    status = "watchlist";
+  } else if (score === null || score < MIN_ACCEPTED_SCORE) {
+    status = "icp_watchlist";
   } else if (revenueUsed !== null && tier === null) {
-    status = "excluded";
+    status = "icp_rejected";
     exclusionReason = belowFloorReason();
   } else {
-    status = "contactable";
+    status = "icp_accepted";
   }
 
   return {
@@ -330,7 +331,7 @@ export interface VerdictInput {
   sectorId: string;
   score: number;
   signals: Record<string, boolean>;
-  status: ContactStatus;
+  status: IcpStatus;
   exclusionReason?: string | null;
   source: string;
 }
@@ -482,7 +483,7 @@ export async function companyRevenueTruth(db: Db, companyId: string, sectorId: s
     vendorRevenue,
     staff: pickStaff(staffCandidates),
     score: verdict ? verdict.score : null,
-    verdictStatus: verdict ? (verdict.status as ContactStatus) : null,
+    verdictStatus: verdict ? (verdict.status as IcpStatus) : null,
     exclusionReason: verdict?.exclusionReason ?? null,
     plausibility,
   });
@@ -508,7 +509,7 @@ function csvCell(value: string | number): string {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-/** Contactable rows for the outreach sheet: one block per tier, layer then score. */
+/** ICP accepted rows for the outreach sheet: one block per tier, layer then score. */
 export async function sectorSheetRows(db: Db, sectorId: string): Promise<SheetRow[]> {
   const members = await db
     .select({
@@ -523,7 +524,7 @@ export async function sectorSheetRows(db: Db, sectorId: string): Promise<SheetRo
   const rows: SheetRow[] = [];
   for (const m of members) {
     const truth = await companyRevenueTruth(db, m.companyId, sectorId);
-    if (truth.status !== "contactable" || !truth.tier || truth.layer === null) continue;
+    if (truth.status !== "icp_accepted" || !truth.tier || truth.layer === null) continue;
     rows.push({
       companyId: m.companyId,
       tier: truth.tier,
@@ -587,7 +588,10 @@ export interface SectorTierSummary {
   companiesWithVerdicts: number;
   byTierLayer: Record<string, number>;
   byRevenueSource: Record<string, number>;
-  byStatus: Record<string, number>;
+  byIcpStatus: Record<string, number>;
+  /** D-67: companies per contact status, and how many have an Apollo-verified email. */
+  byContactStatus: Record<string, number>;
+  contactable: number;
 }
 
 export async function sectorTierSummary(db: Db, sectorId: string): Promise<SectorTierSummary> {
@@ -598,7 +602,9 @@ export async function sectorTierSummary(db: Db, sectorId: string): Promise<Secto
   const ids = members.map((m) => m.companyId);
   const byTierLayer: Record<string, number> = {};
   const byRevenueSource: Record<string, number> = {};
-  const byStatus: Record<string, number> = {};
+  const byIcpStatus: Record<string, number> = {};
+  const byContactStatus: Record<string, number> = {};
+  let contactable = 0;
   let withVerdicts = 0;
   // Bounded batches keep the summary to a handful of queries per 200 ids.
   for (let i = 0; i < ids.length; i += 200) {
@@ -610,15 +616,28 @@ export async function sectorTierSummary(db: Db, sectorId: string): Promise<Secto
     withVerdicts += verdicts.length;
     for (const v of verdicts) {
       const truth = await companyRevenueTruth(db, v.companyId, sectorId);
-      byStatus[truth.status] = (byStatus[truth.status] ?? 0) + 1;
+      byIcpStatus[truth.status] = (byIcpStatus[truth.status] ?? 0) + 1;
       if (truth.revenueSource) {
         byRevenueSource[truth.revenueSource] = (byRevenueSource[truth.revenueSource] ?? 0) + 1;
       }
-      if (truth.status === "contactable" && truth.tier && truth.layer !== null) {
+      if (truth.status === "icp_accepted" && truth.tier && truth.layer !== null) {
         const key = `${truth.tier}/L${truth.layer}`;
         byTierLayer[key] = (byTierLayer[key] ?? 0) + 1;
       }
     }
   }
-  return { sectorId, companiesWithVerdicts: withVerdicts, byTierLayer, byRevenueSource, byStatus };
+  const contacts = await contactStatusesFor(db, ids);
+  for (const statuses of contacts.values()) {
+    for (const s of statuses) byContactStatus[s] = (byContactStatus[s] ?? 0) + 1;
+    if (isContactable(statuses)) contactable += 1;
+  }
+  return {
+    sectorId,
+    companiesWithVerdicts: withVerdicts,
+    byTierLayer,
+    byRevenueSource,
+    byIcpStatus,
+    byContactStatus,
+    contactable,
+  };
 }

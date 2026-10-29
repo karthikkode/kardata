@@ -111,6 +111,12 @@ import {
   screenCompanies,
 } from "../domain/screening.js";
 import { DomainError } from "../domain/errors.js";
+import {
+  APOLLO_CONTACT_STATUSES,
+  companyContacts,
+  recordApolloContacts,
+  rederiveSectorPublicContacts,
+} from "../domain/contacts.js";
 import { companyIcpView, sectorIcpCompanies } from "../domain/icp/reads.js";
 import { allCheckedCsv, allCheckedRows, outreachCsv, outreachSheetRows } from "../domain/icp/sheet.js";
 import {
@@ -1244,7 +1250,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
     "company_revenue_truth",
     {
       description:
-        "Operator (read-only): D-55 revenue truth for one company: revenue used, its source, any rejected figure and why, staff and its source, tier, score, layer or watchlist/excluded, and flags.",
+        "Operator (read-only): D-55 revenue truth for one company: revenue used, its source, any rejected figure and why, staff and its source, tier, score, layer, ICP status (icp_accepted, icp_watchlist, icp_rejected), and flags.",
       inputSchema: {
         companyId: z.string().describe("Company UUID"),
         sectorId: z.string().optional().describe("Sector UUID (resolved from the company's only sector when omitted)"),
@@ -1264,7 +1270,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
     "sector_tier_summary",
     {
       description:
-        "Operator (read-only): sector counts by tier x layer (contactable), by revenue source, and by contact status, computed from stored facts and verdicts (D-55).",
+        "Operator (read-only): sector counts by tier x layer (ICP accepted), by revenue source and by ICP status, computed from stored facts and verdicts (D-55); plus contact statuses and how many companies are contactable (an Apollo-verified email, D-67).",
       inputSchema: {
         sectorId: z.string().describe("Sector UUID"),
       },
@@ -1283,7 +1289,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
     "company_verdict_record",
     {
       description:
-        "Operator: record ICP verdicts by hand (signal score, signals, contact status) for up to 200 companies. The ICP check (sector_icp_start) writes verdicts itself; a verdict whose source starts with \"override:\" is the owner's call and is never overwritten by a check.",
+        "Operator: record ICP verdicts by hand (signal score, signals, ICP status) for up to 200 companies. The ICP check (sector_icp_start) writes verdicts itself; a verdict whose source starts with \"override:\" is the owner's call and is never overwritten by a check.",
       inputSchema: {
         verdicts: z
           .array(
@@ -1292,7 +1298,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
               sectorId: z.string(),
               score: z.number().int().min(0).max(6),
               signals: z.record(z.string(), z.boolean()).default({}),
-              status: z.enum(["contactable", "watchlist", "excluded", "research_incomplete"]),
+              status: z.enum(["icp_accepted", "icp_watchlist", "icp_rejected", "research_incomplete"]),
               exclusionReason: z.string().nullable().optional(),
               source: z.string().min(1),
             }),
@@ -1330,7 +1336,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
     "company_sheet_export",
     {
       description:
-        "Operator: write var/sectors/<sector-slug>/analysis/companies-<date>.csv for manual outreach tracking: contactable companies only (D-55 tiers), one block per tier, by layer then score, with company id, signals met, the ICP check's observations (date, URL), tech team flag, buyer order by staff size (roles only), and blank tracking columns. includeAll also writes companies-<date>-all.csv: every checked company with its status and why.",
+        "Operator: write var/sectors/<sector-slug>/analysis/companies-<date>.csv for manual outreach tracking: ICP accepted companies only (D-55 tiers), one block per tier, by layer then score, with company id, signals met, the ICP check's observations (date, URL), tech team flag, buyer order by staff size (roles only), and blank tracking columns. includeAll also writes companies-<date>-all.csv: every checked company with its status and why.",
       inputSchema: {
         sectorId: z.string().describe("Sector UUID"),
         includeAll: z.boolean().optional().describe("Also write every checked company with status and exclusion reason"),
@@ -1356,7 +1362,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
           allRows = all.length;
         }
         return {
-          summary: `${rows.length} contactable companies written to ${path}${allPath ? `; ${allRows} checked companies to ${allPath}` : ""}`,
+          summary: `${rows.length} ICP accepted companies written to ${path}${allPath ? `; ${allRows} checked companies to ${allPath}` : ""}`,
           data: { path, rows: rows.length, allPath, allRows },
         };
       }),
@@ -1822,7 +1828,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         "Operator (read-only): the latest ICP check per sector member, with today's status, tier, layer, signals met and the tech team flag. Filter by status, tier or minimum score.",
       inputSchema: {
         sectorId: z.string().describe("Sector UUID"),
-        status: z.array(z.enum(["contactable", "watchlist", "excluded", "research_incomplete"])).optional(),
+        status: z.array(z.enum(["icp_accepted", "icp_watchlist", "icp_rejected", "research_incomplete"])).optional(),
         tier: z.array(z.enum(["A", "B", "C"])).optional(),
         minScore: z.number().int().min(0).max(6).optional(),
         limit: z.number().int().optional().describe("1..500, default 50"),
@@ -1840,6 +1846,82 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
           offset: offset ?? undefined,
         });
         return { summary: `${result.total} checked companies`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_contacts_get",
+    {
+      description:
+        "Operator (read-only): a company's contact statuses (D-67), one row per status with people count and source. Public rows (name/role) come from cited leader records; Apollo rows only from the owner's Apollo pulls. contactable = an email_verified_apollo row exists. Separate from the ICP status.",
+      inputSchema: { companyId },
+    },
+    async ({ companyId: id }) =>
+      wrap(async () => {
+        const view = await companyContacts(db, id);
+        return {
+          summary: `${view.statuses.map((r) => `${r.status}(${r.people})`).join(", ") || "no contact statuses"}; contactable: ${view.contactable}`,
+          data: view,
+        };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_contacts_record",
+    {
+      description:
+        "Operator: record what one of the owner's Apollo pulls found, for up to 500 companies (D-67). Only run it on Apollo data the owner pulled; never on public sources, and it never spends Apollo credits. Per company, give people counts per Apollo status; the company's Apollo rows are replaced as a set (public rows are untouched). Stores statuses and counts only, never names, emails or phones.",
+      inputSchema: {
+        items: z
+          .array(
+            z.object({
+              companyId: z.string().optional().describe("Company UUID (or pass domain)"),
+              domain: z.string().optional().describe("Company domain (or pass companyId)"),
+              counts: z
+                .object(Object.fromEntries(APOLLO_CONTACT_STATUSES.map((st) => [st, z.number().int().min(0).optional()])))
+                .strict()
+                .describe("People per Apollo status, e.g. {name_verified_apollo: 2, email_verified_apollo: 1}"),
+              source: z.string().min(1).describe('The Apollo pull, e.g. "apollo export 2026-11-02"'),
+            }),
+          )
+          .min(1)
+          .max(500),
+      },
+    },
+    async ({ items }) =>
+      wrap(async () => {
+        const results = await recordApolloContacts(
+          db,
+          items.map((i) => ({
+            companyId: i.companyId ?? undefined,
+            domain: i.domain ?? undefined,
+            counts: i.counts as Record<string, number | undefined>,
+            source: i.source,
+          })),
+        );
+        const ok = results.filter((r) => r.ok);
+        const contactable = ok.filter((r) => r.ok && r.contactable).length;
+        return {
+          summary: `${ok.length}/${results.length} recorded, ${contactable} contactable, ${results.length - ok.length} failed`,
+          data: { results },
+        };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_contacts_rederive",
+    {
+      description:
+        "Operator: rebuild the public contact statuses (name_verified_public, role_verified_public) for every sector member from its grounded leader records (D-67). Research jobs do this per company on their own; use this for a backfill.",
+      inputSchema: { sectorId: z.string().describe("Sector UUID") },
+    },
+    async ({ sectorId }) =>
+      wrap(async () => {
+        const out = await rederiveSectorPublicContacts(db, sectorId);
+        return {
+          summary: `${out.companies} companies: ${out.withName} with a public name, ${out.withRole} with a public role`,
+          data: out,
+        };
       }),
   );
 
