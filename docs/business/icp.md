@@ -19,7 +19,20 @@ The structure is the same for every sector:
   - **Tier A:** high revenue. **Tier B:** mid revenue. **Tier C:** low revenue.
 - **Layer** = priority inside a tier, set by the signal score. **Layer 1 has the highest score**, and the layer number
   goes up as the score goes down. "Tier B, Layer 1" means a mid-revenue company with the strongest signals.
-- **Watchlist:** score 0. Not in any layer and never contacted. Score 1 is Layer 6 (D-64).
+- **ICP status (D-67):** whether we want to contact a company at all. One per company and sector:
+  - **ICP accepted** (`icp_accepted`): passes the filters, no exclusion, score 1+. Contacted in the initial campaign.
+  - **ICP watchlist** (`icp_watchlist`): passes the filters, no exclusion, score 0. Not in any layer; contacted in
+    future campaigns, not the initial one.
+  - **ICP rejected** (`icp_rejected`): an exclusion applies, or revenue is under $500k. Never contacted.
+  - `research_incomplete` is not an ICP status: the check had no usable evidence yet.
+- **Contact status (D-67):** what we know about reaching people at a company. A company has several, one row each:
+  - `NAME_VERIFIED_PUBLIC`, `ROLE_VERIFIED_PUBLIC`: a person's name or role, cited from public sources (research).
+  - `NAME_VERIFIED_APOLLO`, `ROLE_VERIFIED_APOLLO`, `EMAIL_VERIFIED_APOLLO`, `PHONE_VERIFIED_APOLLO`: from Apollo.
+  - **Emails and phone numbers come only from Apollo, never from public sources.** Public research gives names
+    and roles only.
+  - Apollo credits are spent only when the owner says so, as a bulk pull for a campaign.
+- **Contactable** = the company has an `EMAIL_VERIFIED_APOLLO` contact. Nothing else makes a company contactable:
+  not the ICP status, and not names or roles found in public sources.
 - **Research wave:** which group of companies gets researched first. Older plans and reviews call this "Layer 1/Layer 2". That old use is retired. See docs/sectors/skincare/ for this sector's waves.
 - **Older docs and the 2026-10-26 ICP check** used "Tier A/B" for the signal score. That old use is retired too. Read
   old "Tier A" as score 3+ and old "Tier B" as score 2.
@@ -115,7 +128,7 @@ Each signal adds 1 point, up to 6. Every point needs the evidence standard in `e
 | 4 | 3 | Call first |
 | 5 | 2 | Email first; call only those who open or reply, or where the evidence is unusually sharp |
 | 6 | 1 | Discovery call: learn how they run, no problem claim. One signal is never enough to pitch a problem (D-64) |
-| Watchlist | 0 | Never contacted |
+| ICP watchlist | 0 | Not in the initial campaign; future campaigns (D-67) |
 
 - **Work order:** inside each tier, Layer 1 first, then Layer 2, and so on.
 - **Tech team flag:** a company with engineers but no data roles keeps its layer, but goes last within it.

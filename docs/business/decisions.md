@@ -1,6 +1,6 @@
 # Business decisions
 
-Status: living log · Last updated: 2026-10-26
+Status: living log · Last updated: 2026-10-29
 
 Newest at the bottom. Each entry: an ID, the date, the decision, and why. A later decision that overrides one says so.
 
@@ -66,6 +66,7 @@ Newest at the bottom. Each entry: an ID, the date, the decision, and why. A late
 | D-64 | 2026-10-27 | practice | Score 1 is contacted, as Layer 6, starting with garden: a discovery call with no problem claim. Score 0 stays on the watchlist. Replaces the score-1 part of D-21. A problem claim still needs 2+ signals (`problem-bar.md`) | Owner. Early on we need data: calls teach us how these companies run in the worst case, and in the best case they surface something research missed. Loss-making companies need investment, so a growth-minded one is worth the call |
 | D-65 | 2026-10-27 | practice | Claude makes operational decisions on its own across the project (pipeline, research quality, which companies are reachable or listed, harness fixes, merging and deploying `kardata-server` after CI) and reports them after the fact. The owner is asked only about secrets, money, business rules the data can't settle, and anything sent to people outside. See `AGENTS.md`, Who decides | Owner. The owner isn't following closely, so an owner decision on these would be uninformed; Claude has the context |
 | D-66 | 2026-10-28 | practice | Garden-outdoor is dropped and deleted. Skincare outreach starts now, not in January, despite their holiday pressure; replaces the January start in D-63. Sectors are picked by `sector-selection.md`: what consumers buy often and buy again, found from what sells (Amazon), scored on a 50-company sample before any import. Beauty beyond skincare comes next, then fashion, food and pet care sub-sectors | Owner. Garden was picked at random from Apollo tags and cost a day; skincare is everyday and full of D2C brands, and no more time should be lost |
+| D-67 | 2026-10-29 | practice | Two separate statuses. **ICP status**, one per company: ICP accepted (contacted in the initial campaign), ICP watchlist (score 0; future campaigns), ICP rejected (never contacted). **Contact status**, several rows per company: name or role verified from public sources; name, role, email or phone verified from Apollo. Emails and phone numbers come only from Apollo, never from public sources. **Contactable** means we have an Apollo-verified email. Apollo credits are spent only when the owner says so, in bulk, per campaign. Replaces the "never contacted" part of D-64 for score 0 | Owner. "Contactable" was used for both ICP fit and reachability, and sessions mixed them up |
 
 ## Open
 

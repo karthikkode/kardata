@@ -50,5 +50,7 @@ These apply to emails, calls, briefs, case studies and anything the analysis age
 
 - **Reviewer identities are never stored or quoted.**
 - **People appear only in their public business roles.**
+- **Emails and phone numbers come only from Apollo, never from public sources** (D-67). Public research stores
+  names and roles only.
 - **Never name a company negatively in public content** without public evidence anyone can check. When in doubt,
   keep it anonymous.

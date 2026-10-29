@@ -1,5 +1,8 @@
 # Skincare results
 
+Written before D-67: "contactable" and "can be contacted" below mean ICP accepted. Today contactable means an
+Apollo-verified email (`docs/business/icp.md`, Terms).
+
 ## Snapshot (DB, 2026-10-26, research wave 1, after the ICP check and the tier split)
 
 | Group | Companies |

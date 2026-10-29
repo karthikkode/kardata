@@ -41,15 +41,16 @@ Business rules live in `docs/business/icp.md`. This file only gives the order.
 - Old `created` jobs from another sector wait in the queue (oldest first). Check `company_jobs_list` before you raise
   the checkpoint.
 - **The ICP check** scores the 6 signals and the exclusions from stored, quoted, dated evidence only
-  (`evidence-rules.md`). Every company gets a verdict with its observations: contactable, watchlist, excluded or
-  research incomplete.
+  (`evidence-rules.md`). Every company gets an ICP status with its observations: `icp_accepted`, `icp_watchlist`,
+  `icp_rejected`, or `research_incomplete` (no usable evidence yet). The same step rebuilds the company's public
+  contact statuses (names and roles from leader records). See `icp.md`, Terms (D-67).
 - **Until stage 5.5 ships,** this check has no standard job. Don't score companies by hand; wait for 5.5.
 
 ## Step 4: Tier and the outreach sheet
 
 - The tier comes from revenue (D-55: A $10M+, B $2–10M, C $500k–2M, under $500k not contacted). Source order: public
   figure, then Apollo, then staff estimate. Flagged public figures need `company_revenue_confirm`.
-- Layer = 7 − signal score. Score 1 is Layer 6, a discovery call (D-64); score 0 is the watchlist and is never contacted.
-- `company_sheet_export` writes `var/analysis/companies-<date>.csv` (gitignored): contactable companies by tier, then
+- Layer = 7 − signal score. Score 1 is Layer 6, a discovery call (D-64); score 0 is the ICP watchlist, kept for future campaigns (D-67).
+- `company_sheet_export` writes `var/analysis/companies-<date>.csv` (gitignored): ICP accepted companies by tier, then
   layer, with observations and blank tracking columns. The owner imports it into the Google Sheet. All outreach is
   manual.
