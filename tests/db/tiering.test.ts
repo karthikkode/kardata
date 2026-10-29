@@ -106,7 +106,7 @@ describe("tiering against stored facts and verdicts", () => {
         sectorId,
         score: 2,
         signals: { S1: true, S3: true },
-        status: "contactable",
+        status: "icp_accepted",
         source: "test-check",
       },
     ]);
@@ -118,7 +118,7 @@ describe("tiering against stored facts and verdicts", () => {
     expect(truth.staff).toEqual({ count: 17, source: "companies_house", asOf: "2025-09-30" });
     expect(truth.tier).toBe("B");
     expect(truth.layer).toBe(5);
-    expect(truth.status).toBe("contactable");
+    expect(truth.status).toBe("icp_accepted");
 
     const summary = await sectorTierSummary(handle.db, sectorId);
     expect(summary.companiesWithVerdicts).toBe(1);
@@ -154,7 +154,7 @@ describe("tiering against stored facts and verdicts", () => {
         sectorId,
         score: 4,
         signals: { S1: true },
-        status: "contactable",
+        status: "icp_accepted",
         source: "test-check",
       },
     ]);
@@ -193,18 +193,18 @@ describe("verdicts per sector (Stage 5.6 B4)", () => {
     await handle.db.insert(sectorCompanies).values({ sectorId: sectorB, companyId, addedVia: "manual" });
     await seedFact(companyId, "financials.employees", { num: 20 }, { source: "apollo" });
     await recordVerdicts(handle.db, [
-      { companyId, sectorId: sectorA, score: 5, signals: {}, status: "contactable", source: "test" },
-      { companyId, sectorId: sectorB, score: 0, signals: {}, status: "watchlist", source: "test" },
+      { companyId, sectorId: sectorA, score: 5, signals: {}, status: "icp_accepted", source: "test" },
+      { companyId, sectorId: sectorB, score: 0, signals: {}, status: "icp_watchlist", source: "test" },
     ]);
     const a = await companyRevenueTruth(handle.db, companyId, sectorA);
     const b = await companyRevenueTruth(handle.db, companyId, sectorB);
     expect(a.score).toBe(5);
-    expect(a.status).toBe("contactable");
+    expect(a.status).toBe("icp_accepted");
     expect(b.score).toBe(0);
-    expect(b.status).toBe("watchlist");
+    expect(b.status).toBe("icp_watchlist");
     // Re-recording one sector leaves the other untouched.
     await recordVerdicts(handle.db, [
-      { companyId, sectorId: sectorA, score: 3, signals: {}, status: "contactable", source: "test" },
+      { companyId, sectorId: sectorA, score: 3, signals: {}, status: "icp_accepted", source: "test" },
     ]);
     expect((await companyRevenueTruth(handle.db, companyId, sectorA)).score).toBe(3);
     expect((await companyRevenueTruth(handle.db, companyId, sectorB)).score).toBe(0);

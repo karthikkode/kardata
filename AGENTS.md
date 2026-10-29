@@ -23,7 +23,11 @@ current plan: the one file in `docs/plans/website/` with `Status: current`. Its 
 - Use the ICP in `icp.md` and its terms ([docs/business/icp.md](docs/business/icp.md), Terms):
   - a **tier** groups companies by annual revenue and sets the offer (A high, B mid, C low);
   - a **layer** is priority inside a tier by signal score (Layer 1 = highest score);
-  - a **research wave** is research order. Older plans call it "Layer 1/2"; that use is retired.
+  - a **research wave** is research order. Older plans call it "Layer 1/2"; that use is retired;
+  - an **ICP status** (`icp_accepted`, `icp_watchlist`, `icp_rejected`) says whether we want to contact a company;
+  - a **contact status** (several rows per company) says what we know about reaching its people. **Contactable**
+    means an Apollo-verified email (`email_verified_apollo`), nothing else (D-67). Emails and phones come only
+    from Apollo, never from public sources, and Apollo credits are spent only when the owner says so.
 - Use the problem bar and 8 dimensions in `problem-bar.md`, and the citation rules in `evidence-rules.md`.
 - If a business answer you need isn't there, ask the owner. Don't invent one. Open business questions are listed in
   `docs/business/decisions.md`.

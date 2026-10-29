@@ -7,7 +7,7 @@ import { hasTechTeam, latestIcpCheck, sectorIcpCompanies, signalsMet, type Secto
 import { SIGNAL_RULES } from "./rules.js";
 
 /**
- * The outreach sheet (Stage 5.5 Step 5): the contactable list by tier, then
+ * The outreach sheet (Stage 5.5 Step 5): the ICP accepted list by tier, then
  * layer, with what the ICP check saw and blank columns the owner fills in by
  * hand. Roles only for buyers (icp.md section 6), never names.
  */

@@ -31,6 +31,7 @@ import {
   quotaCalibrationSet,
   windowBurn,
 } from "../domain/quota/breaker.js";
+import { rederivePublicContacts } from "../domain/contacts.js";
 import { DomainError, isUniqueViolation } from "../domain/errors.js";
 import { normalizeDomain } from "../lib/apollo/parse.js";
 import { resolvePlanAdapters } from "../collect/adapters.js";
@@ -818,6 +819,8 @@ export async function icpSectorFor(db: Db, companyId: string): Promise<string | 
  * picked up by sector_icp_start (onlyMissing), so research is never lost.
  */
 export async function runJobIcp(db: Db, job: CompanyJob): Promise<{ checked: boolean; reason?: string }> {
+  // D-67: public names and roles come from the leader records this research just wrote.
+  await rederivePublicContacts(db, job.companyId);
   const sectorId = await icpSectorFor(db, job.companyId);
   if (!sectorId) return { checked: false, reason: "no eligible sector membership" };
   await runIcpCheck(db, { sectorId, companyId: job.companyId, companyJobId: job.id });

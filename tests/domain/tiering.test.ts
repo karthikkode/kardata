@@ -12,7 +12,7 @@ describe("D-55 revenue truth (pure)", () => {
       vendorRevenue: { amount: 607000, sourceName: "Apollo" },
       staff: { count: 20, source: "apollo" },
       score: 2,
-      verdictStatus: "contactable",
+      verdictStatus: "icp_accepted",
     });
     expect(r.revenueUsed).toBe(3500000);
     expect(r.revenueSource).toBe("staff_estimate");
@@ -23,7 +23,7 @@ describe("D-55 revenue truth (pure)", () => {
     });
     expect(r.tier).toBe("B");
     expect(r.layer).toBe(5);
-    expect(r.status).toBe("contactable");
+    expect(r.status).toBe("icp_accepted");
   });
 
   it("accepts Apollo at or above $75k per staff", () => {
@@ -32,7 +32,7 @@ describe("D-55 revenue truth (pure)", () => {
       vendorRevenue: { amount: 4000000, sourceName: "Apollo" },
       staff: { count: 20, source: "apollo" },
       score: 3,
-      verdictStatus: "contactable",
+      verdictStatus: "icp_accepted",
     });
     expect(r.revenueUsed).toBe(4000000);
     expect(r.revenueSource).toBe("apollo");
@@ -47,7 +47,7 @@ describe("D-55 revenue truth (pure)", () => {
       vendorRevenue: { amount: 607000, sourceName: "Apollo" },
       staff: { count: 20, source: "companies_house" },
       score: 6,
-      verdictStatus: "contactable",
+      verdictStatus: "icp_accepted",
     });
     expect(r.revenueUsed).toBe(30000000);
     expect(r.revenueSource).toBe("public");
@@ -62,30 +62,30 @@ describe("D-55 revenue truth (pure)", () => {
       vendorRevenue: null,
       staff: { count: 10, source: "apollo" },
       score: 1,
-      verdictStatus: "contactable",
+      verdictStatus: "icp_accepted",
     });
-    expect(one.status).toBe("contactable");
+    expect(one.status).toBe("icp_accepted");
     expect(one.layer).toBe(6);
     const w = computeRevenueTruth({
       publicRevenue: null,
       vendorRevenue: null,
       staff: { count: 10, source: "apollo" },
       score: 0,
-      verdictStatus: "watchlist",
+      verdictStatus: "icp_watchlist",
     });
-    expect(w.status).toBe("watchlist");
+    expect(w.status).toBe("icp_watchlist");
     expect(w.layer).toBeNull();
     const small = computeRevenueTruth({
       publicRevenue: null,
       vendorRevenue: { amount: 400000, sourceName: "Apollo" },
       staff: { count: 4, source: "apollo" },
       score: 4,
-      verdictStatus: "contactable",
+      verdictStatus: "icp_accepted",
     });
     // Apollo implies $100k/staff, so it is accepted and lands below the floor.
     expect(small.revenueUsed).toBe(400000);
     expect(small.tier).toBeNull();
-    expect(small.status).toBe("excluded");
+    expect(small.status).toBe("icp_rejected");
     expect(small.exclusionReason).toContain("below $500k");
   });
 
@@ -95,11 +95,11 @@ describe("D-55 revenue truth (pure)", () => {
       vendorRevenue: { amount: 5000000, sourceName: "Apollo" },
       staff: { count: 20, source: "apollo" },
       score: 5,
-      verdictStatus: "excluded",
+      verdictStatus: "icp_rejected",
       exclusionReason: "has data team",
       plausibility: "disputed: revenue sits oddly against the accounts",
     });
-    expect(r.status).toBe("excluded");
+    expect(r.status).toBe("icp_rejected");
     expect(r.exclusionReason).toBe("has data team");
     expect(r.flags.some((f) => f.startsWith("disputed"))).toBe(true);
   });
@@ -110,7 +110,7 @@ describe("D-55 revenue truth (pure)", () => {
       vendorRevenue: { amount: 900000, sourceName: "ZoomInfo" },
       staff: { count: 20, source: "apollo" },
       score: 2,
-      verdictStatus: "contactable",
+      verdictStatus: "icp_accepted",
     });
     expect(low.revenueSource).toBe("staff_estimate");
     expect(low.rejected).toEqual({
@@ -123,7 +123,7 @@ describe("D-55 revenue truth (pure)", () => {
       vendorRevenue: { amount: 3000000, sourceName: "RocketReach" },
       staff: { count: 20, source: "apollo" },
       score: 2,
-      verdictStatus: "contactable",
+      verdictStatus: "icp_accepted",
     });
     expect(high.revenueUsed).toBe(3000000);
     expect(high.revenueSource).toBe("vendor");
@@ -141,7 +141,7 @@ describe("D-55 revenue truth (pure)", () => {
       vendorRevenue: null,
       staff: { count: 10, source: "apollo" },
       score: 5,
-      verdictStatus: "contactable",
+      verdictStatus: "icp_accepted",
     });
     expect(r.revenueSource).toBe("public");
     expect(r.tier).toBe("A");
@@ -183,7 +183,7 @@ describe("D-55 revenue truth (pure)", () => {
       vendorRevenue: null,
       staff: { count: 24, source: "apollo" },
       score: 4,
-      verdictStatus: "contactable",
+      verdictStatus: "icp_accepted",
     });
     // Falls to the staff estimate; the figure and flag stay visible.
     expect(unconfirmed.revenueSource).toBe("staff_estimate");
@@ -200,7 +200,7 @@ describe("D-55 revenue truth (pure)", () => {
       vendorRevenue: null,
       staff: { count: 24, source: "apollo" },
       score: 4,
-      verdictStatus: "contactable",
+      verdictStatus: "icp_accepted",
     });
     expect(confirmed.revenueSource).toBe("public");
     expect(confirmed.tier).toBe("A");
@@ -217,7 +217,7 @@ describe("D-55 revenue truth (pure)", () => {
       vendorRevenue: { amount: 3000000, sourceName: "ZoomInfo" },
       staff: { count: 24, source: "apollo" },
       score: 4,
-      verdictStatus: "contactable",
+      verdictStatus: "icp_accepted",
     });
     expect(rejected.revenueSource).toBe("vendor");
     expect(rejected.flags.some((f) => f.includes("parent-company figure"))).toBe(true);

@@ -260,6 +260,13 @@
       "when": 1792950011000,
       "tag": "0036_company_job_sector",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793036411000,
+      "tag": "0037_icp_status_and_contacts",
+      "breakpoints": true
     }
   ]
 }

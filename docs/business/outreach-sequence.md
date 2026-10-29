@@ -47,3 +47,5 @@ decides what to say and writes every word.
 - **Junior or hands-on people** (warehouse, accounts): the best source of truth, not the buyer. Reach them
   **through** the decision-maker, for example in the audit. Long tenure makes them more valuable, not a buyer.
 - Check titles against the team page or LinkedIn. Apollo titles and staff counts are often out of date.
+- **Emails and phone numbers come only from Apollo** (D-67). Names and roles may come from public sources. Never
+  call a company's main line.

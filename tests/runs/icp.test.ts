@@ -134,11 +134,11 @@ describe("runIcpCheck", () => {
     const s = await seed();
     const prompts: string[] = [];
     const out = await runIcpCheck(handle.db, { sectorId: s.sectorId, companyId: s.companyId, call: fakeJudge(s, prompts) });
-    expect(out.decision).toMatchObject({ score: 2, status: "contactable" });
+    expect(out.decision).toMatchObject({ score: 2, status: "icp_accepted" });
     // The stale job post never reached the judge.
     expect(prompts[0]).not.toContain("Inventory Planner");
     const [verdict] = await handle.db.select().from(companyVerdicts).where(eq(companyVerdicts.companyId, s.companyId));
-    expect(verdict).toMatchObject({ score: 2, status: "contactable", source: `icp-v3:${out.checkId}` });
+    expect(verdict).toMatchObject({ score: 2, status: "icp_accepted", source: `icp-v3:${out.checkId}` });
     expect(verdict?.signals).toMatchObject({ channels: true, tool_sprawl: true, hiring: false });
     const check = await latestIcpCheck(handle.db, s.companyId);
     expect(check?.evidence).toHaveLength(2);
@@ -167,12 +167,12 @@ describe("runIcpCheck", () => {
   it("keeps a manual override verdict", async () => {
     const s = await seed();
     await recordVerdicts(handle.db, [
-      { companyId: s.companyId, sectorId: s.sectorId, score: 0, signals: {}, status: "excluded", exclusionReason: "owner call", source: "override: owner, 2026-10-27" },
+      { companyId: s.companyId, sectorId: s.sectorId, score: 0, signals: {}, status: "icp_rejected", exclusionReason: "owner call", source: "override: owner, 2026-10-27" },
     ]);
     const out = await runIcpCheck(handle.db, { sectorId: s.sectorId, companyId: s.companyId, call: fakeJudge(s) });
     expect(out.verdictWritten).toBe(false);
     const [verdict] = await handle.db.select().from(companyVerdicts).where(eq(companyVerdicts.companyId, s.companyId));
-    expect(verdict).toMatchObject({ status: "excluded", source: "override: owner, 2026-10-27" });
+    expect(verdict).toMatchObject({ status: "icp_rejected", source: "override: owner, 2026-10-27" });
   });
 
   it("marks a company with no usable evidence research_incomplete, without a Muse call", async () => {
@@ -222,7 +222,7 @@ describe("runIcpCheck", () => {
     expect(calls).toBe(ICP_VOTES + 1);
     // Every call, retries included, gets its own container name.
     expect(new Set(keys).size).toBe(keys.length);
-    expect(out.decision.status).toBe("contactable");
+    expect(out.decision.status).toBe("icp_accepted");
   });
 
   it("refuses a company outside the sector", async () => {

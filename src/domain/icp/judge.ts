@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { MIN_CONTACT_SCORE, REVENUE_FLOOR, type ContactStatus } from "../tiering.js";
+import { MIN_ACCEPTED_SCORE, REVENUE_FLOOR, type IcpStatus } from "../tiering.js";
 import type { EvidenceItem, EvidencePack } from "./evidence.js";
 import {
   EXCLUSION_RULES,
@@ -211,7 +211,7 @@ export interface BucketResult {
 
 export interface IcpDecision {
   score: number;
-  status: ContactStatus;
+  status: IcpStatus;
   exclusionReason: string | null;
   signals: BucketResult[];
   exclusions: BucketResult[];
@@ -270,17 +270,17 @@ export function decideIcp(pack: EvidencePack, judgement: Judgement): IcpDecision
   const flags = FLAG_RULES.map((rule) => checkAnswer(rule.key, judgement.flags[rule.key as FlagKey], pack, all, notes));
   const score = signals.filter((s) => s.counted).length;
   const applied = exclusions.find((e) => e.counted);
-  let status: ContactStatus;
+  let status: IcpStatus;
   let exclusionReason: string | null = null;
   if (applied) {
-    status = "excluded";
+    status = "icp_rejected";
     const label = EXCLUSION_RULES.find((r) => r.key === applied.key)?.label ?? applied.key;
     exclusionReason = `${label}: ${applied.observation}`.slice(0, 500);
   } else if (pack.revenue.revenueUsed !== null && pack.revenue.tier === null) {
-    status = "excluded";
+    status = "icp_rejected";
     exclusionReason = `below $${REVENUE_FLOOR / 1000}k revenue: not contacted`;
   } else {
-    status = score >= MIN_CONTACT_SCORE ? "contactable" : "watchlist";
+    status = score >= MIN_ACCEPTED_SCORE ? "icp_accepted" : "icp_watchlist";
   }
   return { score, status, exclusionReason, signals, exclusions, flags };
 }

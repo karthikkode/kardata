@@ -1011,7 +1011,7 @@ export const sectorPreflightItems = pgTable(
 );
 export type SectorPreflightItem = typeof sectorPreflightItems.$inferSelect;
 
-// ---- Stage 5.3: ICP verdicts (signal score + contact status per company) ----
+// ---- Stage 5.3: ICP verdicts (signal score + ICP status per company) ----
 
 export const companyVerdicts = pgTable(
   "company_verdicts",
@@ -1024,7 +1024,7 @@ export const companyVerdicts = pgTable(
       .references(() => sectors.id, { onDelete: "cascade" }),
     score: integer("score").notNull(),
     signals: jsonb("signals").notNull().default({}),
-    status: text("status").notNull().default("watchlist"),
+    status: text("status").notNull().default("icp_watchlist"),
     exclusionReason: text("exclusion_reason"),
     source: text("source").notNull().default(""),
     updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -1064,6 +1064,40 @@ export const companyIcpChecks = pgTable(
   (t) => [index("company_icp_checks_company_idx").on(t.companyId, t.createdAt)],
 );
 export type CompanyIcpCheck = typeof companyIcpChecks.$inferSelect;
+
+// ---- D-67: contact statuses (several rows per company) ----
+// What we know about reaching people at a company. Public rows come from
+// cited leader records (names and roles only); Apollo rows come from the
+// owner's own Apollo pulls. Emails and phones are never taken from public
+// sources. Contactable = an email_verified_apollo row exists.
+
+export const contactStatus = pgEnum("contact_status", [
+  "name_verified_public",
+  "role_verified_public",
+  "name_verified_apollo",
+  "role_verified_apollo",
+  "email_verified_apollo",
+  "phone_verified_apollo",
+]);
+
+export const companyContactStatuses = pgTable(
+  "company_contact_statuses",
+  {
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    status: contactStatus("status").notNull(),
+    /** How many people at the company have this status. */
+    people: integer("people").notNull().default(1),
+    source: text("source").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [primaryKey({ columns: [t.companyId, t.status] })],
+);
+export type CompanyContactStatus = typeof companyContactStatuses.$inferSelect;
 
 // Human verdict on a flagged (over $1M per staff) public revenue figure.
 export const revenueConfirmations = pgTable("revenue_confirmations", {

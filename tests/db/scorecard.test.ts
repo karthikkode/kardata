@@ -417,14 +417,14 @@ describe("scorecard", () => {
     const sectorId = randomUUID();
     await handle.db.insert(sectors).values({ id: sectorId, name: "score-sector" });
     await handle.db.insert(companyIcpChecks).values({
-      id: randomUUID(), companyId, sectorId, runId: icpRun, promptVersion: "icp-v1", packHash: "x", score: 3, status: "contactable", results: {},
+      id: randomUUID(), companyId, sectorId, runId: icpRun, promptVersion: "icp-v1", packHash: "x", score: 3, status: "icp_accepted", results: {},
     });
     const result = await scorecard(db(), { companyJobIds: [jobId] });
     expect(result.runs.map((r) => r.runId).sort()).toEqual([run, icpRun].sort());
     expect(result.icp).toEqual({
       companies: 1,
       checked: 1,
-      byStatus: { contactable: 1 },
+      byStatus: { icp_accepted: 1 },
       byScore: { "3": 1 },
       museTokensPerCompany: 60_000,
       icpTokensPerCheck: 10_000,
