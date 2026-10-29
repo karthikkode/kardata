@@ -33,7 +33,7 @@ describe("sector-agnostic guard", () => {
   });
 
   it("finds no sector nouns in the live prompts", () => {
-    const dirs = ["prompts/research-v1.6", "prompts/research-v1.7", "prompts/extract-v3", "prompts/icp-v3", "prompts/sector-preflight-v2"];
+    const dirs = ["prompts/research-v1.8", "prompts/extract-v4", "prompts/icp-v3", "prompts/sector-preflight-v2"];
     const files = dirs.flatMap((d) => filesUnder(resolve(d), () => true));
     files.push(resolve("prompts/preflight-v1.md"));
     const hits: string[] = [];
