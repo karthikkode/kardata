@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { asc, count, desc, eq, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNull, sql, type SQL } from "drizzle-orm";
 import { companies, imports, sectorCompanies, sectors, type Import } from "../db/schema.js";
 import type { Db, DbLike } from "../db/client.js";
 import { getImportDirs } from "../lib/env.js";
@@ -223,6 +223,18 @@ export async function resolveCompanySector(db: Db, companyId: string, sectorId?:
 }
 
 /** Filesystem slug for a sector name: lower-cased, non-alphanumerics as dashes. */
+/**
+ * The sector's companies: members that passed preflight (eligible) and were not
+ * removed. Imported members that preflight rejected are never counted.
+ */
+export function sectorCompaniesScope(sectorId: string): SQL {
+  return and(
+    eq(sectorCompanies.sectorId, sectorId),
+    eq(sectorCompanies.eligibility, "eligible"),
+    isNull(sectorCompanies.removedAt),
+  )!;
+}
+
 export function sectorSlug(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "sector";
 }

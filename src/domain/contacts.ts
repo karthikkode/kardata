@@ -1,8 +1,9 @@
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { Db } from "../db/client.js";
 import { companies, companyContactStatuses, records, sectorCompanies } from "../db/schema.js";
 import { normalizeDomain } from "../lib/apollo/parse.js";
 import { DomainError } from "./errors.js";
+import { sectorCompaniesScope } from "./sectors.js";
 
 /**
  * Contact statuses (D-67). A company has one row per status it has reached.
@@ -85,7 +86,7 @@ export async function rederiveSectorPublicContacts(
   const members = await db
     .select({ companyId: sectorCompanies.companyId })
     .from(sectorCompanies)
-    .where(and(eq(sectorCompanies.sectorId, sectorId), isNull(sectorCompanies.removedAt)));
+    .where(sectorCompaniesScope(sectorId));
   let withName = 0;
   let withRole = 0;
   for (const m of members) {

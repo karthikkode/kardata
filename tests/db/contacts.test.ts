@@ -136,12 +136,21 @@ describe("contact statuses (D-67)", () => {
     const a = await seedCompany("a.example");
     const b = await seedCompany("b.example");
     for (const c of [a, b]) {
-      await handle.db.insert(sectorCompanies).values({ sectorId, companyId: c.companyId, addedVia: "manual" });
+      await handle.db
+        .insert(sectorCompanies)
+        .values({ sectorId, companyId: c.companyId, addedVia: "manual", eligibility: "eligible" });
     }
+    // An imported member that preflight rejected is not a sector company and is never counted.
+    const out = await seedCompany("out.example");
+    await handle.db
+      .insert(sectorCompanies)
+      .values({ sectorId, companyId: out.companyId, addedVia: "manual", eligibility: "ineligible" });
+    await seedLeader(out.companyId, out.sourceId, { name: "Synthetic Outsider", role: "CEO" });
     await seedLeader(a.companyId, a.sourceId, { name: "Synthetic Founder", role: "Founder" });
     await recordVerdicts(handle.db, [
       { companyId: a.companyId, sectorId, score: 2, signals: {}, status: "icp_accepted", source: "test" },
       { companyId: b.companyId, sectorId, score: 0, signals: {}, status: "icp_watchlist", source: "test" },
+      { companyId: out.companyId, sectorId, score: 3, signals: {}, status: "icp_accepted", source: "test" },
     ]);
     expect(await rederiveSectorPublicContacts(handle.db, sectorId)).toEqual({ companies: 2, withName: 1, withRole: 1 });
     await recordApolloContacts(handle.db, [

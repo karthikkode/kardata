@@ -2,6 +2,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
 import { companies, companyIcpChecks, sectorCompanies, type CompanyIcpCheck } from "../../db/schema.js";
 import { DomainError } from "../errors.js";
+import { sectorCompaniesScope } from "../sectors.js";
 import { contactStatusesFor, isContactable, type ContactStatus } from "../contacts.js";
 import { companyRevenueTruth, type IcpStatus } from "../tiering.js";
 import type { BucketResult } from "./judge.js";
@@ -123,7 +124,7 @@ export async function sectorIcpCompanies(
     .innerJoin(companies, eq(companies.id, companyIcpChecks.companyId))
     .innerJoin(
       sectorCompanies,
-      and(eq(sectorCompanies.companyId, companyIcpChecks.companyId), eq(sectorCompanies.sectorId, input.sectorId)),
+      and(eq(sectorCompanies.companyId, companyIcpChecks.companyId), sectorCompaniesScope(input.sectorId)),
     )
     .where(eq(companyIcpChecks.sectorId, input.sectorId))
     .orderBy(companyIcpChecks.companyId, desc(companyIcpChecks.createdAt));

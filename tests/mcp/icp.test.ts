@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
+import { eq } from "drizzle-orm";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { DbHandle } from "../../src/db/client.js";
-import { companyJobs, sectorPreflightJobs } from "../../src/db/schema.js";
+import { companyJobs, sectorCompanies, sectorPreflightJobs } from "../../src/db/schema.js";
 import { runIcpCheck } from "../../src/runs/icp.js";
 import { createSectorRunner } from "../../src/runs/sector.js";
 import { startServer, type ServerHandle } from "../../src/server.js";
@@ -59,6 +60,8 @@ async function seedSector(): Promise<{ sectorId: string; researched: string; fre
     ((dataOf(await call("company_add", { sectorId, name })).company as { id: string }).id);
   const researched = await add("Researched Co");
   const fresh = await add("Not Yet Co");
+  // Both passed preflight, so both are sector companies.
+  await handle.db.update(sectorCompanies).set({ eligibility: "eligible" }).where(eq(sectorCompanies.sectorId, sectorId));
   await handle.db.insert(companyJobs).values({ id: randomUUID(), companyId: researched, status: "completed" });
   return { sectorId, researched, fresh };
 }

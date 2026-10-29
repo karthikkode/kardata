@@ -85,7 +85,7 @@ describe("tiering against stored facts and verdicts", () => {
     const companyId = await seedCompany("Case Co");
     await handle.db
       .insert(sectorCompanies)
-      .values({ sectorId, companyId, addedVia: "manual" });
+      .values({ sectorId, companyId, addedVia: "manual", eligibility: "eligible" });
     await seedFact(
       companyId,
       "financials.revenue_estimate",
@@ -140,7 +140,7 @@ describe("tiering against stored facts and verdicts", () => {
     const companyId = await seedCompany("Flagged Co");
     await handle.db
       .insert(sectorCompanies)
-      .values({ sectorId, companyId, addedVia: "manual" });
+      .values({ sectorId, companyId, addedVia: "manual", eligibility: "eligible" });
     await seedFact(
       companyId,
       "financials.revenue_estimate",
@@ -189,8 +189,8 @@ describe("verdicts per sector (Stage 5.6 B4)", () => {
     const sectorA = await seedSector();
     const sectorB = await seedSector();
     const companyId = await seedCompany("Two Sector Co");
-    await handle.db.insert(sectorCompanies).values({ sectorId: sectorA, companyId, addedVia: "manual" });
-    await handle.db.insert(sectorCompanies).values({ sectorId: sectorB, companyId, addedVia: "manual" });
+    await handle.db.insert(sectorCompanies).values({ sectorId: sectorA, companyId, addedVia: "manual", eligibility: "eligible" });
+    await handle.db.insert(sectorCompanies).values({ sectorId: sectorB, companyId, addedVia: "manual", eligibility: "eligible" });
     await seedFact(companyId, "financials.employees", { num: 20 }, { source: "apollo" });
     await recordVerdicts(handle.db, [
       { companyId, sectorId: sectorA, score: 5, signals: {}, status: "icp_accepted", source: "test" },
@@ -217,9 +217,9 @@ describe("verdicts per sector (Stage 5.6 B4)", () => {
     const solo = await seedCompany("Solo Co");
     const dual = await seedCompany("Dual Co");
     const none = await seedCompany("No Sector Co");
-    await handle.db.insert(sectorCompanies).values({ sectorId: sectorA, companyId: solo, addedVia: "manual" });
-    await handle.db.insert(sectorCompanies).values({ sectorId: sectorA, companyId: dual, addedVia: "manual" });
-    await handle.db.insert(sectorCompanies).values({ sectorId: sectorB, companyId: dual, addedVia: "manual" });
+    await handle.db.insert(sectorCompanies).values({ sectorId: sectorA, companyId: solo, addedVia: "manual", eligibility: "eligible" });
+    await handle.db.insert(sectorCompanies).values({ sectorId: sectorA, companyId: dual, addedVia: "manual", eligibility: "eligible" });
+    await handle.db.insert(sectorCompanies).values({ sectorId: sectorB, companyId: dual, addedVia: "manual", eligibility: "eligible" });
     await expect(resolveCompanySector(handle.db, solo)).resolves.toBe(sectorA);
     await expect(resolveCompanySector(handle.db, dual, sectorB)).resolves.toBe(sectorB);
     await expect(resolveCompanySector(handle.db, dual)).rejects.toThrow(/company is in 2 sectors; pass sectorId/);
