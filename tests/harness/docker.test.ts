@@ -126,6 +126,9 @@ describe("docker harness", () => {
     expect(RESEARCH_MUSE_ARGS[contributor + 1]).toBe("on");
     const model = RESEARCH_MUSE_ARGS.indexOf("--model");
     expect(RESEARCH_MUSE_ARGS[model + 1]).toBe("muse-spark-1.3");
+    // Without workspace trust Muse offers no subagent tools.
+    expect(RESEARCH_MUSE_ARGS).toContain("--trust-workspace");
+    expect(RESEARCH_MUSE_ARGS).not.toContain("--yolo");
     expect(PLAYWRIGHT_SERVER_CONFIG.args).toContain("--no-sandbox");
   });
 
