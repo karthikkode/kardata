@@ -10,6 +10,7 @@ import {
 import { contactStatusesFor, isContactable } from "./contacts.js";
 import { DomainError } from "./errors.js";
 import { getProfileOrNull } from "./sector-preflight/profile.js";
+import { sectorCompaniesScope } from "./sectors.js";
 
 /**
  * D-55 revenue truth and tier/layer (Stage 5.3 Step 4).
@@ -520,7 +521,7 @@ export async function sectorSheetRows(db: Db, sectorId: string): Promise<SheetRo
     })
     .from(sectorCompanies)
     .innerJoin(companies, eq(sectorCompanies.companyId, companies.id))
-    .where(eq(sectorCompanies.sectorId, sectorId));
+    .where(sectorCompaniesScope(sectorId));
   const rows: SheetRow[] = [];
   for (const m of members) {
     const truth = await companyRevenueTruth(db, m.companyId, sectorId);
@@ -598,7 +599,7 @@ export async function sectorTierSummary(db: Db, sectorId: string): Promise<Secto
   const members = await db
     .select({ companyId: sectorCompanies.companyId })
     .from(sectorCompanies)
-    .where(eq(sectorCompanies.sectorId, sectorId));
+    .where(sectorCompaniesScope(sectorId));
   const ids = members.map((m) => m.companyId);
   const byTierLayer: Record<string, number> = {};
   const byRevenueSource: Record<string, number> = {};

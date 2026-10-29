@@ -1099,6 +1099,34 @@ export const companyContactStatuses = pgTable(
 );
 export type CompanyContactStatus = typeof companyContactStatuses.$inferSelect;
 
+// People the owner paid Apollo for (D-67), kept so nobody is bought twice.
+// Never filled from public sources. The company's main line and personal
+// emails are not stored.
+export const apolloContacts = pgTable(
+  "apollo_contacts",
+  {
+    apolloId: text("apollo_id").primaryKey(),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    name: text("name"),
+    title: text("title"),
+    email: text("email"),
+    /** Apollo's own label: verified, extrapolated, unavailable, ... */
+    emailStatus: text("email_status"),
+    mobile: text("mobile"),
+    linkedin: text("linkedin"),
+    source: text("source").notNull(),
+    pulledAt: timestamp("pulled_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [index("apollo_contacts_company_idx").on(t.companyId)],
+);
+export type ApolloContact = typeof apolloContacts.$inferSelect;
+
 // Human verdict on a flagged (over $1M per staff) public revenue figure.
 export const revenueConfirmations = pgTable("revenue_confirmations", {
   companyId: uuid("company_id")

@@ -267,6 +267,13 @@
       "when": 1793036411000,
       "tag": "0037_icp_status_and_contacts",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1793040011000,
+      "tag": "0038_apollo_contacts",
+      "breakpoints": true
     }
   ]
 }

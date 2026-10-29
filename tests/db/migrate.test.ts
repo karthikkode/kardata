@@ -25,6 +25,7 @@ describe("migrations on kardata_test", () => {
     );
     const names = rows.map((r) => r.tablename).filter((n) => !n.startsWith("__drizzle"));
     expect(names.sort()).toEqual([
+      "apollo_contacts",
       "area_statuses",
       "blobs",
       "bulk_job_items",

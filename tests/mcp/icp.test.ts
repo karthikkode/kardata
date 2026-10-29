@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
+import { eq } from "drizzle-orm";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { DbHandle } from "../../src/db/client.js";
-import { companyJobs, sectorPreflightJobs } from "../../src/db/schema.js";
+import { companyJobs, sectorCompanies, sectorPreflightJobs } from "../../src/db/schema.js";
 import { runIcpCheck } from "../../src/runs/icp.js";
 import { createSectorRunner } from "../../src/runs/sector.js";
 import { startServer, type ServerHandle } from "../../src/server.js";
@@ -59,6 +60,8 @@ async function seedSector(): Promise<{ sectorId: string; researched: string; fre
     ((dataOf(await call("company_add", { sectorId, name })).company as { id: string }).id);
   const researched = await add("Researched Co");
   const fresh = await add("Not Yet Co");
+  // Both passed preflight, so both are sector companies.
+  await handle.db.update(sectorCompanies).set({ eligibility: "eligible" }).where(eq(sectorCompanies.sectorId, sectorId));
   await handle.db.insert(companyJobs).values({ id: randomUUID(), companyId: researched, status: "completed" });
   return { sectorId, researched, fresh };
 }
@@ -114,22 +117,27 @@ describe("ICP tools", () => {
     expect(res.content[0]?.text).toContain("no ICP check yet");
   });
 
-  it("records Apollo contact statuses and reports contactable only for a verified Apollo email", async () => {
+  it("imports Apollo people and reports contactable only for a verified Apollo email", async () => {
     const { sectorId, researched, fresh } = await seedSector();
-    const recorded = dataOf(
-      await call("company_contacts_record", {
-        items: [
-          { companyId: researched, counts: { name_verified_apollo: 1, email_verified_apollo: 1 }, source: "apollo test pull" },
-          { companyId: fresh, counts: { name_verified_apollo: 1, phone_verified_apollo: 1 }, source: "apollo test pull" },
+    const imported = dataOf(
+      await call("apollo_contacts_import", {
+        source: "apollo test pull",
+        pulledAt: "2026-10-27",
+        contacts: [
+          { apolloId: "a1", companyId: researched, name: "Synthetic A", email: "a@r.example", emailStatus: "verified" },
+          { apolloId: "a2", companyId: fresh, name: "Synthetic B", mobile: "+10000000001" },
         ],
       }),
     );
-    expect((recorded.results as { ok: boolean; contactable: boolean }[]).map((r) => r.contactable)).toEqual([true, false]);
+    expect(imported).toMatchObject({ stored: 2, results: [] });
     expect(dataOf(await call("company_contacts_get", { companyId: researched }))).toMatchObject({ contactable: true });
+    expect(dataOf(await call("company_contacts_get", { companyId: fresh }))).toMatchObject({ contactable: false });
     expect(dataOf(await call("sector_contacts_rederive", { sectorId }))).toEqual({ companies: 2, withName: 0, withRole: 0 });
-    // Public statuses cannot be written through the Apollo tool.
-    const bad = await call("company_contacts_record", {
-      items: [{ companyId: fresh, counts: { name_verified_public: 1 }, source: "apollo test pull" }],
+    // Unknown fields (a company main line, personal emails) are refused.
+    const bad = await call("apollo_contacts_import", {
+      source: "apollo test pull",
+      pulledAt: "2026-10-27",
+      contacts: [{ apolloId: "a3", companyId: fresh, orgPhone: "+10000000002" }],
     });
     expect(bad.isError).toBe(true);
   });

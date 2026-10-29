@@ -41,7 +41,7 @@ type AreaName = (typeof areaEnum.enumValues)[number];
 
 function extractDir(): string {
   const here = dirname(fileURLToPath(import.meta.url));
-  return join(here, "..", "..", "prompts", "extract-v3");
+  return join(here, "..", "..", "prompts", "extract-v4");
 }
 
 export function extractSchema(): string {

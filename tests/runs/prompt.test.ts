@@ -124,10 +124,10 @@ describe("buildResearchPrompt", () => {
     expect(() => buildResearchPrompt(ctx({ run: { promptVersion: null } }))).toThrowError(/pre-versioning run; cannot re-render/);
   });
 
-  it("lists v1 through v1.7 with v1.7 latest", () => {
-    expect(availablePromptVersions()).toEqual(["v1", "v1.1", "v1.2", "v1.3", "v1.4", "v1.5", "v1.6", "v1.7"]);
-    expect(latestPromptVersion()).toBe("v1.7");
-    expect(resolvePromptVersion()).toBe("v1.7");
+  it("lists v1 through v1.8 with v1.8 latest", () => {
+    expect(availablePromptVersions()).toEqual(["v1", "v1.1", "v1.2", "v1.3", "v1.4", "v1.5", "v1.6", "v1.7", "v1.8"]);
+    expect(latestPromptVersion()).toBe("v1.8");
+    expect(resolvePromptVersion()).toBe("v1.8");
     expect(() => resolvePromptVersion("v0")).toThrowError(/unknown prompt version/);
   });
 
@@ -272,5 +272,13 @@ describe("research-v1.7 rules", () => {
     expect(prompt).toContain("never open LinkedIn");
     expect(prompt).toContain("exactly as the source states it");
     expect(prompt).toContain("Last sign of life");
+  });
+});
+
+describe("research-v1.8 leaders", () => {
+  it("asks for leaders by name and role, never their emails or phones (D-67)", () => {
+    const prompt = buildResearchPrompt(ctx({ run: { promptVersion: "v1.8" } }));
+    expect(prompt).toMatch(/Leaders by name and role/);
+    expect(prompt).toMatch(/Never record a person's email, phone number/);
   });
 });
