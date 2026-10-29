@@ -41,6 +41,11 @@ export const RESEARCH_MUSE_ARGS = [
   "muse-spark-1.3",
   "--disable-reminders",
   "--no-foreign-personal-context",
+  // Muse withholds the subagent tools in an untrusted workspace ("Agent
+  // delegation: auto unavailable"), so the prompt's one-subagent-per-area
+  // plan silently ran solo. /workspace is empty in the container: trusting it
+  // loads no skills or rules and changes no approval or sandbox setting.
+  "--trust-workspace",
 ];
 
 /** Playwright MCP as proven in the container (--no-sandbox: Chrome's user
