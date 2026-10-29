@@ -5,7 +5,7 @@ import { companies, records, recordTypes, researchRuns, sectorCompanies, sectors
 import {
   companyContacts,
   isContactable,
-  recordApolloContacts,
+  importApolloContacts,
   rederivePublicContacts,
   rederiveSectorPublicContacts,
 } from "../../src/domain/contacts.js";
@@ -90,42 +90,54 @@ describe("contact statuses (D-67)", () => {
     expect(view.contactable).toBe(false);
   });
 
-  it("records Apollo statuses by domain, replaces them as a set and keeps public rows", async () => {
+  it("stores Apollo people, derives Apollo statuses and keeps paid fields across pulls", async () => {
     const { companyId, sourceId } = await seedCompany("leaf.example");
     await seedLeader(companyId, sourceId, { name: "Synthetic Founder", role: "Founder" });
     await rederivePublicContacts(handle.db, companyId);
 
-    const [first] = await recordApolloContacts(handle.db, [
-      {
-        domain: "https://www.leaf.example/",
-        counts: { name_verified_apollo: 2, role_verified_apollo: 2, email_verified_apollo: 1 },
-        source: "apollo export 2026-11-01",
-      },
+    const pull = (source: string, contacts: Parameters<typeof importApolloContacts>[1]["contacts"]) =>
+      importApolloContacts(handle.db, { source, pulledAt: new Date("2026-10-27"), contacts });
+    const first = await pull("apollo pull 1", [
+      { apolloId: "p1", domain: "https://www.leaf.example/", name: "Synthetic One", title: "Founder", email: "one@leaf.example", emailStatus: "verified" },
+      { apolloId: "p2", domain: "leaf.example", name: "Synthetic Two", title: "COO", email: "two@leaf.example", emailStatus: "extrapolated" },
     ]);
-    expect(first).toMatchObject({ ok: true, companyId, contactable: true });
+    expect(first.map((r) => r.ok && r.outcome)).toEqual(["created", "created"]);
+    let view = await companyContacts(handle.db, companyId);
+    expect(view.statuses.map((r) => [r.status, r.people])).toEqual([
+      ["name_verified_public", 1],
+      ["role_verified_public", 1],
+      ["name_verified_apollo", 2],
+      ["role_verified_apollo", 2],
+      // An extrapolated email is not verified.
+      ["email_verified_apollo", 1],
+    ]);
+    expect(view.contactable).toBe(true);
 
-    const [second] = await recordApolloContacts(handle.db, [
-      { companyId, counts: { name_verified_apollo: 1, phone_verified_apollo: 1 }, source: "apollo export 2026-11-08" },
-    ]);
-    expect(second).toMatchObject({ ok: true, contactable: false });
-
-    const view = await companyContacts(handle.db, companyId);
-    expect(view.statuses.map((r) => r.status)).toEqual([
-      "name_verified_public",
-      "role_verified_public",
-      "name_verified_apollo",
-      "phone_verified_apollo",
-    ]);
-    expect(view.contactable).toBe(false);
+    // A later mobile-only pull adds the phone and keeps the email we paid for.
+    const second = await pull("apollo pull 2", [{ apolloId: "p1", companyId, mobile: "+10000000000" }]);
+    expect(second[0]).toMatchObject({ ok: true, outcome: "updated" });
+    view = await companyContacts(handle.db, companyId);
+    expect(view.statuses.map((r) => r.status)).toContain("phone_verified_apollo");
+    expect(view.apollo.find((p) => p.apolloId === "p1")).toMatchObject({
+      email: "one@leaf.example",
+      emailStatus: "verified",
+      mobile: "+10000000000",
+      source: "apollo pull 2",
+    });
+    expect(view.contactable).toBe(true);
   });
 
-  it("fails one item without blocking the others", async () => {
+  it("fails one person without blocking the others", async () => {
     const { companyId } = await seedCompany("leaf.example");
-    const results = await recordApolloContacts(handle.db, [
-      { domain: "missing.example", counts: { email_verified_apollo: 1 }, source: "apollo" },
-      { companyId, domain: "leaf.example", counts: { email_verified_apollo: 1 }, source: "apollo" },
-      { companyId, counts: { email_verified_apollo: 1 }, source: "apollo" },
-    ]);
+    const results = await importApolloContacts(handle.db, {
+      source: "apollo",
+      pulledAt: new Date(),
+      contacts: [
+        { apolloId: "x1", domain: "missing.example", email: "a@missing.example", emailStatus: "verified" },
+        { apolloId: "x2", companyId, domain: "leaf.example", email: "b@leaf.example", emailStatus: "verified" },
+        { apolloId: "x3", companyId, email: "c@leaf.example", emailStatus: "verified" },
+      ],
+    });
     expect(results.map((r) => r.ok)).toEqual([false, false, true]);
     expect(isContactable((await companyContacts(handle.db, companyId)).statuses.map((r) => r.status))).toBe(true);
   });
@@ -153,9 +165,11 @@ describe("contact statuses (D-67)", () => {
       { companyId: out.companyId, sectorId, score: 3, signals: {}, status: "icp_accepted", source: "test" },
     ]);
     expect(await rederiveSectorPublicContacts(handle.db, sectorId)).toEqual({ companies: 2, withName: 1, withRole: 1 });
-    await recordApolloContacts(handle.db, [
-      { companyId: b.companyId, counts: { email_verified_apollo: 1 }, source: "apollo" },
-    ]);
+    await importApolloContacts(handle.db, {
+      source: "apollo",
+      pulledAt: new Date(),
+      contacts: [{ apolloId: "b1", companyId: b.companyId, email: "b@b.example", emailStatus: "verified" }],
+    });
 
     const summary = await sectorTierSummary(handle.db, sectorId);
     expect(summary.byContactStatus).toEqual({

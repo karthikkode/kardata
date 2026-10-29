@@ -1,6 +1,13 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { Db } from "../db/client.js";
-import { companies, companyContactStatuses, records, sectorCompanies } from "../db/schema.js";
+import {
+  apolloContacts,
+  companies,
+  companyContactStatuses,
+  records,
+  sectorCompanies,
+  type ApolloContact,
+} from "../db/schema.js";
 import { normalizeDomain } from "../lib/apollo/parse.js";
 import { DomainError } from "./errors.js";
 import { sectorCompaniesScope } from "./sectors.js";
@@ -12,7 +19,8 @@ import { sectorCompaniesScope } from "./sectors.js";
  *
  * - Public rows: names and roles from cited leader records. Research never
  *   collects emails or phone numbers.
- * - Apollo rows: written only from the owner's own Apollo pulls.
+ * - Apollo rows: derived from apollo_contacts, the people the owner bought
+ *   from Apollo. Stored so nobody is bought twice.
  * - Contactable means one thing: an email_verified_apollo row exists.
  */
 
@@ -97,20 +105,32 @@ export async function rederiveSectorPublicContacts(
   return { companies: members.length, withName, withRole };
 }
 
-export interface ApolloContactsInput {
+export interface ApolloContactInput {
+  /** Apollo's person id: the same person is never stored twice. */
+  apolloId: string;
   companyId?: string;
   domain?: string;
-  /** People per Apollo status; a status left out or 0 means none. */
-  counts: Partial<Record<ApolloContactStatus, number>>;
-  /** Which Apollo pull this came from, e.g. "apollo export 2026-11-02". */
-  source: string;
+  name?: string | null;
+  title?: string | null;
+  email?: string | null;
+  /** Apollo's label; only "verified" counts as email_verified_apollo. */
+  emailStatus?: string | null;
+  mobile?: string | null;
+  linkedin?: string | null;
 }
 
-export type ApolloContactsResult =
-  | { ok: true; companyId: string; statuses: ApolloContactStatus[]; contactable: boolean }
-  | { ok: false; error: string };
+export interface ApolloImportInput {
+  /** Which Apollo pull this is, e.g. "apollo pull 2026-10-27". */
+  source: string;
+  pulledAt: Date;
+  contacts: ApolloContactInput[];
+}
 
-async function resolveCompanyId(db: Db, input: ApolloContactsInput): Promise<string> {
+export type ApolloImportResult =
+  | { ok: true; apolloId: string; companyId: string; outcome: "created" | "updated" }
+  | { ok: false; apolloId: string; error: string };
+
+async function resolveCompanyId(db: Db, input: { companyId?: string; domain?: string }): Promise<string> {
   const hasId = input.companyId !== undefined && input.companyId !== "";
   const hasDomain = input.domain !== undefined && input.domain !== "";
   if (hasId === hasDomain) throw new DomainError("invalid_input", "pass exactly one of companyId or domain");
@@ -127,47 +147,98 @@ async function resolveCompanyId(db: Db, input: ApolloContactsInput): Promise<str
   return rows[0]!.id;
 }
 
+function clean(value: string | null | undefined): string | null {
+  const v = value?.trim() ?? "";
+  return v === "" ? null : v;
+}
+
 /**
- * Record what one Apollo pull found for each company. A company's Apollo rows
- * are replaced as a set, so a newer pull supersedes an older one. Public rows
- * are never touched. Each item succeeds or fails on its own.
+ * Store the people from one of the owner's Apollo pulls, then rebuild the
+ * Apollo contact statuses of every company touched. A person already stored
+ * keeps any field the new pull leaves empty, so a later phone-only pull never
+ * wipes an email we paid for. Each person succeeds or fails on its own.
  */
-export async function recordApolloContacts(db: Db, items: ApolloContactsInput[]): Promise<ApolloContactsResult[]> {
-  const results: ApolloContactsResult[] = [];
-  for (const item of items) {
+export async function importApolloContacts(db: Db, input: ApolloImportInput): Promise<ApolloImportResult[]> {
+  const source = input.source.trim();
+  if (source === "") throw new DomainError("invalid_input", "source is empty");
+  const results: ApolloImportResult[] = [];
+  const touched = new Set<string>();
+  for (const c of input.contacts) {
     try {
-      if (item.source.trim() === "") throw new DomainError("invalid_input", "source is empty");
-      const companyId = await resolveCompanyId(db, item);
-      const rows = APOLLO_CONTACT_STATUSES.filter((s) => (item.counts[s] ?? 0) > 0).map((status) => ({
-        companyId,
-        status,
-        people: item.counts[status]!,
-        source: item.source.trim(),
-      }));
-      await db.transaction(async (tx) => {
-        await tx
-          .delete(companyContactStatuses)
-          .where(
-            and(
-              eq(companyContactStatuses.companyId, companyId),
-              inArray(companyContactStatuses.status, [...APOLLO_CONTACT_STATUSES]),
-            ),
-          );
-        if (rows.length > 0) await tx.insert(companyContactStatuses).values(rows);
-      });
-      const statuses = rows.map((r) => r.status);
-      results.push({ ok: true, companyId, statuses, contactable: isContactable(statuses) });
+      const apolloId = c.apolloId.trim();
+      if (apolloId === "") throw new DomainError("invalid_input", "apolloId is empty");
+      const companyId = await resolveCompanyId(db, c);
+      const fields = {
+        name: clean(c.name),
+        title: clean(c.title),
+        email: clean(c.email),
+        emailStatus: clean(c.emailStatus),
+        mobile: clean(c.mobile),
+        linkedin: clean(c.linkedin),
+      };
+      const [existing] = await db.select().from(apolloContacts).where(eq(apolloContacts.apolloId, apolloId));
+      if (existing) {
+        const merged = Object.fromEntries(
+          Object.entries(fields).map(([k, v]) => [k, v ?? existing[k as keyof typeof fields]]),
+        ) as typeof fields;
+        await db
+          .update(apolloContacts)
+          .set({ ...merged, companyId, source, pulledAt: input.pulledAt })
+          .where(eq(apolloContacts.apolloId, apolloId));
+        if (existing.companyId !== companyId) touched.add(existing.companyId);
+      } else {
+        await db.insert(apolloContacts).values({ apolloId, companyId, ...fields, source, pulledAt: input.pulledAt });
+      }
+      touched.add(companyId);
+      results.push({ ok: true, apolloId, companyId, outcome: existing ? "updated" : "created" });
     } catch (err) {
-      results.push({ ok: false, error: err instanceof Error ? err.message : String(err) });
+      results.push({ ok: false, apolloId: c.apolloId, error: err instanceof Error ? err.message : String(err) });
     }
   }
+  for (const companyId of touched) await rederiveApolloContacts(db, companyId);
   return results;
+}
+
+/** Replace a company's Apollo rows from its stored Apollo contacts. */
+export async function rederiveApolloContacts(
+  db: Db,
+  companyId: string,
+): Promise<Partial<Record<ApolloContactStatus, number>>> {
+  const people = await db.select().from(apolloContacts).where(eq(apolloContacts.companyId, companyId));
+  const counts: Partial<Record<ApolloContactStatus, number>> = {};
+  const add = (status: ApolloContactStatus, n: number) => {
+    if (n > 0) counts[status] = n;
+  };
+  add("name_verified_apollo", people.filter((p) => p.name).length);
+  add("role_verified_apollo", people.filter((p) => p.title).length);
+  add("email_verified_apollo", people.filter((p) => p.email && p.emailStatus === "verified").length);
+  add("phone_verified_apollo", people.filter((p) => p.mobile).length);
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(companyContactStatuses)
+      .where(
+        and(
+          eq(companyContactStatuses.companyId, companyId),
+          inArray(companyContactStatuses.status, [...APOLLO_CONTACT_STATUSES]),
+        ),
+      );
+    const rows = Object.entries(counts).map(([status, n]) => ({
+      companyId,
+      status: status as ApolloContactStatus,
+      people: n,
+      source: "apollo contacts",
+    }));
+    if (rows.length > 0) await tx.insert(companyContactStatuses).values(rows);
+  });
+  return counts;
 }
 
 export interface CompanyContacts {
   companyId: string;
   contactable: boolean;
   statuses: { status: ContactStatus; people: number; source: string; updatedAt: Date }[];
+  /** The people bought from Apollo. */
+  apollo: ApolloContact[];
 }
 
 export async function companyContacts(db: Db, companyId: string): Promise<CompanyContacts> {
@@ -182,7 +253,8 @@ export async function companyContacts(db: Db, companyId: string): Promise<Compan
     .where(eq(companyContactStatuses.companyId, companyId));
   const order = [...PUBLIC_CONTACT_STATUSES, ...APOLLO_CONTACT_STATUSES] as ContactStatus[];
   rows.sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status));
-  return { companyId, contactable: isContactable(rows.map((r) => r.status)), statuses: rows };
+  const apollo = await db.select().from(apolloContacts).where(eq(apolloContacts.companyId, companyId));
+  return { companyId, contactable: isContactable(rows.map((r) => r.status)), statuses: rows, apollo };
 }
 
 /** Contact statuses for many companies at once (summaries and lists). */

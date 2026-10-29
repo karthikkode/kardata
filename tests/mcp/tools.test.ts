@@ -123,7 +123,7 @@ const EXPECTED_TOOLS = [
   "sector_icp_status",
   "company_icp_get",
   "company_contacts_get",
-  "company_contacts_record",
+  "apollo_contacts_import",
   "sector_contacts_rederive",
   "sector_icp_companies",
   "company_eligibility_override",

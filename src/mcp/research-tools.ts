@@ -112,9 +112,8 @@ import {
 } from "../domain/screening.js";
 import { DomainError } from "../domain/errors.js";
 import {
-  APOLLO_CONTACT_STATUSES,
   companyContacts,
-  recordApolloContacts,
+  importApolloContacts,
   rederiveSectorPublicContacts,
 } from "../domain/contacts.js";
 import { companyIcpView, sectorIcpCompanies } from "../domain/icp/reads.js";
@@ -1853,7 +1852,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
     "company_contacts_get",
     {
       description:
-        "Operator (read-only): a company's contact statuses (D-67), one row per status with people count and source. Public rows (name/role) come from cited leader records; Apollo rows only from the owner's Apollo pulls. contactable = an email_verified_apollo row exists. Separate from the ICP status.",
+        "Operator (read-only): a company's contact statuses (D-67), one row per status with people count and source. Public rows (name/role) come from cited leader records; Apollo rows from the people stored by apollo_contacts_import, which are listed too. contactable = an email_verified_apollo row exists. Separate from the ICP status.",
       inputSchema: { companyId },
     },
     async ({ companyId: id }) =>
@@ -1867,43 +1866,47 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   );
 
   registerTool(server, db, auth,
-    "company_contacts_record",
+    "apollo_contacts_import",
     {
       description:
-        "Operator: record what one of the owner's Apollo pulls found, for up to 500 companies (D-67). Only run it on Apollo data the owner pulled; never on public sources, and it never spends Apollo credits. Per company, give people counts per Apollo status; the company's Apollo rows are replaced as a set (public rows are untouched). Stores statuses and counts only, never names, emails or phones.",
+        "Operator: store people from one of the owner's Apollo pulls (up to 500 per call), then rebuild those companies' Apollo contact statuses (D-67). Only for data the owner already bought from Apollo; never public sources, and it never calls Apollo or spends credits. Keyed by Apollo person id: a person already stored keeps any field the new pull leaves empty. Don't pass the company main line or personal emails.",
       inputSchema: {
-        items: z
+        source: z.string().min(1).describe('The Apollo pull, e.g. "apollo pull 2026-10-27"'),
+        pulledAt: z.string().describe("When the pull was made (ISO date)"),
+        contacts: z
           .array(
-            z.object({
-              companyId: z.string().optional().describe("Company UUID (or pass domain)"),
-              domain: z.string().optional().describe("Company domain (or pass companyId)"),
-              counts: z
-                .object(Object.fromEntries(APOLLO_CONTACT_STATUSES.map((st) => [st, z.number().int().min(0).optional()])))
-                .strict()
-                .describe("People per Apollo status, e.g. {name_verified_apollo: 2, email_verified_apollo: 1}"),
-              source: z.string().min(1).describe('The Apollo pull, e.g. "apollo export 2026-11-02"'),
-            }),
+            z
+              .object({
+                apolloId: z.string().min(1).describe("Apollo person id"),
+                companyId: z.string().optional().describe("Company UUID (or pass domain)"),
+                domain: z.string().optional().describe("Company domain (or pass companyId)"),
+                name: z.string().nullable().optional(),
+                title: z.string().nullable().optional(),
+                email: z.string().nullable().optional(),
+                emailStatus: z.string().nullable().optional().describe('Apollo\'s label; only "verified" makes a company contactable'),
+                mobile: z.string().nullable().optional(),
+                linkedin: z.string().nullable().optional(),
+              })
+              .strict(),
           )
           .min(1)
           .max(500),
       },
     },
-    async ({ items }) =>
+    async ({ source, pulledAt, contacts }) =>
       wrap(async () => {
-        const results = await recordApolloContacts(
-          db,
-          items.map((i) => ({
-            companyId: i.companyId ?? undefined,
-            domain: i.domain ?? undefined,
-            counts: i.counts as Record<string, number | undefined>,
-            source: i.source,
-          })),
-        );
+        const at = new Date(pulledAt);
+        if (Number.isNaN(at.getTime())) throw new DomainError("invalid_input", "pulledAt is not a date");
+        const results = await importApolloContacts(db, {
+          source,
+          pulledAt: at,
+          contacts: contacts.map((c) => ({ ...c, companyId: c.companyId ?? undefined, domain: c.domain ?? undefined })),
+        });
         const ok = results.filter((r) => r.ok);
-        const contactable = ok.filter((r) => r.ok && r.contactable).length;
+        const failed = results.filter((r) => !r.ok);
         return {
-          summary: `${ok.length}/${results.length} recorded, ${contactable} contactable, ${results.length - ok.length} failed`,
-          data: { results },
+          summary: `${ok.length}/${results.length} stored (${ok.filter((r) => r.ok && r.outcome === "created").length} new), ${new Set(ok.map((r) => (r.ok ? r.companyId : ""))).size} companies, ${failed.length} failed`,
+          data: { results: failed.length > 0 ? failed : [], stored: ok.length },
         };
       }),
   );
