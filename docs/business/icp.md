@@ -30,7 +30,9 @@ The structure is the same for every sector:
   - `NAME_VERIFIED_APOLLO`, `ROLE_VERIFIED_APOLLO`, `EMAIL_VERIFIED_APOLLO`, `PHONE_VERIFIED_APOLLO`: from Apollo.
   - **Emails and phone numbers come only from Apollo, never from public sources.** Public research gives names
     and roles only.
-  - Apollo credits are spent only when the owner says so, as a bulk pull for a campaign.
+  - Apollo credits are spent only when the owner says so, as a bulk pull for a campaign. Every person bought is
+    stored in the database (`apollo_contacts_import`), so nobody is bought twice.
+  - Research collects leaders' public names and roles (founder, CEO, department heads) for every company.
 - **Contactable** = the company has an `EMAIL_VERIFIED_APOLLO` contact. Nothing else makes a company contactable:
   not the ICP status, and not names or roles found in public sources.
 - **Research wave:** which group of companies gets researched first. Older plans and reviews call this "Layer 1/Layer 2". That old use is retired. See docs/sectors/skincare/ for this sector's waves.

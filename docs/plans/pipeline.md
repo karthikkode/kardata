@@ -43,7 +43,8 @@ Business rules live in `docs/business/icp.md`. This file only gives the order.
 - **The ICP check** scores the 6 signals and the exclusions from stored, quoted, dated evidence only
   (`evidence-rules.md`). Every company gets an ICP status with its observations: `icp_accepted`, `icp_watchlist`,
   `icp_rejected`, or `research_incomplete` (no usable evidence yet). The same step rebuilds the company's public
-  contact statuses (names and roles from leader records). See `icp.md`, Terms (D-67).
+  contact statuses (names and roles from leader records). Apollo people the owner bought go in with
+  `apollo_contacts_import`; `company_contacts_get` shows both. See `icp.md`, Terms (D-67).
 - **Until stage 5.5 ships,** this check has no standard job. Don't score companies by hand; wait for 5.5.
 
 ## Step 4: Tier and the outreach sheet
