@@ -28,8 +28,8 @@ const tsvector = customType<{ data: string; driverData: string }>({
   },
 });
 
-export const companySource = pgEnum("company_source", ["apollo", "manual"]);
-export const membershipAddedVia = pgEnum("membership_added_via", ["csv", "manual"]);
+export const companySource = pgEnum("company_source", ["apollo", "manual", "sec"]);
+export const membershipAddedVia = pgEnum("membership_added_via", ["csv", "manual", "sec"]);
 export const sectorEligibility = pgEnum("sector_eligibility", ["pending", "eligible", "review", "ineligible"]);
 export const eligibilitySource = pgEnum("eligibility_source", ["rule", "override"]);
 export const eligibilityDecision = pgEnum("eligibility_decision", ["include", "exclude"]);
@@ -57,6 +57,7 @@ export const companies = pgTable(
     // Plain UNIQUE on a nullable column: Postgres treats NULLs as distinct,
     // which is exactly "unique where not null".
     apolloAccountId: text("apollo_account_id").unique("companies_apollo_account_id_key"),
+    secCrd: text("sec_crd").unique("companies_sec_crd_key"),
     source: companySource("source").notNull(),
     domain: text("domain"),
     sharedDomain: boolean("shared_domain").notNull().default(false),

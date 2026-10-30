@@ -54,6 +54,7 @@ function ctx(overrides: {
     company: {
       id: companyId,
       apolloAccountId: null,
+      secCrd: null,
       source: "apollo",
       domain: "example.com",
       sharedDomain: false,
