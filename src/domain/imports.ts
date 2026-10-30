@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
+import { facts as factsTable, factKeys } from "../db/schema.js";
+import { validateTypedValue } from "./research/validate.js";
 import { readFile, realpath, stat } from "node:fs/promises";
 import { basename, sep } from "node:path";
 import { and, desc, eq } from "drizzle-orm";
@@ -11,7 +13,7 @@ import { getImportDirs } from "../lib/env.js";
 import { getOrCreateManualRun } from "../runs/queue.js";
 import { recomputeSharedDomains } from "./companies.js";
 import { DomainError } from "./errors.js";
-import { addFacts, type AddFactItem } from "./research/facts.js";
+import type { AddFactItem } from "./research/facts.js";
 import { createApolloImportSource, createSecImportSource } from "./research/sources.js";
 
 export const MAX_FILES = 10;
@@ -155,6 +157,7 @@ export async function importOneFile(
 
   const skippedEntries = [...parsed.skipped];
   const affectedDomains = new Set<string>();
+  const ensuredKeys = new Set<string>();
   let created = 0;
   let linked = 0;
   let updated = 0;
@@ -297,6 +300,68 @@ function secTypedColumns(row: SecCompany) {
   };
 }
 
+const SEC_FACT_TYPES: Record<string, string> = {
+  "firm.regulatory_aum": "number",
+  "firm.accounts": "number",
+  "firm.wealth_share": "number",
+  "firm.client_individuals": "number",
+  "firm.client_hnw": "number",
+  "firm.client_total": "number",
+  "firm.compensation_types": "text_list",
+  "firm.registration_status": "text",
+  "firm.firm_type": "text",
+  "firm.sec_number": "text",
+  "firm.filing_date": "date",
+  "financials.employees": "number",
+};
+
+/** Bulk fact write for the SEC import: keys ensured once, one insert per firm. */
+async function insertSecFacts(
+  tx: DbLike,
+  companyId: string,
+  runId: string,
+  items: AddFactItem[],
+  ensured: Set<string>,
+): Promise<void> {
+  if (items.length === 0) return;
+  const existing = ensured.size > 0 ? [] : await tx.select({ key: factKeys.key }).from(factKeys);
+  const have = new Set([...ensured, ...existing.map((r) => r.key)]);
+  for (const [key, type] of Object.entries(SEC_FACT_TYPES)) {
+    if (have.has(key)) continue;
+    ensured.add(key);
+    await tx
+      .insert(factKeys)
+      .values({ key, valueType: type as never, unit: null, description: "", qualifierNames: [], status: "provisional", createdBy: "collector:sec_import" })
+      .onConflictDoNothing();
+  }
+  for (const key of Object.keys(SEC_FACT_TYPES)) ensured.add(key);
+  const rows = items.map((item) => {
+    const type = SEC_FACT_TYPES[item.key] ?? "text";
+    const typed = validateTypedValue(type, item.value, `fact "${item.key}"`);
+    return {
+      id: randomUUID(),
+      companyId,
+      runId,
+      key: item.key,
+      valueNum: typed.valueNum,
+      valueText: typed.valueText,
+      valueDate: typed.valueDate,
+      valueBool: typed.valueBool,
+      valueJson: typed.valueJson,
+      currency: typed.currency,
+      unit: null,
+      qualifiers: {},
+      asOf: item.asOf ?? null,
+      validFrom: null,
+      validTo: null,
+      sourceIds: item.sourceIds,
+      confidence: (item.confidence ?? "high") as "high" | "medium" | "low",
+      createdBy: "collector:sec_import",
+    };
+  });
+  await tx.insert(factsTable).values(rows);
+}
+
 function secFacts(row: SecCompany, sourceId: string, fileDate: string | null): AddFactItem[] {
   const items: AddFactItem[] = [];
   const push = (key: string, value: unknown) => {
@@ -372,6 +437,7 @@ export async function importSecOneFile(
   for (const row of parsed.rows) byCrd.set(row.crd, row);
   const skippedEntries = [...parsed.skipped];
   const affectedDomains = new Set<string>();
+  const ensuredKeys = new Set<string>();
   let created = 0;
   let linked = 0;
   let updated = 0;
@@ -395,17 +461,7 @@ export async function importSecOneFile(
         crd: row.crd,
         raw: row.raw,
       });
-      const facts = secFacts(row, sourceId, fileDate);
-      if (facts.length > 0) {
-        const results = await addFacts(tx, {
-          companyId: existing.id,
-          runId,
-          createdBy: "collector:sec_import",
-          facts,
-        });
-        const failed = results.find((r) => !r.ok);
-        if (failed && !failed.ok) throw new Error(`SEC fact write failed: ${failed.error}`);
-      }
+      await insertSecFacts(tx, existing.id, runId, secFacts(row, sourceId, fileDate), ensuredKeys);
       updated += 1;
       if (membership) {
         await tx
@@ -443,17 +499,7 @@ export async function importSecOneFile(
         crd: row.crd,
         raw: row.raw,
       });
-      const facts = secFacts(row, sourceId, fileDate);
-      if (facts.length > 0) {
-        const results = await addFacts(tx, {
-          companyId: createdRow.id,
-          runId,
-          createdBy: "collector:sec_import",
-          facts,
-        });
-        const failed = results.find((r) => !r.ok);
-        if (failed && !failed.ok) throw new Error(`SEC fact write failed: ${failed.error}`);
-      }
+      await insertSecFacts(tx, createdRow.id, runId, secFacts(row, sourceId, fileDate), ensuredKeys);
       created += 1;
     }
     const domain = row.domain ?? normalizeDomain(row.website);
