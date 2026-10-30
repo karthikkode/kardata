@@ -32,7 +32,7 @@ function pack(riaExclusion: string | null = null): EvidencePack {
     revenue: { revenueUsed: null, revenueSource: null, tier: null, flags: [] },
     playbook: "ria",
     riaExclusion,
-  } as EvidencePack;
+  } as unknown as EvidencePack;
 }
 
 function judgement() {
