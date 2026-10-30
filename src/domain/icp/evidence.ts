@@ -5,7 +5,7 @@ import { DomainError } from "../errors.js";
 import { getProfileOrNull } from "../sector-preflight/profile.js";
 import { companyRevenueTruth } from "../tiering.js";
 import { RIA_SIGNAL_RULES } from "./ria-rules.js";
-import { ALL_RULES, type BucketKey, type BucketRule, type Route } from "./rules.js";
+import { ALL_RULES, type BucketRule, type Route } from "./rules.js";
 
 /**
  * The ICP evidence pack (Stage 5.5 Step 1): stored facts and records sorted
@@ -295,9 +295,7 @@ export interface EvidencePack extends BuiltPack {
   riaExclusion?: string | null;
 }
 
-const FACT_KEYS = [...new Set(ALL_RULES.flatMap((r) => r.routes.flatMap((route) => route.factKeys ?? [])))];
-const KEY_PREFIXES = [...new Set(ALL_RULES.flatMap((r) => r.routes.flatMap((route) => route.keyPrefixes ?? [])))];
-const RECORD_TYPES = [...new Set(ALL_RULES.flatMap((r) => r.routes.flatMap((route) => route.recordTypes ?? [])))];
+/* Fact/record routing is derived per playbook inside icpEvidence. */
 
 /** AUM/staff history -> one firm.growth fact when growth is 20%+ (icp.md section 4). */
 async function growthFact(db: Db, companyId: string): Promise<EvidenceFact | null> {
