@@ -478,6 +478,46 @@ export async function companyRevenueTruth(db: Db, companyId: string, sectorId: s
     };
   }
 
+  if (profile?.playbook === "ria" && profile.ria) {
+    const [aumRow] = await db
+      .select()
+      .from(factsCurrent)
+      .where(and(eq(factsCurrent.companyId, companyId), eq(factsCurrent.key, "firm.regulatory_aum")));
+    const aum = aumRow ? factAmount(aumRow) : null;
+    const score = verdict ? verdict.score : null;
+    const group = aum === null ? null : aum < profile.ria.groupSplitAum ? "P" : "R";
+    const revenueUsed = aum === null ? null : Math.round(aum * 0.008);
+    let status: IcpStatus;
+    let exclusionReason: string | null = null;
+    if (verdict?.status === "icp_rejected") {
+      status = "icp_rejected";
+      exclusionReason = verdict.exclusionReason ?? "rejected";
+    } else if (verdict?.status === "research_incomplete") {
+      status = "research_incomplete";
+    } else if (score === null) {
+      status = "icp_watchlist";
+    } else {
+      // Advisers: score 0 is still called, last (layer 8).
+      status = "icp_accepted";
+    }
+    return {
+      companyId,
+      revenueUsed,
+      revenueSource: revenueUsed === null ? null : "staff_estimate",
+      revenueKind: null,
+      publicSourceName: null,
+      flaggedFigure: null,
+      rejected: null,
+      staff: pickStaff(staffCandidates),
+      tier: group as Tier,
+      score,
+      layer: score === null ? null : 8 - score,
+      status,
+      exclusionReason,
+      flags: revenueUsed === null ? ["no AUM basis"] : [`revenue estimated as AUM x 0.8%: $${revenueUsed.toLocaleString("en-US")}`],
+    };
+  }
+
   const truth = computeRevenueTruth({
     tiering: profile?.tiering,
     publicRevenue,

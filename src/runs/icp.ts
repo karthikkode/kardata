@@ -12,9 +12,10 @@ import { DomainError } from "../domain/errors.js";
 import type { HarnessUsage } from "../harness/types.js";
 import { icpEvidence, type EvidenceItem, type EvidencePack } from "../domain/icp/evidence.js";
 import {
-  ICP_PROMPT_VERSION,
   buildIcpPrompt,
   decideIcp,
+  decideRia,
+  icpPromptVersion,
   icpSchema,
   incompleteDecision,
   mergeJudgements,
@@ -112,13 +113,14 @@ export async function runIcpCheck(db: Db, input: RunIcpInput): Promise<RunIcpOut
   if (pack.usable === 0) {
     decision = incompleteDecision();
   } else {
-    const prompt = buildIcpPrompt(pack);
+    const variant = pack.playbook === "ria" ? "ria" as const : "d2c" as const;
+    const prompt = buildIcpPrompt(pack, variant);
     const call = input.call ?? dockerClassifierCall;
     const judgeOnce = async (seq: number): Promise<{ judgement: Judgement; usage: HarnessUsage | null }> => {
       const started = Date.now();
       for (let attempt = 0; ; attempt += 1) {
         try {
-          const result = await call({ runId, prompt, schema: icpSchema(), stallMs: ICP_STALL_MS, callKey: `v${seq}-a${attempt}` });
+          const result = await call({ runId, prompt, schema: icpSchema(variant), stallMs: ICP_STALL_MS, callKey: `v${seq}-a${attempt}` });
           await logIcpCall(db, { ...run, status: "running" } as ResearchRun, {
             seq,
             prompt,
@@ -127,7 +129,7 @@ export async function runIcpCheck(db: Db, input: RunIcpInput): Promise<RunIcpOut
             usage: result.usage,
             durationMs: Date.now() - started,
           });
-          return { judgement: parseJudgement(result.json), usage: result.usage ?? null };
+          return { judgement: parseJudgement(result.json, variant), usage: result.usage ?? null };
         } catch (err) {
           if (attempt >= ICP_CALL_RETRIES) throw err;
         }
@@ -141,7 +143,7 @@ export async function runIcpCheck(db: Db, input: RunIcpInput): Promise<RunIcpOut
     }
     const merged = mergeJudgements(votes.map((v) => v.judgement));
     tallies = merged.tallies;
-    decision = decideIcp(pack, merged.judgement);
+    decision = variant === "ria" ? decideRia(pack, merged.judgement) : decideIcp(pack, merged.judgement);
     const used = votes.map((v) => v.usage).filter((u): u is HarnessUsage => u !== null);
     if (used.length > 0) {
       usage = {
@@ -155,13 +157,14 @@ export async function runIcpCheck(db: Db, input: RunIcpInput): Promise<RunIcpOut
       };
     }
   }
+  const promptVersion = icpPromptVersion(pack.playbook);
   const checkId = randomUUID();
   await db.insert(companyIcpChecks).values({
     id: checkId,
     companyId: input.companyId,
     sectorId: input.sectorId,
     runId,
-    promptVersion: ICP_PROMPT_VERSION,
+    promptVersion,
     packHash: packHash(pack),
     score: decision.score,
     status: decision.status,
@@ -191,7 +194,7 @@ export async function runIcpCheck(db: Db, input: RunIcpInput): Promise<RunIcpOut
         signals: Object.fromEntries(decision.signals.map((s) => [s.key, s.counted])),
         status: decision.status,
         exclusionReason: decision.exclusionReason,
-        source: `${ICP_PROMPT_VERSION}:${checkId}`,
+        source: `${promptVersion}:${checkId}`,
       },
     ]);
   }

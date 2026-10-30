@@ -19,10 +19,39 @@ const categoryKey = z
   .string()
   .regex(/^[a-z][a-z0-9_]*$/, "category key must be snake_case");
 
+/** RIA thresholds from docs/sectors/ria/icp.md sections 1-3 (Stage 5.7 B1). */
+export const riaThresholdsSchema = z
+  .object({
+    maxAum: z.number().positive(),
+    maxEmployees: z.number().int().positive(),
+    minEmployees: z.number().int().min(0),
+    minWealthShare: z.number().min(0).max(1),
+    groupSplitAum: z.number().positive(),
+  })
+  .strict();
+
+export type RiaThresholds = z.infer<typeof riaThresholdsSchema>;
+
+export const DEFAULT_RIA_THRESHOLDS: RiaThresholds = {
+  maxAum: 10_000_000_000,
+  maxEmployees: 100,
+  minEmployees: 2,
+  minWealthShare: 0.5,
+  groupSplitAum: 500_000_000,
+};
+
+const DEFAULT_TIERING = {
+  apolloMinPerStaff: 75_000,
+  staffEstimatePerHead: 175_000,
+  publicCheckPerStaff: 1_000_000,
+  pressSources: [] as string[],
+};
+
 export const sectorProfileSchema = z
   .object({
     name: z.string().min(1).max(120).optional(),
     description: z.string().max(2000).optional(),
+    playbook: z.enum(["d2c", "ria"]).default("d2c"),
     categories: z
       .array(
         z
@@ -40,9 +69,9 @@ export const sectorProfileSchema = z
         coreCategories: z.array(categoryKey).max(20),
         adjacentCategories: z.array(categoryKey).max(20),
         scopeKeywords: z.array(z.string().min(1).max(120)).max(200),
-        businessTypes: z.array(z.string().min(1)).min(1).max(30),
-        requireSellsOwnProducts: z.boolean(),
-        requireHasOnlineStore: z.boolean(),
+        businessTypes: z.array(z.string().min(1)).max(30).optional(),
+        requireSellsOwnProducts: z.boolean().optional(),
+        requireHasOnlineStore: z.boolean().optional(),
       })
       .strict(),
     classifierHints: z
@@ -51,15 +80,17 @@ export const sectorProfileSchema = z
         retailerExamples: z.string().max(500),
         supplierExamples: z.string().max(500),
       })
-      .strict(),
+      .strict()
+      .optional(),
     tiering: z
       .object({
-        apolloMinPerStaff: z.number().positive(),
-        staffEstimatePerHead: z.number().positive(),
-        publicCheckPerStaff: z.number().positive(),
-        pressSources: z.array(z.string().min(1).max(120)).max(50),
+        apolloMinPerStaff: z.number().positive().optional(),
+        staffEstimatePerHead: z.number().positive().optional(),
+        publicCheckPerStaff: z.number().positive().optional(),
+        pressSources: z.array(z.string().min(1).max(120)).max(50).optional(),
       })
-      .strict(),
+      .strict()
+      .optional(),
     promptHints: z
       .object({
         retailerExamples: z.string().max(300),
@@ -67,11 +98,35 @@ export const sectorProfileSchema = z
         productClaims: z.string().max(300),
         positioningStory: z.string().max(300),
       })
-      .strict(),
+      .strict()
+      .optional(),
+    ria: riaThresholdsSchema.optional(),
   })
   .strict();
 
-export type SectorProfile = z.infer<typeof sectorProfileSchema>;
+export interface SectorProfile {
+  name?: string;
+  description?: string;
+  playbook: "d2c" | "ria";
+  categories: { key: string; label: string; description: string }[];
+  scope: {
+    coreCategories: string[];
+    adjacentCategories: string[];
+    scopeKeywords: string[];
+    businessTypes: string[];
+    requireSellsOwnProducts: boolean;
+    requireHasOnlineStore: boolean;
+  };
+  classifierHints: { serviceExamples: string; retailerExamples: string; supplierExamples: string };
+  tiering: {
+    apolloMinPerStaff: number;
+    staffEstimatePerHead: number;
+    publicCheckPerStaff: number;
+    pressSources: string[];
+  };
+  promptHints: { retailerExamples: string; priceTiers: string; productClaims: string; positioningStory: string };
+  ria?: RiaThresholds;
+}
 
 export const OTHER_CATEGORY = {
   key: "other",
@@ -114,12 +169,91 @@ export function parseSectorProfile(value: unknown): SectorProfile {
       `invalid sector profile: categories in both core and adjacent scope: ${overlap.join(", ")}`,
     );
   }
-  for (const type of profile.scope.businessTypes) {
+  for (const type of profile.scope.businessTypes ?? []) {
     if (!(BUSINESS_TYPES as readonly string[]).includes(type)) {
       throw new DomainError("invalid_input", `invalid sector profile: scope lists unknown business_type "${type}"`);
     }
   }
-  return profile;
+  if (profile.playbook === "ria") {
+    if (!profile.ria) {
+      throw new DomainError("invalid_input", "invalid sector profile: ria playbook requires a ria block");
+    }
+    const normalized: SectorProfile = {
+      ...(profile.name !== undefined ? { name: profile.name } : {}),
+      ...(profile.description !== undefined ? { description: profile.description } : {}),
+      playbook: "ria",
+      categories: profile.categories,
+      scope: {
+        coreCategories: profile.scope.coreCategories,
+        adjacentCategories: profile.scope.adjacentCategories,
+        scopeKeywords: profile.scope.scopeKeywords,
+        businessTypes: profile.scope.businessTypes ?? [],
+        requireSellsOwnProducts: profile.scope.requireSellsOwnProducts ?? false,
+        requireHasOnlineStore: profile.scope.requireHasOnlineStore ?? false,
+      },
+      classifierHints: profile.classifierHints ?? { serviceExamples: "", retailerExamples: "", supplierExamples: "" },
+      tiering: {
+        apolloMinPerStaff: profile.tiering?.apolloMinPerStaff ?? DEFAULT_TIERING.apolloMinPerStaff,
+        staffEstimatePerHead: profile.tiering?.staffEstimatePerHead ?? DEFAULT_TIERING.staffEstimatePerHead,
+        publicCheckPerStaff: profile.tiering?.publicCheckPerStaff ?? DEFAULT_TIERING.publicCheckPerStaff,
+        pressSources: profile.tiering?.pressSources ?? [],
+      },
+      promptHints: profile.promptHints ?? { retailerExamples: "", priceTiers: "", productClaims: "", positioningStory: "" },
+      ria: profile.ria,
+    };
+    return normalized;
+  }
+  // d2c: every D2C-only field is required, exactly as before Stage 5.7.
+  if (profile.ria) {
+    throw new DomainError("invalid_input", "invalid sector profile: ria block requires playbook ria");
+  }
+  if (!profile.scope.businessTypes || profile.scope.businessTypes.length === 0) {
+    throw new DomainError("invalid_input", "invalid sector profile: scope.businessTypes: required for d2c");
+  }
+  if (profile.scope.requireSellsOwnProducts === undefined) {
+    throw new DomainError("invalid_input", "invalid sector profile: scope.requireSellsOwnProducts: required for d2c");
+  }
+  if (profile.scope.requireHasOnlineStore === undefined) {
+    throw new DomainError("invalid_input", "invalid sector profile: scope.requireHasOnlineStore: required for d2c");
+  }
+  if (!profile.classifierHints) {
+    throw new DomainError("invalid_input", "invalid sector profile: classifierHints: required for d2c");
+  }
+  if (
+    !profile.tiering ||
+    profile.tiering.apolloMinPerStaff === undefined ||
+    profile.tiering.staffEstimatePerHead === undefined ||
+    profile.tiering.publicCheckPerStaff === undefined ||
+    profile.tiering.pressSources === undefined
+  ) {
+    throw new DomainError("invalid_input", "invalid sector profile: tiering: required for d2c");
+  }
+  if (!profile.promptHints) {
+    throw new DomainError("invalid_input", "invalid sector profile: promptHints: required for d2c");
+  }
+  const normalizedD2c: SectorProfile = {
+    ...(profile.name !== undefined ? { name: profile.name } : {}),
+    ...(profile.description !== undefined ? { description: profile.description } : {}),
+    playbook: "d2c",
+    categories: profile.categories,
+    scope: {
+      coreCategories: profile.scope.coreCategories,
+      adjacentCategories: profile.scope.adjacentCategories,
+      scopeKeywords: profile.scope.scopeKeywords,
+      businessTypes: profile.scope.businessTypes,
+      requireSellsOwnProducts: profile.scope.requireSellsOwnProducts,
+      requireHasOnlineStore: profile.scope.requireHasOnlineStore,
+    },
+    classifierHints: profile.classifierHints,
+    tiering: {
+      apolloMinPerStaff: profile.tiering.apolloMinPerStaff,
+      staffEstimatePerHead: profile.tiering.staffEstimatePerHead,
+      publicCheckPerStaff: profile.tiering.publicCheckPerStaff,
+      pressSources: profile.tiering.pressSources,
+    },
+    promptHints: profile.promptHints,
+  };
+  return normalizedD2c;
 }
 
 export function categoryKeys(profile: SectorProfile): string[] {
@@ -187,12 +321,13 @@ export async function setProfile(
   }
   const changedFields: string[] = [];
   if (existing) {
-    const topKeys = ["name", "description", "categories", "scope", "classifierHints", "tiering", "promptHints"] as const;
+    const topKeys = ["name", "description", "playbook", "categories", "scope", "classifierHints", "tiering", "promptHints", "ria"] as const;
     for (const key of topKeys) {
       if (JSON.stringify(existing[key] ?? null) !== JSON.stringify(profile[key] ?? null)) changedFields.push(key);
     }
   } else {
-    changedFields.push("categories", "scope", "classifierHints", "tiering", "promptHints");
+    changedFields.push("playbook", "categories", "scope", "classifierHints", "tiering", "promptHints");
+    if (profile.playbook === "ria") changedFields.push("ria");
   }
   const keysChanged =
     existing !== null &&

@@ -153,6 +153,51 @@ export async function createApolloImportSource(db: DbLike, input: ApolloImportSo
   return row.id;
 }
 
+export const SEC_IMPORT_COLLECTOR = "sec_import";
+
+export function secImportUrl(importId: string, crd: string): string {
+  return `sec:import/${importId}/${crd}`;
+}
+
+export interface SecImportSourceInput {
+  companyId: string;
+  runId: string;
+  importId: string;
+  crd: string;
+  raw: unknown;
+}
+
+/** One source per imported SEC row: the row JSON, snapshotted so SEC facts can cite it. */
+export async function createSecImportSource(db: DbLike, input: SecImportSourceInput): Promise<string> {
+  const [company] = await db.select({ id: companies.id }).from(companies).where(eq(companies.id, input.companyId));
+  if (!company) throw new DomainError("not_found", `company not found: ${input.companyId}`);
+  const [run] = await db
+    .select({ id: researchRuns.id, companyId: researchRuns.companyId })
+    .from(researchRuns)
+    .where(eq(researchRuns.id, input.runId));
+  if (!run) throw new DomainError("not_found", `run not found: ${input.runId}`);
+  if (run.companyId !== input.companyId) {
+    throw new DomainError("invalid_input", `run ${input.runId} belongs to another company`);
+  }
+  const sha = await storeBlob(db, "application/json", Buffer.from(JSON.stringify(input.raw ?? {}), "utf8"));
+  const url = secImportUrl(input.importId, input.crd);
+  const [row] = await db
+    .insert(sources)
+    .values({
+      id: randomUUID(),
+      companyId: input.companyId,
+      runId: input.runId,
+      url,
+      finalUrl: url,
+      collector: SEC_IMPORT_COLLECTOR,
+      status: "ok",
+      blobSha256: sha,
+    })
+    .returning({ id: sources.id });
+  if (!row) throw new Error("source insert returned no row");
+  return row.id;
+}
+
 // Latest apollo_import source for a company, if any.
 export async function findApolloImportSource(
   db: DbLike,

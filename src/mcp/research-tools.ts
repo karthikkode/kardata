@@ -117,7 +117,7 @@ import {
   rederiveSectorPublicContacts,
 } from "../domain/contacts.js";
 import { companyIcpView, sectorIcpCompanies } from "../domain/icp/reads.js";
-import { allCheckedCsv, allCheckedRows, outreachCsv, outreachSheetRows } from "../domain/icp/sheet.js";
+import { allCheckedCsv, allCheckedRows, outreachCsv, outreachSheetRows, riaCsv, riaSheetRows } from "../domain/icp/sheet.js";
 import {
   type AuthContext,
   agentLabelSchema,
@@ -1345,13 +1345,16 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       wrap(async () => {
         const { mkdir, writeFile } = await import("node:fs/promises");
         const { join } = await import("node:path");
-        const rows = await outreachSheetRows(db, sectorId);
+        const sectorProfile = await getProfileOrNull(db, sectorId);
+        const isRia = sectorProfile?.playbook === "ria";
+        const riaRows = isRia ? await riaSheetRows(db, sectorId) : null;
+        const rows = isRia ? [] : await outreachSheetRows(db, sectorId);
         const date = new Date().toISOString().slice(0, 10);
         const [sectorRow] = await db.select({ name: sectors.name }).from(sectors).where(eq(sectors.id, sectorId));
         const dir = join(process.cwd(), "var", "sectors", sectorSlug(sectorRow?.name ?? "sector"), "analysis");
         await mkdir(dir, { recursive: true });
         const path = join(dir, `companies-${date}.csv`);
-        await writeFile(path, outreachCsv(rows), "utf8");
+        await writeFile(path, isRia && riaRows ? riaCsv(riaRows) : outreachCsv(rows), "utf8");
         let allPath: string | null = null;
         let allRows = 0;
         if (includeAll) {
@@ -1360,9 +1363,10 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
           await writeFile(allPath, allCheckedCsv(all), "utf8");
           allRows = all.length;
         }
+        const sheetCount = isRia && riaRows ? riaRows.length : rows.length;
         return {
-          summary: `${rows.length} ICP accepted companies written to ${path}${allPath ? `; ${allRows} checked companies to ${allPath}` : ""}`,
-          data: { path, rows: rows.length, allPath, allRows },
+          summary: `${sheetCount} ICP accepted companies written to ${path}${allPath ? `; ${allRows} checked companies to ${allPath}` : ""}`,
+          data: { path, rows: sheetCount, allPath, allRows },
         };
       }),
   );

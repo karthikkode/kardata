@@ -99,6 +99,59 @@ describe("profile v2 fields", () => {
   });
 });
 
+describe("playbook (Stage 5.7 B1)", () => {
+  const riaInput = {
+    playbook: "ria" as const,
+    categories: [{ key: "wealth_management", label: "Wealth management", description: "Adviser for individuals." }],
+    scope: { coreCategories: ["wealth_management"], adjacentCategories: [], scopeKeywords: [] },
+    ria: { maxAum: 10_000_000_000, maxEmployees: 100, minEmployees: 2, minWealthShare: 0.5, groupSplitAum: 500_000_000 },
+  };
+
+  it("defaults playbook to d2c and keeps the hash for existing profiles", () => {
+    const profile = parseSectorProfile(gardenInput);
+    expect(profile.playbook).toBe("d2c");
+    expect(profile.ria).toBeUndefined();
+    const explicit = parseSectorProfile({ ...gardenInput, playbook: "d2c" });
+    expect(profileHash(explicit)).toBe(profileHash(profile));
+  });
+
+  it("parses a minimal ria profile without D2C-only fields", () => {
+    const profile = parseSectorProfile(riaInput);
+    expect(profile.playbook).toBe("ria");
+    expect(profile.ria).toEqual(riaInput.ria);
+    expect(profile.scope.businessTypes).toEqual([]);
+    expect(profile.scope.requireSellsOwnProducts).toBe(false);
+    expect(categoryKeys(profile)).toEqual(["wealth_management", "other"]);
+  });
+
+  it("parses docs/sectors/ria/profile.json with the icp.md thresholds", () => {
+    const profile = parseSectorProfile(
+      JSON.parse(readFileSync(resolve("docs/sectors/ria/profile.json"), "utf8")),
+    );
+    expect(profile.playbook).toBe("ria");
+    expect(profile.ria?.maxAum).toBe(10_000_000_000);
+    expect(profile.ria?.maxEmployees).toBe(100);
+    expect(profile.ria?.minEmployees).toBe(2);
+    expect(profile.ria?.minWealthShare).toBe(0.5);
+    expect(profile.ria?.groupSplitAum).toBe(500_000_000);
+  });
+
+  it("parses the skincare profile unchanged as d2c", () => {
+    const profile = parseSectorProfile(
+      JSON.parse(readFileSync(resolve("docs/sectors/skincare/profile.json"), "utf8")),
+    );
+    expect(profile.playbook).toBe("d2c");
+  });
+
+  it("rejects ria without a ria block and d2c missing D2C fields", () => {
+    expect(() => parseSectorProfile({ ...riaInput, ria: undefined })).toThrowError(/ria block/);
+    expect(() =>
+      parseSectorProfile({ categories: gardenInput.categories, scope: { coreCategories: ["growing"], adjacentCategories: [], scopeKeywords: [] } }),
+    ).toThrowError(/invalid sector profile/);
+    expect(() => parseSectorProfile({ ...gardenInput, ria: riaInput.ria })).toThrowError(/playbook ria/);
+  });
+});
+
 describe("neutral fixture profile", () => {
   it("parses tests/fixtures/sector-profile.json with invented categories", () => {
     const profile = parseSectorProfile(

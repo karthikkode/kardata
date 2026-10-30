@@ -19,6 +19,7 @@ import {
   updateCompany,
   updateSector,
 } from "../domain/index.js";
+import { importSec } from "../domain/imports.js";
 
 import { fail, ok, text, wrap } from "./result.js";
 
@@ -149,7 +150,26 @@ export function registerTools(server: McpServer, db: Db, auth: AuthContext): voi
       }),
   );
 
-  registerTool(server, db, auth, 
+  registerTool(server, db, auth,
+    "sector_import_sec",
+    {
+      description: "Import the SEC monthly investment adviser file (ZIP or extracted CSV) into a sector, keyed by CRD. Returns per-file counts.",
+      inputSchema: {
+        sectorId,
+        path: z.string().describe("Absolute SEC file path (inside KARDATA_IMPORT_DIRS)"),
+      },
+    },
+    async ({ sectorId, path }) =>
+      wrap(async () => {
+        const result = await importSec(db, sectorId, path);
+        const summary = result.ok
+          ? `${result.import.filename}: ${result.import.createdCount} created, ${result.import.linkedCount} linked, ${result.import.updatedCount} updated, ${result.import.skippedCount} skipped`
+          : `${result.path}: FAILED (${result.error.message})`;
+        return { summary, data: { import: result } };
+      }),
+  );
+
+  registerTool(server, db, auth,
     "company_add",
     {
       description: "Add a company by hand to a sector. Returns the company and possible domain duplicates.",

@@ -1,0 +1,22 @@
+{
+  "playbook": "ria",
+  "categories": [
+    {
+      "key": "wealth_management",
+      "label": "Wealth management",
+      "description": "SEC-registered adviser serving individuals and high-net-worth clients."
+    }
+  ],
+  "scope": {
+    "coreCategories": ["wealth_management"],
+    "adjacentCategories": [],
+    "scopeKeywords": []
+  },
+  "ria": {
+    "maxAum": 10000000000,
+    "maxEmployees": 100,
+    "minEmployees": 2,
+    "minWealthShare": 0.5,
+    "groupSplitAum": 500000000
+  }
+}

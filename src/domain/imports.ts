@@ -5,14 +5,18 @@ import { and, desc, eq } from "drizzle-orm";
 import { companies, imports, sectorCompanies, sectors, type Import } from "../db/schema.js";
 import type { Db, DbLike } from "../db/client.js";
 import { ApolloFileError, parseApolloCsv, type ParsedCompany } from "../lib/apollo/parse.js";
+import { extractSecCsv, parseSecCsv, SecFileError, secFileDate, type SecCompany } from "../lib/sec/parse.js";
+import { normalizeDomain } from "../lib/apollo/parse.js";
 import { getImportDirs } from "../lib/env.js";
 import { getOrCreateManualRun } from "../runs/queue.js";
 import { recomputeSharedDomains } from "./companies.js";
 import { DomainError } from "./errors.js";
-import { createApolloImportSource } from "./research/sources.js";
+import { addFacts, type AddFactItem } from "./research/facts.js";
+import { createApolloImportSource, createSecImportSource } from "./research/sources.js";
 
 export const MAX_FILES = 10;
 export const MAX_FILE_BYTES = 25 * 1024 * 1024;
+export const SEC_MAX_FILE_BYTES = 100 * 1024 * 1024;
 export const MAX_SKIPPED_ENTRIES = 200;
 
 export interface ImportSuccess {
@@ -47,7 +51,11 @@ function insideDirs(resolved: string, dirs: string[]): boolean {
 }
 
 /** Fail fast on unreadable, out-of-jail, or oversized files. Returns resolved paths. */
-export async function checkImportPaths(paths: string[], importDirs: string[]): Promise<string[]> {
+export async function checkImportPaths(
+  paths: string[],
+  importDirs: string[],
+  maxBytes: number = MAX_FILE_BYTES,
+): Promise<string[]> {
   const dirs = await resolveImportDirs(importDirs);
   const resolved: string[] = [];
   for (const path of paths) {
@@ -70,8 +78,8 @@ export async function checkImportPaths(paths: string[], importDirs: string[]): P
       throw new DomainError("file_error", `cannot read file: ${path}`);
     }
     if (!isFile) throw new DomainError("invalid_input", `not a file: ${path}`);
-    if (size > MAX_FILE_BYTES) {
-      throw new DomainError("invalid_input", `file exceeds 25 MB: ${path}`);
+    if (size > maxBytes) {
+      throw new DomainError("invalid_input", `file exceeds ${Math.round(maxBytes / (1024 * 1024))} MB: ${path}`);
     }
     resolved.push(full);
   }
@@ -265,6 +273,222 @@ export async function importCsv(
     results.push(await db.transaction((tx) => importOneFile(tx, sectorId, path)));
   }
   return results;
+}
+
+// ---- SEC adviser file import (Stage 5.7 B2) ----
+
+function secTypedColumns(row: SecCompany) {
+  return {
+    domain: row.domain ?? normalizeDomain(row.website),
+    name: row.name,
+    website: row.website,
+    employees: row.employees,
+    country: row.country,
+    state: row.state,
+    city: row.city,
+    postalCode: row.postalCode,
+    address: row.address,
+    phone: row.phone,
+    keywords: [] as string[],
+    technologies: [] as string[],
+    sicCodes: [] as string[],
+    naicsCodes: [] as string[],
+    raw: row.raw as unknown as Record<string, unknown>,
+  };
+}
+
+function secFacts(row: SecCompany, sourceId: string, fileDate: string | null): AddFactItem[] {
+  const items: AddFactItem[] = [];
+  const push = (key: string, value: unknown) => {
+    if (value === null || value === undefined) return;
+    if (typeof value === "number" && !Number.isFinite(value)) return;
+    items.push({ key, value, sourceIds: [sourceId], confidence: "high", asOf: fileDate, quote: null, quoteSourceId: null });
+  };
+  push("firm.regulatory_aum", row.regulatoryAum);
+  push("firm.accounts", row.accounts);
+  push("firm.wealth_share", row.wealthShare);
+  push("firm.client_individuals", row.individuals);
+  push("firm.client_hnw", row.hnw);
+  push("firm.client_total", row.totalClients);
+  if (row.compensationTypes.length > 0) {
+    items.push({
+      key: "firm.compensation_types",
+      value: row.compensationTypes,
+      sourceIds: [sourceId],
+      confidence: "high",
+      asOf: fileDate,
+      quote: null,
+      quoteSourceId: null,
+    });
+  }
+  push("firm.registration_status", row.registrationStatus);
+  push("firm.firm_type", row.firmType);
+  push("firm.sec_number", row.secNumber);
+  push("firm.filing_date", row.filingDate);
+  push("financials.employees", row.employees);
+  return items;
+}
+
+/**
+ * Import one SEC file (ZIP or extracted CSV) inside the caller's transaction.
+ * Companies are keyed by CRD; re-import writes fresh facts and keeps history.
+ */
+export async function importSecOneFile(
+  tx: DbLike,
+  sectorId: string,
+  givenPath: string,
+): Promise<FileImportResult> {
+  const importId = randomUUID();
+  let bytes: Buffer;
+  let sha256: string;
+  try {
+    bytes = await readFile(givenPath);
+    sha256 = createHash("sha256").update(bytes).digest("hex");
+  } catch {
+    return { path: givenPath, ok: false, error: { code: "file_error", message: `cannot read file: ${givenPath}` } };
+  }
+  let text: string;
+  let fileDate: string | null = secFileDate(basename(givenPath));
+  try {
+    if (basename(givenPath).toLowerCase().endsWith(".zip")) {
+      const extracted = extractSecCsv(bytes);
+      text = extracted.text;
+      fileDate = secFileDate(extracted.csvName) ?? fileDate;
+    } else {
+      text = bytes.toString("utf8");
+    }
+  } catch (err) {
+    const message = err instanceof SecFileError ? err.message : `unparseable file: ${givenPath}`;
+    return { path: givenPath, ok: false, error: { code: "file_error", message } };
+  }
+  let parsed: { rows: SecCompany[]; skipped: { row: number; reason: string }[] };
+  try {
+    parsed = parseSecCsv(text);
+  } catch (err) {
+    const message = err instanceof SecFileError ? err.message : `unparseable CSV: ${givenPath}`;
+    return { path: givenPath, ok: false, error: { code: "file_error", message } };
+  }
+  const byCrd = new Map<string, SecCompany>();
+  for (const row of parsed.rows) byCrd.set(row.crd, row);
+  const skippedEntries = [...parsed.skipped];
+  const affectedDomains = new Set<string>();
+  let created = 0;
+  let linked = 0;
+  let updated = 0;
+  for (const row of byCrd.values()) {
+    const existing = await tx.query.companies.findFirst({ where: eq(companies.secCrd, row.crd) });
+    if (existing) {
+      const membership = await tx.query.sectorCompanies.findFirst({
+        where: and(eq(sectorCompanies.sectorId, sectorId), eq(sectorCompanies.companyId, existing.id)),
+      });
+      if (membership?.removedAt) {
+        skippedEntries.push({ row: row.rowNumber, reason: "removed by owner" });
+        continue;
+      }
+      if (existing.domain) affectedDomains.add(existing.domain);
+      await tx.update(companies).set(secTypedColumns(row)).where(eq(companies.id, existing.id));
+      const runId = await getOrCreateManualRun(tx, existing.id);
+      const sourceId = await createSecImportSource(tx, {
+        companyId: existing.id,
+        runId,
+        importId,
+        crd: row.crd,
+        raw: row.raw,
+      });
+      const facts = secFacts(row, sourceId, fileDate);
+      if (facts.length > 0) {
+        const results = await addFacts(tx, {
+          companyId: existing.id,
+          runId,
+          createdBy: "collector:sec_import",
+          facts,
+        });
+        const failed = results.find((r) => !r.ok);
+        if (failed && !failed.ok) throw new Error(`SEC fact write failed: ${failed.error}`);
+      }
+      updated += 1;
+      if (membership) {
+        await tx
+          .update(sectorCompanies)
+          .set({ lastImportId: importId })
+          .where(and(eq(sectorCompanies.sectorId, sectorId), eq(sectorCompanies.companyId, existing.id)));
+      } else {
+        await tx.insert(sectorCompanies).values({
+          sectorId,
+          companyId: existing.id,
+          addedVia: "sec",
+          firstImportId: importId,
+          lastImportId: importId,
+        });
+        linked += 1;
+      }
+    } else {
+      const [createdRow] = await tx
+        .insert(companies)
+        .values({ id: randomUUID(), secCrd: row.crd, source: "sec", ...secTypedColumns(row) })
+        .returning({ id: companies.id });
+      if (!createdRow) throw new Error("insert returned no row");
+      await tx.insert(sectorCompanies).values({
+        sectorId,
+        companyId: createdRow.id,
+        addedVia: "sec",
+        firstImportId: importId,
+        lastImportId: importId,
+      });
+      const runId = await getOrCreateManualRun(tx, createdRow.id);
+      const sourceId = await createSecImportSource(tx, {
+        companyId: createdRow.id,
+        runId,
+        importId,
+        crd: row.crd,
+        raw: row.raw,
+      });
+      const facts = secFacts(row, sourceId, fileDate);
+      if (facts.length > 0) {
+        const results = await addFacts(tx, {
+          companyId: createdRow.id,
+          runId,
+          createdBy: "collector:sec_import",
+          facts,
+        });
+        const failed = results.find((r) => !r.ok);
+        if (failed && !failed.ok) throw new Error(`SEC fact write failed: ${failed.error}`);
+      }
+      created += 1;
+    }
+    const domain = row.domain ?? normalizeDomain(row.website);
+    if (domain) affectedDomains.add(domain);
+  }
+  await recomputeSharedDomains(tx, affectedDomains);
+  const [importRow] = await tx
+    .insert(imports)
+    .values({
+      id: importId,
+      sectorId,
+      filename: basename(givenPath),
+      fileSha256: sha256,
+      rowsRead: parsed.rows.length + parsed.skipped.length,
+      createdCount: created,
+      linkedCount: linked,
+      updatedCount: updated,
+      skippedCount: skippedEntries.length,
+      skipped: skippedEntries.slice(0, MAX_SKIPPED_ENTRIES),
+    })
+    .returning();
+  if (!importRow) throw new Error("insert returned no row");
+  return { path: givenPath, ok: true, import: importRow };
+}
+
+export async function importSec(
+  db: Db,
+  sectorId: string,
+  path: string,
+  opts: { importDirs?: string[] } = {},
+): Promise<FileImportResult> {
+  const sector = await db.query.sectors.findFirst({ where: eq(sectors.id, sectorId) });
+  if (!sector) throw new DomainError("not_found", `sector not found: ${sectorId}`);
+  await checkImportPaths([path], opts.importDirs ?? getImportDirs(), SEC_MAX_FILE_BYTES);
+  return db.transaction((tx) => importSecOneFile(tx, sectorId, path));
 }
 
 export async function listImports(db: Db, sectorId: string): Promise<Import[]> {

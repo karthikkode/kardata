@@ -96,7 +96,8 @@ function validateTypedField(key: string, value: unknown): unknown {
 export interface EffectiveCompany {
   id: string;
   apolloAccountId: string | null;
-  source: "apollo" | "manual";
+  secCrd: string | null;
+  source: "apollo" | "manual" | "sec";
   domain: string | null;
   sharedDomain: boolean;
   name: string | null;
@@ -155,7 +156,7 @@ export interface CompanyListItem {
   totalFunding: string | null;
   technologyCount: number;
   sharedDomain: boolean;
-  source: "apollo" | "manual";
+  source: "apollo" | "manual" | "sec";
   removed: boolean;
   hasOverrides: boolean;
 }
@@ -175,6 +176,7 @@ export function toEffectiveCompany(row: Company): EffectiveCompany {
   return {
     id: row.id,
     apolloAccountId: row.apolloAccountId,
+    secCrd: row.secCrd,
     source: row.source,
     domain: "website" in overrides ? normalizeDomain(website) : row.domain,
     sharedDomain: row.sharedDomain,

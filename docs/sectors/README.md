@@ -1,6 +1,7 @@
 # Sectors
 
-One folder per sector. A sector is a D2C market we research company by company.
+One folder per sector. A sector is a market we research company by company. Most are D2C markets (playbook
+`d2c`); `ria` is the first non-D2C sector (playbook `ria`, D-69).
 
 Status: candidate | active | rejected.
 

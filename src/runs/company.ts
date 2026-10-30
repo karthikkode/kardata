@@ -45,7 +45,8 @@ import {
 } from "./job-shared.js";
 import { assertExtractionComplete, extractRun } from "./extract.js";
 import { runIcpCheck } from "./icp.js";
-import { latestPromptVersion } from "./prompt.js";
+import { researchVersionForPlaybook } from "./prompt.js";
+import { getProfileOrNull } from "../domain/sector-preflight/profile.js";
 import { cancelRun, startCollect } from "./queue.js";
 import {
   checkpointGet,
@@ -616,9 +617,10 @@ export async function beginStageReal(db: Db, job: CompanyJob, stage: CompanyStag
   // Preflight is recon, not research: a short leash.
   const agentOpts =
     stage === "preflight" ? { maxMinutes: 15, maxModelSteps: 30 } : { maxMinutes: 40, maxModelSteps: 100 };
+  const sectorProfile = job.sectorId ? await getProfileOrNull(db, job.sectorId) : null;
   const result = await researchStart(db, {
     companyIds: [job.companyId],
-    promptVersion: latestPromptVersion(),
+    promptVersion: stage === "research" ? researchVersionForPlaybook(sectorProfile?.playbook) : researchVersionForPlaybook("d2c"),
     companyJobId: job.id,
     stage,
     ...agentOpts,
