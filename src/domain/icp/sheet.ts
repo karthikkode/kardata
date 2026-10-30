@@ -1,10 +1,14 @@
+import { and, eq } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
-import type { CompanyIcpCheck } from "../../db/schema.js";
+import { companies, records, type CompanyIcpCheck } from "../../db/schema.js";
 import { sectorSheetRows, type SheetRow } from "../tiering.js";
 import type { EvidenceItem } from "./evidence.js";
 import type { BucketResult } from "./judge.js";
 import { hasTechTeam, latestIcpCheck, sectorIcpCompanies, signalsMet, type SectorIcpCompanyRow } from "./reads.js";
+import { RIA_SIGNAL_RULES } from "./ria-rules.js";
 import { SIGNAL_RULES } from "./rules.js";
+
+const ALL_SIGNAL_RULES = [...SIGNAL_RULES, ...RIA_SIGNAL_RULES];
 
 /**
  * The outreach sheet (Stage 5.5 Step 5): the ICP accepted list by tier, then
@@ -69,7 +73,7 @@ export function observations(check: CompanyIcpCheck): string[] {
   for (const s of results) {
     if (!s.counted) continue;
     const first = s.refs.map((r) => evidence.get(r)).find((e) => e !== undefined);
-    const label = SIGNAL_RULES.find((r) => r.key === s.key)?.label ?? s.key;
+    const label = ALL_SIGNAL_RULES.find((r) => r.key === s.key)?.label ?? s.key;
     const date = first?.date ? ` (${first.date})` : "";
     const url = first?.url ? ` ${first.url}` : "";
     out.push(`${label}${date}: ${s.observation}${url}`);
@@ -139,6 +143,142 @@ export async function allCheckedRows(db: Db, sectorId: string): Promise<SectorIc
     if (rows.length >= page.total || page.rows.length === 0) break;
   }
   return rows;
+}
+
+// ---- RIA sheet (Stage 5.7 B6): firm, state, time zone, group, layer ----
+
+const STATE_TZ: Record<string, string> = {};
+for (const s of ["ME", "VT", "NH", "MA", "RI", "CT", "NY", "NJ", "PA", "DE", "MD", "VA", "WV", "OH", "MI", "IN", "KY", "TN", "SC", "NC", "GA", "FL", "DC"]) STATE_TZ[s] = "America/New_York";
+for (const s of ["WI", "IL", "MS", "AL", "MO", "IA", "MN", "AR", "LA", "TX", "OK", "KS", "NE", "SD", "ND"]) STATE_TZ[s] = "America/Chicago";
+for (const s of ["MT", "WY", "CO", "UT", "AZ", "NM"]) STATE_TZ[s] = "America/Denver";
+for (const s of ["CA", "OR", "WA", "NV"]) STATE_TZ[s] = "America/Los_Angeles";
+STATE_TZ["ID"] = "America/Boise";
+STATE_TZ["AK"] = "America/Anchorage";
+STATE_TZ["HI"] = "Pacific/Honolulu";
+
+export function timeZoneForState(state: string | null): string {
+  if (!state) return "";
+  return STATE_TZ[state.trim().toUpperCase()] ?? "";
+}
+
+const OPS_TITLE = /\b(coo|chief operating|director of operations|head of operations|operations)\b/i;
+const CCO_TITLE = /\b(chief compliance|cco)\b/i;
+const FOUNDER_TITLE = /\b(founder|managing partner|president|ceo|owner)\b/i;
+
+export function pickContact(leaders: { name: string; title: string }[], group: string): { name: string; title: string } | null {
+  const order = group === "R" ? [OPS_TITLE, CCO_TITLE, FOUNDER_TITLE] : [FOUNDER_TITLE, OPS_TITLE];
+  for (const pattern of order) {
+    const found = leaders.find((l) => pattern.test(l.title));
+    if (found) return found;
+  }
+  return leaders[0] ?? null;
+}
+
+export interface RiaSheetRow {
+  companyId: string;
+  firm: string;
+  state: string;
+  timeZone: string;
+  group: string;
+  layer: number;
+  score: number;
+  signals: string[];
+  contactName: string;
+  contactTitle: string;
+  phone: string;
+  website: string;
+}
+
+export const RIA_HEADER = [
+  "Firm",
+  "State",
+  "Time zone",
+  "Group",
+  "Layer",
+  "Score",
+  "Signals",
+  "Contact name",
+  "Contact title",
+  "Main phone",
+  "Website",
+  "Company ID",
+  ...TRACKING_COLUMNS,
+];
+
+function signalsWithQuotes(check: CompanyIcpCheck): string[] {
+  const results = (check.results as { signals?: BucketResult[] }).signals ?? [];
+  const evidence = new Map((check.evidence as EvidenceItem[]).map((e) => [e.ref, e]));
+  const out: string[] = [];
+  for (const s of results) {
+    if (!s.counted) continue;
+    const first = s.refs.map((r) => evidence.get(r)).find((e) => e !== undefined);
+    const label = ALL_SIGNAL_RULES.find((r) => r.key === s.key)?.label ?? s.key;
+    const quote = first?.quote ? ` "${first.quote}"` : "";
+    const date = first?.date ? ` (${first.date})` : "";
+    out.push(`${label}${date}: ${s.observation}${quote}`);
+  }
+  return out;
+}
+
+export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRow[]> {
+  const base = await sectorSheetRows(db, sectorId);
+  const rows: RiaSheetRow[] = [];
+  for (const row of base) {
+    const [company] = await db
+      .select({ state: companies.state, phone: companies.phone, website: companies.website })
+      .from(companies)
+      .where(eq(companies.id, row.companyId));
+    const leaderRows = await db
+      .select({ data: records.data })
+      .from(records)
+      .where(and(eq(records.companyId, row.companyId), eq(records.type, "leader")));
+    const leaders = leaderRows
+      .map((r) => r.data as Record<string, unknown>)
+      .filter((d) => typeof d["name"] === "string")
+      .map((d) => ({ name: String(d["name"]), title: String(d["title"] ?? d["role"] ?? "") }));
+    const check = await latestIcpCheck(db, row.companyId, sectorId);
+    const contact = pickContact(leaders, row.tier);
+    rows.push({
+      companyId: row.companyId,
+      firm: row.company,
+      state: company?.state ?? "",
+      timeZone: timeZoneForState(company?.state ?? null),
+      group: row.tier,
+      layer: row.layer,
+      score: row.score,
+      signals: check ? signalsWithQuotes(check) : [],
+      contactName: contact?.name ?? "",
+      contactTitle: contact?.title ?? "",
+      phone: company?.phone ?? "",
+      website: company?.website ?? "",
+    });
+  }
+  rows.sort((a, b) => (a.group === b.group ? a.layer - b.layer || b.score - a.score : a.group.localeCompare(b.group)));
+  return rows;
+}
+
+export function riaCsv(rows: RiaSheetRow[]): string {
+  const lines = [RIA_HEADER.join(",")];
+  for (const r of rows) {
+    lines.push(
+      [
+        cell(r.firm),
+        cell(r.state),
+        cell(r.timeZone),
+        r.group,
+        r.layer,
+        r.score,
+        cell(r.signals.join(" | ")),
+        cell(r.contactName),
+        cell(r.contactTitle),
+        cell(r.phone),
+        cell(r.website),
+        r.companyId,
+        ...TRACKING_COLUMNS.map(() => ""),
+      ].join(","),
+    );
+  }
+  return lines.join("\n") + "\n";
 }
 
 export function allCheckedCsv(rows: SectorIcpCompanyRow[]): string {

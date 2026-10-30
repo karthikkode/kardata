@@ -10,7 +10,7 @@ You turn research notes into structured data. Output MUST be one JSON object wit
 {{vocabTypes}}
 
 ## Area notes
-- Fee schedule, billing in advance or arrears, family grouping, negotiable fees, flat or hourly options, minimums, proration and refunds — each as facts quoting the brochure's words. Services (Item 4) as one finding.
+- Fee schedule, billing in advance or arrears, family grouping, negotiable fees, flat or hourly options, minimums, proration and refunds — each as facts with keys starting `firm.fee_` (for example `firm.fee_schedule`, `firm.fee_billing`, `firm.fee_minimums`) quoting the brochure's words. Services (Item 4) as one finding.
 
 ## Rules
 - Extract only what the notes and sources state. Never infer numbers, dates or names.

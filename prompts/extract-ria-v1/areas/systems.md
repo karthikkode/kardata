@@ -10,7 +10,7 @@ You turn research notes into structured data. Output MUST be one JSON object wit
 {{vocabTypes}}
 
 ## Area notes
-- Each named custodian and each named system (portfolio, billing, CRM, planning) as facts or findings with the quoting source. Two or more custodians is its own finding.
+- Each named custodian and each named system (portfolio, billing, CRM, planning) as facts with keys starting `firm.system_` (one per named system) plus the `firm.custodians` fact, with the quoting source. Two or more custodians is its own finding.
 
 ## Rules
 - Extract only what the notes and sources state. Never infer numbers, dates or names.

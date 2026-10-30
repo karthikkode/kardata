@@ -1,9 +1,11 @@
-import { and, eq, inArray, like, or } from "drizzle-orm";
+import { and, asc, eq, inArray, like, or } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
-import { companies, factsCurrent, records, sectorPreflight, sources } from "../../db/schema.js";
+import { companies, facts, factsCurrent, records, sectorCompanies, sectorPreflight, sources } from "../../db/schema.js";
 import { DomainError } from "../errors.js";
+import { getProfileOrNull } from "../sector-preflight/profile.js";
 import { companyRevenueTruth } from "../tiering.js";
-import { ALL_RULES, type BucketKey, type Route } from "./rules.js";
+import { RIA_SIGNAL_RULES } from "./ria-rules.js";
+import { ALL_RULES, type BucketKey, type BucketRule, type Route } from "./rules.js";
 
 /**
  * The ICP evidence pack (Stage 5.5 Step 1): stored facts and records sorted
@@ -84,7 +86,7 @@ export interface PackInput {
   now: Date;
 }
 
-export type Buckets = Record<BucketKey, EvidenceItem[]>;
+export type Buckets = Record<string, EvidenceItem[]>;
 
 export interface BuiltPack {
   buckets: Buckets;
@@ -228,7 +230,7 @@ function admits(route: Route, c: Candidate, now: Date, dropped: DroppedCounts): 
 }
 
 /** Sort usable rows into buckets; pure, so the rules are testable without a database. */
-export function buildPack(input: PackInput): BuiltPack {
+export function buildPack(input: PackInput, rules: BucketRule[] = ALL_RULES): BuiltPack {
   const dropped: DroppedCounts = { unverified: 0, notesOnly: 0, undated: 0, stale: 0 };
   const facts: Candidate[] = [];
   const recs: Candidate[] = [];
@@ -244,7 +246,7 @@ export function buildPack(input: PackInput): BuiltPack {
   }
   const buckets = {} as Buckets;
   const used = new Set<string>();
-  for (const rule of ALL_RULES) {
+  for (const rule of rules) {
     const items = new Map<string, EvidenceItem>();
     for (const route of rule.routes) {
       const wantsFact = (key: string) =>
@@ -288,36 +290,95 @@ export interface EvidencePack extends BuiltPack {
   company: CompanyHeader;
   preflight: PreflightSummary | null;
   revenue: { revenueUsed: number | null; revenueSource: string | null; tier: string | null; flags: string[] };
+  playbook?: "d2c" | "ria";
+  /** Preflight reason key when the ria preflight kept the firm aside. */
+  riaExclusion?: string | null;
 }
 
 const FACT_KEYS = [...new Set(ALL_RULES.flatMap((r) => r.routes.flatMap((route) => route.factKeys ?? [])))];
 const KEY_PREFIXES = [...new Set(ALL_RULES.flatMap((r) => r.routes.flatMap((route) => route.keyPrefixes ?? [])))];
 const RECORD_TYPES = [...new Set(ALL_RULES.flatMap((r) => r.routes.flatMap((route) => route.recordTypes ?? [])))];
 
+/** AUM/staff history -> one firm.growth fact when growth is 20%+ (icp.md section 4). */
+async function growthFact(db: Db, companyId: string): Promise<EvidenceFact | null> {
+  const history = await db
+    .select()
+    .from(facts)
+    .where(and(eq(facts.companyId, companyId), inArray(facts.key, ["firm.regulatory_aum", "financials.employees"])))
+    .orderBy(asc(facts.createdAt));
+  const series = (key: string) =>
+    history
+      .filter((f) => f.key === key && f.valueNum !== null && f.asOf)
+      .map((f) => ({ n: Number(f.valueNum), asOf: String(f.asOf).slice(0, 10), row: f }))
+      .filter((x) => Number.isFinite(x.n))
+      .sort((a, b) => a.asOf.localeCompare(b.asOf));
+  for (const key of ["firm.regulatory_aum", "financials.employees"] as const) {
+    const points = series(key);
+    const first = points[0];
+    const last = points[points.length - 1];
+    if (!first || !last || first === last || first.n <= 0) continue;
+    const days = (new Date(last.asOf).getTime() - new Date(first.asOf).getTime()) / 86_400_000;
+    const pct = (last.n - first.n) / first.n;
+    if (days < 180 || pct < 0.2) continue;
+    const label = key === "firm.regulatory_aum" ? "AUM" : "staff";
+    return {
+      id: last.row.id,
+      key: "firm.growth",
+      valueText: `${label} ${first.n} (${first.asOf}) -> ${last.n} (${last.asOf}), +${Math.round(pct * 100)}%`,
+      valueNum: null,
+      valueDate: null,
+      valueBool: null,
+      valueJson: null,
+      currency: null,
+      unit: null,
+      qualifiers: {},
+      asOf: last.asOf,
+      sourceIds: last.row.sourceIds ?? [],
+      verification: "verified",
+      quote: null,
+      createdBy: "collector:sec_import",
+    };
+  }
+  return null;
+}
+
 /** Load and build the pack for one company in one sector. */
 export async function icpEvidence(db: Db, sectorId: string, companyId: string, now = new Date()): Promise<EvidencePack> {
   const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
   if (!company) throw new DomainError("not_found", `company not found: ${companyId}`);
-  const [factRows, recordRows, [preflight], truth] = await Promise.all([
+  const sectorProfile = await getProfileOrNull(db, sectorId);
+  const playbook: "d2c" | "ria" = sectorProfile?.playbook === "ria" ? "ria" : "d2c";
+  const rules: BucketRule[] = playbook === "ria" ? RIA_SIGNAL_RULES : ALL_RULES;
+  const factKeys = [...new Set(rules.flatMap((r) => r.routes.flatMap((route) => route.factKeys ?? [])))];
+  const keyPrefixes = [...new Set(rules.flatMap((r) => r.routes.flatMap((route) => route.keyPrefixes ?? [])))];
+  const recordTypes = [...new Set(rules.flatMap((r) => r.routes.flatMap((route) => route.recordTypes ?? [])))];
+  const [factRows, recordRows, [preflight], truth, membershipRows] = await Promise.all([
     db
       .select()
       .from(factsCurrent)
       .where(
         and(
           eq(factsCurrent.companyId, companyId),
-          or(inArray(factsCurrent.key, FACT_KEYS), ...KEY_PREFIXES.map((p) => like(factsCurrent.key, `${p}%`))),
+          or(inArray(factsCurrent.key, factKeys), ...keyPrefixes.map((p) => like(factsCurrent.key, `${p}%`))),
         ),
       ),
     db
       .select()
       .from(records)
-      .where(and(eq(records.companyId, companyId), inArray(records.type, RECORD_TYPES))),
+      .where(and(eq(records.companyId, companyId), inArray(records.type, recordTypes))),
     db
       .select()
       .from(sectorPreflight)
       .where(and(eq(sectorPreflight.sectorId, sectorId), eq(sectorPreflight.companyId, companyId))),
     companyRevenueTruth(db, companyId, sectorId),
+    db
+      .select({ eligibility: sectorCompanies.eligibility, eligibilityReason: sectorCompanies.eligibilityReason })
+      .from(sectorCompanies)
+      .where(and(eq(sectorCompanies.sectorId, sectorId), eq(sectorCompanies.companyId, companyId))),
   ]);
+  const membership = membershipRows[0];
+  const riaExclusion =
+    playbook === "ria" && membership?.eligibility === "ineligible" ? (membership.eligibilityReason ?? "ineligible") : null;
   const sourceIds = [...new Set([...factRows, ...recordRows].flatMap((r) => r.sourceIds ?? []))];
   const sourceMap = new Map<string, EvidenceSource>();
   for (let i = 0; i < sourceIds.length; i += 500) {
@@ -327,36 +388,44 @@ export async function icpEvidence(db: Db, sectorId: string, companyId: string, n
       .where(inArray(sources.id, sourceIds.slice(i, i + 500)));
     for (const s of rows) sourceMap.set(s.id, { url: s.url, fetchedAt: s.fetchedAt });
   }
-  const built = buildPack({
-    facts: factRows.map((f) => ({
-      id: f.id,
-      key: f.key,
-      valueText: f.valueText,
-      valueNum: f.valueNum,
-      valueDate: f.valueDate,
-      valueBool: f.valueBool,
-      valueJson: f.valueJson,
-      currency: f.currency,
-      unit: null,
-      qualifiers: (f.qualifiers ?? {}) as Record<string, string>,
-      asOf: f.asOf,
-      sourceIds: f.sourceIds ?? [],
-      verification: f.verification,
-      quote: f.quote,
-      createdBy: f.createdBy,
-    })),
-    records: recordRows.map((r) => ({
-      id: r.id,
-      type: r.type,
-      data: r.data,
-      sourceIds: r.sourceIds,
-      verification: r.verification,
-      quote: r.quote,
-      createdBy: r.createdBy,
-    })),
-    sources: sourceMap,
-    now,
-  });
+  const mappedFacts: EvidenceFact[] = factRows.map((f) => ({
+    id: f.id,
+    key: f.key,
+    valueText: f.valueText,
+    valueNum: f.valueNum,
+    valueDate: f.valueDate,
+    valueBool: f.valueBool,
+    valueJson: f.valueJson,
+    currency: f.currency,
+    unit: null,
+    qualifiers: (f.qualifiers ?? {}) as Record<string, string>,
+    asOf: f.asOf,
+    sourceIds: f.sourceIds ?? [],
+    verification: f.verification,
+    quote: f.quote,
+    createdBy: f.createdBy,
+  }));
+  if (playbook === "ria") {
+    const growth = await growthFact(db, companyId);
+    if (growth) mappedFacts.push(growth);
+  }
+  const built = buildPack(
+    {
+      facts: mappedFacts,
+      records: recordRows.map((r) => ({
+        id: r.id,
+        type: r.type,
+        data: r.data,
+        sourceIds: r.sourceIds,
+        verification: r.verification,
+        quote: r.quote,
+        createdBy: r.createdBy,
+      })),
+      sources: sourceMap,
+      now,
+    },
+    rules,
+  );
   return {
     ...built,
     companyId,
@@ -376,5 +445,7 @@ export async function icpEvidence(db: Db, sectorId: string, companyId: string, n
       tier: truth.tier,
       flags: truth.flags,
     },
+    playbook,
+    riaExclusion,
   };
 }

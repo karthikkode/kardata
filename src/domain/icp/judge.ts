@@ -14,6 +14,9 @@ import {
   type FlagKey,
   type SignalKey,
 } from "./rules.js";
+import { RIA_SIGNAL_KEYS, RIA_SIGNAL_RULES } from "./ria-rules.js";
+
+export type IcpVariant = "d2c" | "ria";
 
 /**
  * The ICP judge (Stage 5.5 Step 2): Muse reads the evidence pack and says
@@ -22,10 +25,15 @@ import {
  */
 
 export const ICP_PROMPT_VERSION = "icp-v3";
+export const ICP_RIA_PROMPT_VERSION = "icp-ria-v1";
 
-function promptsDir(): string {
+export function icpPromptVersion(playbook: string | null | undefined): string {
+  return playbook === "ria" ? ICP_RIA_PROMPT_VERSION : ICP_PROMPT_VERSION;
+}
+
+function promptsDir(version: string = ICP_PROMPT_VERSION): string {
   const here = dirname(fileURLToPath(import.meta.url));
-  return join(here, "..", "..", "..", "prompts", ICP_PROMPT_VERSION);
+  return join(here, "..", "..", "..", "prompts", version);
 }
 
 const VERDICTS = ["yes", "no", "unknown"] as const;
@@ -56,7 +64,19 @@ function group(rules: BucketRule[], special: Partial<Record<BucketKey, Record<st
 }
 
 /** JSON schema for --output-schema, built from the rule keys so they never drift. */
-export function icpSchema(): string {
+export function icpSchema(variant: IcpVariant = "d2c"): string {
+  if (variant === "ria") {
+    return JSON.stringify({
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        signals: group(RIA_SIGNAL_RULES),
+        exclusions: { type: "object", additionalProperties: false, properties: {}, required: [] },
+        flags: { type: "object", additionalProperties: false, properties: {}, required: [] },
+      },
+      required: ["signals", "exclusions", "flags"],
+    });
+  }
   return JSON.stringify({
     type: "object",
     additionalProperties: false,
@@ -99,7 +119,23 @@ export type Judgement = {
   flags: Record<FlagKey, Answer>;
 };
 
-export function parseJudgement(json: unknown): Judgement {
+export function parseJudgement(json: unknown, variant: IcpVariant = "d2c"): Judgement {
+  if (variant === "ria") {
+    const riaSchema = z.object({
+      signals: groupParser(RIA_SIGNAL_KEYS as unknown as string[]),
+      exclusions: z.object({}).passthrough(),
+      flags: z.object({}).passthrough(),
+    });
+    const parsed = riaSchema.safeParse(json);
+    if (!parsed.success) {
+      throw new Error(`invalid icp judgement: ${parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`);
+    }
+    return {
+      signals: parsed.data.signals as unknown as Judgement["signals"],
+      exclusions: {} as Judgement["exclusions"],
+      flags: {} as Judgement["flags"],
+    };
+  }
   const parsed = judgementSchema.safeParse(json);
   if (!parsed.success) {
     throw new Error(`invalid icp judgement: ${parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`);
@@ -172,8 +208,11 @@ function money(n: number | null): string {
   return n === null ? "unknown" : `$${Math.round(n).toLocaleString("en-US")}`;
 }
 
-export function buildIcpPrompt(pack: EvidencePack): string {
-  const template = readFileSync(join(promptsDir(), "prompt.md"), "utf8");
+export function buildIcpPrompt(pack: EvidencePack, variant: IcpVariant = "d2c"): string {
+  const template = readFileSync(
+    join(promptsDir(variant === "ria" ? ICP_RIA_PROMPT_VERSION : ICP_PROMPT_VERSION), "prompt.md"),
+    "utf8",
+  );
   const company = [
     `- name: ${pack.company.name ?? "unknown"}`,
     `- domain: ${pack.company.domain ?? "unknown"}`,
@@ -184,14 +223,24 @@ export function buildIcpPrompt(pack: EvidencePack): string {
     ? `${pack.preflight.businessType}, ${pack.preflight.primaryCategory}: ${pack.preflight.reason}`
     : "(none)";
   const revenue = `${money(pack.revenue.revenueUsed)} (${pack.revenue.revenueSource ?? "no source"})`;
-  const fill: Record<string, string> = {
-    company,
-    preflight,
-    revenue,
-    signals: section(SIGNAL_RULES, pack),
-    exclusions: section(EXCLUSION_RULES, pack),
-    flags: section(FLAG_RULES, pack),
-  };
+  const fill: Record<string, string> =
+    variant === "ria"
+      ? {
+          company,
+          preflight,
+          revenue,
+          signals: section(RIA_SIGNAL_RULES, pack),
+          exclusions: "- (exclusions come from the preflight reason, decided by the server)",
+          flags: "- (none for advisers)",
+        }
+      : {
+          company,
+          preflight,
+          revenue,
+          signals: section(SIGNAL_RULES, pack),
+          exclusions: section(EXCLUSION_RULES, pack),
+          flags: section(FLAG_RULES, pack),
+        };
   return Object.entries(fill).reduce((text, [k, v]) => text.split(`{{${k}}}`).join(v), template);
 }
 
@@ -219,8 +268,8 @@ export interface IcpDecision {
 }
 
 function checkAnswer(key: BucketKey, a: Answer, pack: EvidencePack, all: Set<string>, notes: Set<string>): BucketResult {
-  const own = new Set(pack.buckets[key].map((i) => i.ref));
-  const rule = [...SIGNAL_RULES, ...EXCLUSION_RULES, ...FLAG_RULES].find((r) => r.key === key);
+  const own = new Set((pack.buckets[key] ?? []).map((i) => i.ref));
+  const rule = [...SIGNAL_RULES, ...EXCLUSION_RULES, ...FLAG_RULES, ...RIA_SIGNAL_RULES].find((r) => r.key === key);
   const refs = a.evidence_refs.filter((r) => all.has(r));
   const droppedRefs = a.evidence_refs.filter((r) => !all.has(r));
   let counted = a.verdict === "yes";
@@ -283,6 +332,29 @@ export function decideIcp(pack: EvidencePack, judgement: Judgement): IcpDecision
     status = score >= MIN_ACCEPTED_SCORE ? "icp_accepted" : "icp_watchlist";
   }
   return { score, status, exclusionReason, signals, exclusions, flags };
+}
+
+/** RIA verdict: 7 signals, exclusions from the preflight reason; score 0 still called (last). */
+export function decideRia(pack: EvidencePack, judgement: Judgement): IcpDecision {
+  const all = new Set(Object.values(pack.buckets).flatMap((items) => items.map((i) => i.ref)));
+  const notes = new Set(Object.values(pack.buckets).flatMap((items) => items.filter((i) => i.origin === "notes").map((i) => i.ref)));
+  const signalsMap = judgement.signals as unknown as Record<string, Answer>;
+  const consumed = new Set<string>();
+  const signals = RIA_SIGNAL_RULES.map((rule) => {
+    const answer = signalsMap[rule.key] ?? { verdict: "unknown" as const, evidence_refs: [], observation: "" };
+    const result = checkAnswer(rule.key as BucketKey, answer, pack, all, notes);
+    if (result.counted && result.refs.every((r) => consumed.has(r))) {
+      result.counted = false;
+      result.note = "rests on the same evidence as an earlier signal";
+    }
+    if (result.counted) for (const r of result.refs) consumed.add(r);
+    return result;
+  });
+  const score = signals.filter((s) => s.counted).length;
+  if (pack.riaExclusion) {
+    return { score, status: "icp_rejected", exclusionReason: pack.riaExclusion, signals, exclusions: [], flags: [] };
+  }
+  return { score, status: "icp_accepted", exclusionReason: null, signals, exclusions: [], flags: [] };
 }
 
 /** No usable evidence at all: research is incomplete, and no Muse call is made. */

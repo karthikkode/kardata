@@ -6,7 +6,10 @@ import { sectorCompaniesScope } from "../sectors.js";
 import { contactStatusesFor, isContactable, type ContactStatus } from "../contacts.js";
 import { companyRevenueTruth, type IcpStatus } from "../tiering.js";
 import type { BucketResult } from "./judge.js";
+import { RIA_SIGNAL_RULES } from "./ria-rules.js";
 import { SIGNAL_RULES } from "./rules.js";
+
+const ALL_SIGNAL_RULES = [...SIGNAL_RULES, ...RIA_SIGNAL_RULES];
 
 /** Read views over stored ICP checks (Stage 5.5 Step 4). */
 
@@ -34,7 +37,7 @@ export function signalsMet(check: CompanyIcpCheck): string[] {
   const results = check.results as StoredResults;
   return (results.signals ?? [])
     .filter((s) => s.counted)
-    .map((s) => SIGNAL_RULES.find((r) => r.key === s.key)?.label ?? s.key);
+    .map((s) => ALL_SIGNAL_RULES.find((r) => r.key === s.key)?.label ?? s.key);
 }
 
 export function hasTechTeam(check: CompanyIcpCheck): boolean {
