@@ -34,6 +34,7 @@ const EXPECTED_TOOLS = [
   "sector_list",
   "sector_get",
   "companies_import_csv",
+  "sector_import_sec",
   "company_add",
   "company_link",
   "company_update",
