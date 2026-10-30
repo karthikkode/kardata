@@ -1,14 +1,17 @@
-import { and, eq, sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
 import {
   companies,
+  factsCurrent,
   sectorCompanies,
   sectorEligibilityOverrides,
   sectorPreflight,
   sectors,
 } from "../../db/schema.js";
 import { DomainError } from "../errors.js";
-import { getProfile, type SectorProfile } from "./profile.js";
+import { getProfile, profileHash, type SectorProfile } from "./profile.js";
+import { evaluateRia, riaStoredReason, type RiaFacts } from "./ria.js";
 
 /**
  * Eligibility = the sector scope over the classification. No LLM: derived
@@ -139,6 +142,10 @@ export async function deriveCompany(db: Db, sectorId: string, companyId: string)
     await storeTriple(db, sectorId, companyId, triple);
     return triple;
   }
+  const profileForPlaybook = await getProfile(db, sectorId);
+  if (profileForPlaybook.playbook === "ria") {
+    return deriveRiaCompany(db, sectorId, companyId, profileForPlaybook);
+  }
   const [classification] = await db
     .select()
     .from(sectorPreflight)
@@ -171,6 +178,112 @@ export async function deriveCompany(db: Db, sectorId: string, companyId: string)
     eligibility: verdict.eligible ? "eligible" : "ineligible",
     source: "rule",
     reason: verdict.reason,
+  };
+  await storeTriple(db, sectorId, companyId, triple);
+  return triple;
+}
+
+const RIA_FACT_KEYS = [
+  "firm.regulatory_aum",
+  "firm.wealth_share",
+  "firm.firm_type",
+  "firm.registration_status",
+  "financials.employees",
+] as const;
+
+export async function loadRiaFacts(db: Db, companyId: string): Promise<{ facts: RiaFacts; hasFacts: boolean }> {
+  const [company] = await db
+    .select({ country: companies.country, employees: companies.employees })
+    .from(companies)
+    .where(eq(companies.id, companyId));
+  const rows = await db
+    .select()
+    .from(factsCurrent)
+    .where(and(eq(factsCurrent.companyId, companyId), inArray(factsCurrent.key, [...RIA_FACT_KEYS])));
+  const byKey = new Map(rows.map((r) => [r.key, r]));
+  const num = (key: string): number | null => {
+    const row = byKey.get(key);
+    if (!row || row.valueNum === null || row.valueNum === undefined) return null;
+    const n = Number(row.valueNum);
+    return Number.isFinite(n) ? n : null;
+  };
+  const text = (key: string): string | null => {
+    const row = byKey.get(key);
+    return row && typeof row.valueText === "string" && row.valueText !== "" ? row.valueText : null;
+  };
+  const staffFact = num("financials.employees");
+  return {
+    hasFacts: rows.length > 0,
+    facts: {
+      aum: num("firm.regulatory_aum"),
+      employees: staffFact !== null ? Math.round(staffFact) : (company?.employees ?? null),
+      wealthShare: num("firm.wealth_share"),
+      firmType: text("firm.firm_type"),
+      registrationStatus: text("firm.registration_status"),
+      country: company?.country ?? null,
+    },
+  };
+}
+
+/** RIA derive: rules over the imported facts; also files the preflight row the summary reads. */
+export async function deriveRiaCompany(
+  db: Db,
+  sectorId: string,
+  companyId: string,
+  profile: SectorProfile,
+): Promise<DerivedTriple> {
+  const thresholds = profile.ria;
+  if (!thresholds) throw new DomainError("invalid_input", "ria sector has no ria thresholds");
+  const { facts, hasFacts } = await loadRiaFacts(db, companyId);
+  if (!hasFacts) {
+    const triple: DerivedTriple = { eligibility: "pending", source: null, reason: null };
+    await storeTriple(db, sectorId, companyId, triple);
+    return triple;
+  }
+  const verdict = evaluateRia(facts, thresholds);
+  const category = profile.scope.coreCategories[0] ?? "wealth_management";
+  await db
+    .insert(sectorPreflight)
+    .values({
+      id: randomUUID(),
+      sectorId,
+      companyId,
+      runId: null,
+      businessType: "ria",
+      primaryCategory: category,
+      sellsOwnProducts: false,
+      hasOnlineStore: false,
+      shipsTo: [],
+      confidence: "high",
+      reason: verdict.detail,
+      quote: null,
+      quoteSourceId: null,
+      verification: "verified",
+      promptVersion: "ria-rules-v1",
+      profileHash: profileHash(profile),
+    })
+    .onConflictDoUpdate({
+      target: [sectorPreflight.sectorId, sectorPreflight.companyId],
+      set: {
+        businessType: "ria",
+        primaryCategory: category,
+        sellsOwnProducts: false,
+        hasOnlineStore: false,
+        shipsTo: [],
+        confidence: "high",
+        reason: verdict.detail,
+        quote: null,
+        quoteSourceId: null,
+        verification: "verified",
+        promptVersion: "ria-rules-v1",
+        profileHash: profileHash(profile),
+        updatedAt: new Date(),
+      },
+    });
+  const triple: DerivedTriple = {
+    eligibility: verdict.eligible ? "eligible" : "ineligible",
+    source: "rule",
+    reason: riaStoredReason(verdict),
   };
   await storeTriple(db, sectorId, companyId, triple);
   return triple;

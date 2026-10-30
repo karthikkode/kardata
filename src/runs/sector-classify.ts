@@ -300,6 +300,31 @@ export async function classifyCompany(db: Db, input: ClassifyCompanyInput): Prom
     throw new DomainError("invalid_input", error);
   };
   const profile = await getProfile(db, input.sectorId);
+  if (profile.playbook === "ria") {
+    // Rule-based preflight (Stage 5.7 B3): no fetch, no LLM. The runner's
+    // finalize step derives eligibility and files the preflight row.
+    await db
+      .update(researchRuns)
+      .set({ status: "succeeded", finishedAt: new Date(), agentUsage: null })
+      .where(eq(researchRuns.id, runId));
+    return {
+      runId,
+      classification: {
+        business_type: "other",
+        primary_category: profile.scope.coreCategories[0] ?? "wealth_management",
+        sells_own_products: false,
+        has_online_store: false,
+        ships_to: [],
+        confidence: "high",
+        reason: "ria rules",
+        quote: null,
+        quote_source_id: null,
+      },
+      verification: "verified",
+      apolloOnly: false,
+      webFallback: false,
+    };
+  }
   const fetched = await fetchInputs(db, runId, company, input.fetchOptions ?? {});
   // Our server could not read the site (blocked, script-only, down): Muse
   // reads it with its own web tools instead of classifying blind.

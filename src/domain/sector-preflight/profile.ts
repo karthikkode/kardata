@@ -69,7 +69,7 @@ export const sectorProfileSchema = z
         coreCategories: z.array(categoryKey).max(20),
         adjacentCategories: z.array(categoryKey).max(20),
         scopeKeywords: z.array(z.string().min(1).max(120)).max(200),
-        businessTypes: z.array(z.string().min(1)).min(1).max(30).optional(),
+        businessTypes: z.array(z.string().min(1)).max(30).optional(),
         requireSellsOwnProducts: z.boolean().optional(),
         requireHasOnlineStore: z.boolean().optional(),
       })
