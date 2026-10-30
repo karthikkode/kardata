@@ -7,6 +7,7 @@ import { z } from "zod";
 import type { Db } from "../db/client.js";
 import {
   area as areaEnum,
+  companyJobs,
   documents,
   factKeys,
   findings,
@@ -15,6 +16,7 @@ import {
   sources,
   type ResearchRun,
 } from "../db/schema.js";
+import { getProfileOrNull } from "../domain/sector-preflight/profile.js";
 import { recordEvent } from "../collect/db.js";
 import { DomainError } from "../domain/errors.js";
 import { logExtractorCall } from "../domain/logging/provider-calls.js";
@@ -29,6 +31,17 @@ import { extractRunArgs, prepareExtractInput } from "../harness/extract.js";
 import { PROMPT_AREAS } from "./prompt.js";
 
 export const EXTRACT_AREAS = [...PROMPT_AREAS];
+/** DB areas extracted for the ria playbook (Stage 5.7 B5). */
+export const RIA_EXTRACT_AREAS = ["financials", "decisions", "product", "business_model", "hiring", "other"] as const;
+export type ExtractVariant = "d2c" | "ria";
+const RIA_TEMPLATE_BY_DB: Record<string, string> = {
+  financials: "firm_and_fees",
+  decisions: "people_and_ops",
+  product: "systems",
+  business_model: "deals_and_growth",
+  hiring: "hiring",
+  other: "compliance",
+};
 export const EXTRACT_NOTES_BUDGET = 60_000;
 export const SYNTHESIS_AREA = "synthesis";
 const SOURCE_TEXT_MAX = 15_000;
@@ -39,21 +52,21 @@ export const EXTRACT_CALL_RETRIES = 1;
 
 type AreaName = (typeof areaEnum.enumValues)[number];
 
-function extractDir(): string {
+function extractDir(variant: ExtractVariant = "d2c"): string {
   const here = dirname(fileURLToPath(import.meta.url));
-  return join(here, "..", "..", "prompts", "extract-v4");
+  return join(here, "..", "..", "prompts", variant === "ria" ? "extract-ria-v1" : "extract-v4");
 }
 
 export function extractSchema(): string {
   return readFileSync(join(extractDir(), "schema.json"), "utf8");
 }
 
-function extractTemplate(name: string): string {
-  return readFileSync(join(extractDir(), name), "utf8");
+function extractTemplate(name: string, variant: ExtractVariant = "d2c"): string {
+  return readFileSync(join(extractDir(variant), name), "utf8");
 }
 
 function assertArea(area: string): AreaName {
-  if (!(EXTRACT_AREAS as readonly string[]).includes(area)) {
+  if (!(EXTRACT_AREAS as readonly string[]).includes(area) && area !== "other") {
     throw new DomainError("invalid_input", `unknown extraction area "${area}"`);
   }
   return area as AreaName;
@@ -196,9 +209,15 @@ function substitute(template: string, values: Record<string, string>): string {
   return rendered;
 }
 
-export function assembleAreaPrompt(area: string, vocab: AreaVocab, gathered: AreaNotes): string {
+export function assembleAreaPrompt(
+  area: string,
+  vocab: AreaVocab,
+  gathered: AreaNotes,
+  variant: ExtractVariant = "d2c",
+): string {
   assertArea(area);
-  return substitute(extractTemplate(`areas/${area}.md`), {
+  const templateName = variant === "ria" ? (RIA_TEMPLATE_BY_DB[area] ?? area) : area;
+  return substitute(extractTemplate(`areas/${templateName}.md`, variant), {
     area,
     vocabKeys: vocab.keys,
     vocabTypes: vocab.types,
@@ -207,8 +226,8 @@ export function assembleAreaPrompt(area: string, vocab: AreaVocab, gathered: Are
   });
 }
 
-export function assembleSynthesisPrompt(gathered: AreaNotes): string {
-  return substitute(extractTemplate("synthesis.md"), {
+export function assembleSynthesisPrompt(gathered: AreaNotes, variant: ExtractVariant = "d2c"): string {
+  return substitute(extractTemplate("synthesis.md", variant), {
     sourceIds: JSON.stringify(gathered.sourceIds),
     notes: gathered.notes,
   });
@@ -649,12 +668,21 @@ export interface RunExtractionOutcome {
   verification: GroundCounts & { total: number; error: string | null };
 }
 
+async function variantForRun(db: Db, run: ResearchRun): Promise<ExtractVariant> {
+  if (!run.companyJobId) return "d2c";
+  const [job] = await db.select({ sectorId: companyJobs.sectorId }).from(companyJobs).where(eq(companyJobs.id, run.companyJobId));
+  if (!job?.sectorId) return "d2c";
+  const profile = await getProfileOrNull(db, job.sectorId);
+  return profile?.playbook === "ria" ? "ria" : "d2c";
+}
+
 async function extractOneArea(
   db: Db,
   run: ResearchRun,
   area: string,
   call: ExtractorCall,
   seq: number,
+  variant: ExtractVariant = "d2c",
 ): Promise<AreaExtractionOutcome> {
   const outcome: AreaExtractionOutcome = {
     area,
@@ -676,8 +704,8 @@ async function extractOneArea(
     ]);
     const prompt =
       vocab === null
-        ? assembleSynthesisPrompt(gathered)
-        : assembleAreaPrompt(area, vocab, gathered);
+        ? assembleSynthesisPrompt(gathered, variant)
+        : assembleAreaPrompt(area, vocab, gathered, variant);
     const callStarted = Date.now();
     let result: ExtractorCallResult | undefined;
     for (let attempt = 0; ; attempt += 1) {
@@ -738,12 +766,13 @@ export async function runExtraction(
   opts: { call?: ExtractorCall } = {},
 ): Promise<RunExtractionOutcome> {
   const call = opts.call ?? dockerExtractorCall;
+  const variant = await variantForRun(db, run);
   const areas: AreaExtractionOutcome[] = [];
   let usage: HarnessUsage | undefined;
-  const allAreas = [...EXTRACT_AREAS, SYNTHESIS_AREA];
+  const allAreas = [...(variant === "ria" ? RIA_EXTRACT_AREAS : EXTRACT_AREAS), SYNTHESIS_AREA];
   for (let seq = 0; seq < allAreas.length; seq += 1) {
     const area = allAreas[seq] as string;
-    const outcome = await extractOneArea(db, run, area, call, seq);
+    const outcome = await extractOneArea(db, run, area, call, seq, variant);
     areas.push(outcome);
     usage = addUsage(usage, outcome.usage);
   }

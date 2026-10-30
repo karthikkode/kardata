@@ -24,6 +24,31 @@ export const PROMPT_AREAS = [
   "decisions",
 ] as const;
 
+/** RIA playbook prompts (Stage 5.7 B5): prompts/research-ria-v1. */
+export const RIA_PROMPT_VERSION = "ria-v1";
+export const RIA_AREAS = [
+  "firm_and_fees",
+  "people_and_ops",
+  "systems",
+  "deals_and_growth",
+  "hiring",
+  "compliance",
+] as const;
+
+/** Stored DB area for each RIA brief (documents/area statuses use the area enum). */
+export const RIA_AREA_DB: Record<(typeof RIA_AREAS)[number], string> = {
+  firm_and_fees: "financials",
+  people_and_ops: "decisions",
+  systems: "product",
+  deals_and_growth: "business_model",
+  hiring: "hiring",
+  compliance: "other",
+};
+
+export function researchVersionForPlaybook(playbook: string | null | undefined): string {
+  return playbook === "ria" ? RIA_PROMPT_VERSION : latestPromptVersion();
+}
+
 export function promptsDir(): string {
   const here = dirname(fileURLToPath(import.meta.url));
   return join(here, "..", "..", "prompts");
@@ -65,6 +90,7 @@ export function latestPromptVersion(): string {
 }
 
 export function assertPromptVersion(version: string): string {
+  if (version === RIA_PROMPT_VERSION) return version;
   if (!VERSION_PATTERN.test(version)) {
     throw new DomainError("invalid_input", `bad prompt version "${version}" (want v1, v1.1, ...)`);
   }
@@ -156,14 +182,29 @@ function renderVersioned(version: string, ctx: PromptContext): string {
   return substitute(assembled, templateValues(ctx));
 }
 
+function renderRia(ctx: PromptContext): string {
+  const base = join(promptsDir(), "research-ria-v1");
+  const main = readFileSync(join(base, "main.md"), "utf8");
+  if (!main.includes("{{areaBriefs}}")) throw new Error("prompt ria-v1/main.md has no {{areaBriefs}} placeholder");
+  const briefs = RIA_AREAS.map((areaName) => {
+    const path = join(base, "areas", `${areaName}.md`);
+    if (!existsSync(path)) throw new Error(`prompt ria-v1 is missing areas/${areaName}.md`);
+    return `### ${areaName}\n\n${readFileSync(path, "utf8").trim()}`;
+  });
+  const assembled = main.replace("{{areaBriefs}}", briefs.join("\n\n"));
+  return substitute(assembled, templateValues(ctx));
+}
+
 /**
  * Render the run's stored prompt version. research_start resolves the
  * default at creation, so this never picks latest for a stored run.
+ * The company job's sector playbook chooses the prompt family.
  */
 export function buildResearchPrompt(ctx: PromptContext): string {
   if (!ctx.run.promptVersion) throw new DomainError("invalid_input", "pre-versioning run; cannot re-render");
   const version = ctx.run.promptVersion;
   assertPromptVersion(version);
+  if (version === RIA_PROMPT_VERSION || ctx.sectorProfile?.playbook === "ria") return renderRia(ctx);
   if (existsSync(join(promptsDir(), `research-${version}.md`))) return renderSingleFile(version, ctx);
   return renderVersioned(version, ctx);
 }
