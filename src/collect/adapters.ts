@@ -44,6 +44,7 @@ const BLURBS: Record<string, string> = {
   feeds: "RSS/Atom feeds",
   news: "GDELT news search",
   sec_form_d: "SEC Form D filings",
+  sec_firm: "SEC adviser firm filing (Part 1 compilation)",
   wayback: "Internet Archive snapshots",
   companies_house: "UK company registry",
   apollo_profile: "Apollo firmographics",

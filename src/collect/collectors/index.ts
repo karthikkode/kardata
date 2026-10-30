@@ -6,6 +6,7 @@ import { newsCollector } from "./news.js";
 import { reviewsCollector } from "./reviews.js";
 import { reviewsOnsiteCollector } from "./reviews-onsite.js";
 import { secCollector } from "./sec.js";
+import { secFirmCollector } from "./sec-firm.js";
 import { shopifyCollector } from "./shopify.js";
 import { siteCollector } from "./site.js";
 import { stackCollector } from "./stack.js";
@@ -24,6 +25,7 @@ export const COLLECTORS: Collector[] = [
   feedsCollector,
   newsCollector,
   secCollector,
+  secFirmCollector,
   waybackCollector,
   companiesHouseCollector,
   apolloProfileCollector,

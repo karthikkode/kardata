@@ -88,6 +88,8 @@ export async function collectorCtx(
       gdelt: base,
       secEfts: base,
       secData: base,
+      adviserApi: base,
+      adviserReports: base,
       cdx: base,
       wayback: base,
       greenhouse: base,

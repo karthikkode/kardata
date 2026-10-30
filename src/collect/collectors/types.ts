@@ -10,6 +10,8 @@ export interface CollectEndpoints {
   gdelt: string;
   secEfts: string;
   secData: string;
+  adviserApi: string;
+  adviserReports: string;
   cdx: string;
   wayback: string;
   greenhouse: string;
@@ -23,6 +25,8 @@ export const DEFAULT_ENDPOINTS: CollectEndpoints = {
   gdelt: "https://api.gdeltproject.org",
   secEfts: "https://efts.sec.gov",
   secData: "https://www.sec.gov",
+  adviserApi: "https://api.adviserinfo.sec.gov",
+  adviserReports: "https://reports.adviserinfo.sec.gov",
   cdx: "https://web.archive.org",
   wayback: "https://web.archive.org",
   greenhouse: "https://boards-api.greenhouse.io",
