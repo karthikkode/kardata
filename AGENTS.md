@@ -87,7 +87,7 @@ Ask the owner only for:
 - Run destructive database commands (drop, truncate, reset) against anything except the dev or test database.
 - Push, merge, deploy or change GitHub settings without a go for that action. The owner has given a standing go
   for `kardata-server` work once CI passes (D-65). Website pushes and deploys still need their own go.
-- Put sector-specific nouns (product categories, retailers, trade press) in src/, prompts/ or docs/business/ — they belong in docs/sectors/<slug>/. A test enforces this for code.
+- Put sector-specific nouns (product categories, retailers, trade press) in src/, prompts/ or docs/business/ — they belong in docs/sectors/<slug>/. A test enforces this for code. Playbook vocabulary is the exception: the `ria` playbook's own prompts (prompts/*-ria-*) and its SEC import and collector may name filings, custodians and fee terms (D-69).
 - Add frameworks, services or dependencies the plan doesn't name. If one seems needed, propose it in the
   review instead.
 - Write long docs, catalogues, hash manifests or "evidence metadata". Code and tests are the deliverable.

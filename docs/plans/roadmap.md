@@ -56,9 +56,12 @@ complete only when all of them are complete.
 - **5.5 — ICP check and outreach sheet (done).** The ICP check (6 signals, exclusions)
   becomes a stage of each company job, stores its observations for every company, and the
   sheet export gains tracking columns. See `archive/stage-5.5-icp-check.md`.
-- **5.6 — Sector-agnostic server (current).** No sector-specific content in code, prompts or
+- **5.6 — Sector-agnostic server (done).** No sector-specific content in code, prompts or
   shared docs; each sector's settings live in `docs/sectors/<slug>/profile.json`.
   See `stage-5.6-sector-agnostic.md`.
+- **5.7 — RIA sector (current).** The first non-D2C sector: a sector playbook (d2c or ria), the SEC adviser
+  file as an import source, a rule-based preflight on filed data, an SEC collector, and RIA research, extraction
+  and ICP prompts. See `stage-5.7-ria-sector.md`.
 
 **The order of operations for a sector is in `pipeline.md`** (every step is an MCP tool).
 
