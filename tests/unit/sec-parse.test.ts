@@ -33,3 +33,28 @@ describe("secFileDate", () => {
     expect(secFileDate("other.csv")).toBeNull();
   });
 });
+
+describe("parseSecCsv main-office fallback", () => {
+  it("uses Mail Office, then Books and Records, when the main office is suppressed", () => {
+    const header = [
+      "Organization CRD#", "SEC#", "Firm Type", "Primary Business Name", "Legal Name",
+      "Main Office Street Address 1", "Main Office Street Address 2", "Main Office City", "Main Office State", "Main Office Country",
+      "Main Office Postal Code", "Main Office Telephone Number", "Website Address",
+      "Mail Office City", "Mail Office State", "Mail Office Country",
+      "Location of Books and Records City", "Location of Books and Records State", "Location of Books and Records Country",
+      "5A", "5F(2)(c)", "Latest ADV Filing Date", "SEC Current Status",
+    ];
+    const row = (crd: string, mail: string[], books: string[]) => [
+      crd, "801-1", "Registered", `Firm ${crd} LLC`, `Firm ${crd} LLC`,
+      "", "", "", "", "", "", "555-0100", "",
+      ...mail, ...books,
+      "5", "1000000", "03/15/2026", "Approved",
+    ];
+    const text = [header.join(","), row("700001", ["Westport", "CT", "United States"], ["Lehi", "UT", "United States"]).join(","), row("700002", ["", "", ""], ["Chevy Chase", "MD", "United States"]).join(",")].join("\n");
+    const { rows } = parseSecCsv(text);
+    const a = rows.find((r) => r.crd === "700001");
+    const b = rows.find((r) => r.crd === "700002");
+    expect(a).toMatchObject({ city: "Westport", state: "CT", country: "United States" });
+    expect(b).toMatchObject({ city: "Chevy Chase", state: "MD", country: "United States" });
+  });
+});
