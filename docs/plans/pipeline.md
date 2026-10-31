@@ -64,9 +64,9 @@ two single-call reads per firm. Deep research is opt-in for a named list only.
 | Order | Step | Tool | What it does |
 |---|---|---|---|
 | 1 | Firm data | `ria_step_run {step: "firm_data"}` | SEC/IAPD per firm: officers, custodians, disclosure flags, the firm's own website (social URLs dropped) |
-| 2 | Brochure | `ria_step_run {step: "brochure"}` | Latest Part 2A brochure (pdfjs), stored split by Item 4/5/9/12/15; not downloadable → gap |
-| 3 | Fee terms | `ria_step_run {step: "fees"}` | One AI call on Item 5 (+4): fee terms, each with a verbatim quote found in the stored text |
-| 4 | Contacts | `ria_step_run {step: "contacts"}` | Team/about page found in code, one AI call: people with titles, merged with SEC officers |
+| 2 | Brochure | `ria_step_run {step: "brochure"}` | Latest Part 2A brochure (pdfjs), stored split by Item 4/5/8/9/12/14/15; not downloadable → gap |
+| 3 | Ops read | `ria_step_run {step: "ops_read"}` | One AI call on Items 4/5/8/12/14/15: services, outside managers, custodians, custody, named systems and fee terms, each with a verbatim quote that grounds in the stored text (PDF-normalised) |
+| 4 | Contacts | `ria_step_run {step: "contacts"}` | Team/about page found in code, one AI call: people with titles; without a page, a Schedule A officer (COO, then CCO, then CEO/president) |
 | 5 | Signals | `ria_step_run {step: "signals"}` | Code-only signals, ICP verdict and layer (`docs/sectors/ria/icp.md` section 4) |
 | — | Coverage | `ria_status` | Per step: done / gap / failed / pending over eligible firms |
 | — | Deep research (opt-in) | `ria_deep_research {companyIds}` | Named firms only (max 50): reads stored step data first; deals, ops job posts, recent news only |
