@@ -183,3 +183,18 @@ describe("splitBrochureItems table of contents (B4)", () => {
     expect(items["5"]).not.toContain("............");
   });
 });
+
+describe("pickScheduleAContact", () => {
+  it("prefers COO/head of operations, then CCO, then CEO/president", async () => {
+    const { pickScheduleAContact } = await import("../../src/domain/ria-steps/handlers.js");
+    const leaders = [
+      { name: "A Boss", title: "Chief Executive Officer" },
+      { name: "B Compliance", title: "Chief Compliance Officer" },
+      { name: "C Ops", title: "Head of Operations" },
+    ];
+    expect(pickScheduleAContact(leaders)?.name).toBe("C Ops");
+    expect(pickScheduleAContact(leaders.slice(0, 2))?.name).toBe("B Compliance");
+    expect(pickScheduleAContact(leaders.slice(0, 1))?.name).toBe("A Boss");
+    expect(pickScheduleAContact([{ name: "D Adviser", title: "Financial Advisor" }])).toBeNull();
+  });
+});

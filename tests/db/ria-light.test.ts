@@ -283,10 +283,24 @@ describe("contacts step (B6)", () => {
     expect(leaders[0]?.data).toMatchObject({ name: "Jane Test" });
   });
 
-  it("gaps when the firm has no website", async () => {
+  it("gaps when the firm has no website and no Schedule A officer", async () => {
     const companyId = await makeCompany({ website: null });
     const out = await createContactsStep(async () => ({ json: { people: [] }, usage: undefined }))(handle.db, randomUUID(), companyId);
-    expect(out).toMatchObject({ status: "gap", reason: "no firm website" });
+    expect(out).toMatchObject({ status: "gap", reason: "no firm website and no Schedule A officer" });
+  });
+
+  it("falls back to a Schedule A officer when there is no website", async () => {
+    const companyId = await makeCompany({ website: null });
+    const runId = await makeRun(companyId);
+    const sourceId = await makeSource(companyId, runId);
+    await handle.db.insert(records).values([
+      { id: randomUUID(), companyId, type: "leader", naturalKeyHash: "test-boss", data: { name: "Boss Person", title: "Chief Executive Officer" }, sourceIds: [sourceId], createdBy: "collector:sec_firm", firstSeenRunId: runId, lastSeenRunId: runId },
+      { id: randomUUID(), companyId, type: "leader", naturalKeyHash: "test-ops", data: { name: "Ops Person", title: "Chief Operating Officer" }, sourceIds: [sourceId], createdBy: "collector:sec_firm", firstSeenRunId: runId, lastSeenRunId: runId },
+    ]);
+    const out = await createContactsStep(async () => ({ json: { people: [] }, usage: undefined }))(handle.db, randomUUID(), companyId);
+    expect(out.status).toBe("done");
+    expect(out.reason).toContain("Schedule A");
+    expect(out.reason).toContain("Ops Person");
   });
 });
 

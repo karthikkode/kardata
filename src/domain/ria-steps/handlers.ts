@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
-import { companies, documents, facts, factsCurrent, researchRuns, sectorCompanies } from "../../db/schema.js";
+import { companies, documents, facts, factsCurrent, records, researchRuns, sectorCompanies } from "../../db/schema.js";
 import { DEFAULT_ENDPOINTS } from "../../collect/collectors/types.js";
 import { secFirmCollector } from "../../collect/collectors/sec-firm.js";
 import { fetchUrl } from "../../collect/fetch.js";
@@ -441,16 +441,50 @@ export const PEOPLE_SCHEMA = JSON.stringify({
   required: ["people"],
 });
 
+const SCHEDULE_A_ORDER: { label: string; pattern: RegExp }[] = [
+  { label: "COO / head of operations", pattern: /chief operating officer|\bcoo\b|head of operations|director of operations|operations manager/i },
+  { label: "CCO", pattern: /chief compliance officer|\bcco\b/i },
+  { label: "CEO / president", pattern: /chief executive officer|\bceo\b|president|managing partner|principal/i },
+];
+
+export function pickScheduleAContact(leaders: { name: string; title: string }[]): { name: string; title: string } | null {
+  for (const { pattern } of SCHEDULE_A_ORDER) {
+    const found = leaders.find((l) => pattern.test(l.title));
+    if (found) return found;
+  }
+  return null;
+}
+
+async function scheduleAContact(db: Db, companyId: string): Promise<{ name: string; title: string } | null> {
+  const rows = await db.select({ data: records.data }).from(records).where(and(eq(records.companyId, companyId), eq(records.type, "leader")));
+  const leaders = rows
+    .map((r) => r.data as Record<string, unknown>)
+    .filter((d) => typeof d["name"] === "string" && (d["name"] as string).trim() !== "")
+    .map((d) => ({ name: String(d["name"]), title: String(d["title"] ?? d["role"] ?? "") }));
+  return pickScheduleAContact(leaders);
+}
+
 export function createContactsStep(call: ExtractorCall = dockerExtractorCall): StepHandler {
   return async (db, _sectorId, companyId) => {
     const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
-    if (!company?.website) return { status: "gap", reason: "no firm website" };
+    if (!company?.website) {
+      const officer = await scheduleAContact(db, companyId);
+      return officer
+        ? { status: "done", reason: `contact from Schedule A officers: ${officer.name} (${officer.title}) - no firm website` }
+        : { status: "gap", reason: "no firm website and no Schedule A officer" };
+    }
     const runId = await newRun(db, companyId, "collect");
+    const fallback = async (reason: string, tokensUsed: number | null = null): Promise<StepResult> => {
+      const officer = await scheduleAContact(db, companyId);
+      await finishRun(db, runId, true);
+      return officer
+        ? { status: "done", reason: `contact from Schedule A officers: ${officer.name} (${officer.title}) - ${reason}`, tokensUsed, inputHash: company.website }
+        : { status: "gap", reason: `${reason}; no Schedule A officer`, tokensUsed, inputHash: company.website };
+    };
     try {
       const home = await fetchUrl(db, { companyId, runId, collector: "ria_contacts", url: company.website, userAgent: SEC_UA, privateHostAllowlist: privateHosts });
       if (home.source.status !== "ok" || !home.text) {
-        await finishRun(db, runId, true);
-        return { status: "gap", reason: `website fetch ${home.source.status}`, inputHash: company.website };
+        return fallback(`website fetch ${home.source.status}`);
       }
       const links = teamLinks(home.text, company.website);
       let pageText: string | null = null;
@@ -464,8 +498,7 @@ export function createContactsStep(call: ExtractorCall = dockerExtractorCall): S
         }
       }
       if (!pageText || !pageSource) {
-        await finishRun(db, runId, true);
-        return { status: "gap", reason: "no team/about page found", inputHash: company.website };
+        return fallback("no team/about page found");
       }
       const prompt = [
         "From this firm team/about page text, list people with their titles. Return one JSON object: {\"people\": [{\"name\": \"...\", \"title\": \"...\", \"quote\": \"verbatim passage naming the person and title\"}]}. No tools. Names and titles only.",
@@ -488,6 +521,9 @@ export function createContactsStep(call: ExtractorCall = dockerExtractorCall): S
             quoteSourceId: pageSource,
           })),
         });
+      }
+      if (people.length === 0) {
+        return fallback("team page named no people", result.usage?.inputTokens ?? null);
       }
       await finishRun(db, runId, true);
       return { status: "done", reason: `${people.length} people from team page`, tokensUsed: result.usage?.inputTokens ?? null, inputHash: company.website };
