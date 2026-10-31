@@ -120,6 +120,20 @@ describe("firm_data step (B3)", () => {
     expect(facts.map((f) => f.key)).toContain("firm.disclosure_flag");
   });
 
+  it("works when the firm already has a running collect run (stale job run)", async () => {
+    const companyId = await makeCompany();
+    await handle.db.insert(researchRuns).values({ id: randomUUID(), companyId, kind: "collect", status: "running", stage: "collect", promptVersion: "ria-v1", startedAt: new Date() });
+    const step = createFirmDataStep({
+      gdelt: site.baseUrl, secEfts: site.baseUrl, secData: site.baseUrl,
+      adviserApi: site.baseUrl, adviserReports: site.baseUrl,
+      cdx: site.baseUrl, wayback: site.baseUrl, greenhouse: site.baseUrl,
+      lever: site.baseUrl, ashby: site.baseUrl, workable: site.baseUrl, companiesHouse: site.baseUrl,
+    } as never);
+    // The fake site has no firm route: the step gaps, but must not throw on the run insert.
+    const out = await step(handle.db, randomUUID(), companyId);
+    expect(out.status).toBe("gap");
+  });
+
   it("gaps when the firm has no CRD", async () => {
     const companyId = await makeCompany({ secCrd: null });
     const out = await createFirmDataStep()(handle.db, randomUUID(), companyId);
