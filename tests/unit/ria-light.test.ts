@@ -105,3 +105,43 @@ describe("parseBrochureChoice (B4)", () => {
     expect(parseBrochureChoice(null)).toEqual({ exempt: false, choice: null });
   });
 });
+
+describe("splitBrochureItems heading styles (B4 gaps)", () => {
+  const body = "This section holds real brochure text that is long enough to be stored as an Item document body.";
+
+  it("reads Form ADV Part 2A, Item N headings", () => {
+    const text = [
+      "Form ADV Part 2A, Item 4 Advisory Business", body,
+      "Form ADV Part 2A, Item 5 Fees and Compensation", body,
+      "Form ADV, Part 2A, Item 9 Disciplinary Information", body,
+    ].join("\n");
+    expect(Object.keys(splitBrochureItems(text)).sort()).toEqual(["4", "5", "9"]);
+  });
+
+  it("reads Title - Item N headings", () => {
+    const text = [
+      "Advisory Business - Item 4", body,
+      "Fees and Compensation - Item 5", body,
+      "Custody - Item 15", body,
+    ].join("\n");
+    expect(Object.keys(splitBrochureItems(text)).sort()).toEqual(["15", "4", "5"]);
+  });
+
+  it("reads bare section titles, skipping the dotted TOC", () => {
+    const text = [
+      "Advisory Business ............ 4",
+      "Fees and Compensation ............ 5",
+      "Disciplinary Information ............ 9",
+      "Advisory Business", body,
+      "Fees and Compensation", body,
+      "Disciplinary Information", body,
+    ].join("\n");
+    const items = splitBrochureItems(text);
+    expect(Object.keys(items).sort()).toEqual(["4", "5", "9"]);
+    expect(items["5"]).toContain("real brochure text");
+  });
+
+  it("still gaps a scan with no headings", () => {
+    expect(splitBrochureItems("Some scanned page image text without any structure at all.")).toEqual({});
+  });
+});

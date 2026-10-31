@@ -2,13 +2,59 @@
 
 export const BROCHURE_ITEMS = ["4", "5", "9", "12", "15"] as const;
 
+const ITEM_TITLES: Record<string, string> = {
+  "4": "Advisory Business",
+  "5": "Fees and Compensation",
+  "9": "Disciplinary Information",
+  "12": "Brokerage Practices",
+  "15": "Custody",
+};
+
+const LEADERS = /\.{4,}|…{2,}|\.{2,}\s+\d+\s*$/;
+
+interface Mark {
+  item: string;
+  start: number;
+  contentStart: number;
+}
+
+/** Heading lines for one brochure, in document order. Pure. */
+export function brochureMarks(text: string): Mark[] {
+  const lines = text.split("\n");
+  const offsets: number[] = [];
+  let acc = 0;
+  for (const line of lines) {
+    offsets.push(acc);
+    acc += line.length + 1;
+  }
+  const strong: Mark[] = [];
+  lines.forEach((line, i) => {
+    const trimmed = line.trim();
+    if (trimmed.length > 120 || LEADERS.test(trimmed)) return;
+    const m =
+      /^(?:Form ADV(?:\s*,\s*|\s+)(?:Part 2A,?\s*)?|Part 2A,?\s*)?(?:ITEM|Item)\s+(4|5|9|12|15)\b/.exec(trimmed) ??
+      /^[A-Z][^\n]{0,70}[-–—]\s*(?:ITEM|Item)\s+(4|5|9|12|15)\b/.exec(trimmed);
+    if (m?.[1]) strong.push({ item: m[1], start: offsets[i] ?? 0, contentStart: (offsets[i] ?? 0) + line.length });
+  });
+  if (new Set(strong.map((m) => m.item)).size >= 2) return strong;
+  // No usable Item numbers: fall back to the standard Part 2A section
+  // titles (skipping table-of-contents lines, which carry dot leaders).
+  const byTitle: Mark[] = [];
+  lines.forEach((line, i) => {
+    const trimmed = line.trim();
+    if (trimmed.length > 80 || LEADERS.test(trimmed)) return;
+    for (const [item, title] of Object.entries(ITEM_TITLES)) {
+      if (trimmed.toLowerCase().startsWith(title.toLowerCase()) && !byTitle.some((m) => m.item === item)) {
+        byTitle.push({ item, start: offsets[i] ?? 0, contentStart: (offsets[i] ?? 0) + line.length });
+      }
+    }
+  });
+  return byTitle.length >= 2 ? byTitle : strong;
+}
+
 export function splitBrochureItems(text: string): Record<string, string> {
   const normalized = text.replace(/\r/g, "");
-  const heading = /(?:^|\n)\s*(?:ITEM|Item)\s+(4|5|9|12|15)\b[^\n]*/g;
-  const marks: { item: string; start: number; contentStart: number }[] = [];
-  for (const m of normalized.matchAll(heading)) {
-    marks.push({ item: m[1] as string, start: m.index, contentStart: m.index + m[0].length });
-  }
+  const marks = brochureMarks(normalized);
   const out: Record<string, string> = {};
   for (let i = 0; i < marks.length; i++) {
     const mark = marks[i];
