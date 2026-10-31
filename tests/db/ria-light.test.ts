@@ -5,7 +5,7 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { DbHandle } from "../../src/db/client.js";
 import { companies, documents, factsCurrent, records, researchRuns, sources } from "../../src/db/schema.js";
-import { createFirmDataStep, setPrivateHostsForTests } from "../../src/domain/ria-steps/handlers.js";
+import { createFirmDataStep, setPrivateHostsForTests, brochureStep, setReportsBaseForTests } from "../../src/domain/ria-steps/handlers.js";
 import { addFacts } from "../../src/domain/research/facts.js";
 import { saveDocument } from "../../src/domain/research/documents.js";
 import { storeBlob } from "../../src/domain/research/sources.js";
@@ -83,9 +83,11 @@ beforeEach(async () => {
   site = await startFakeSite();
   site.routes.set("/robots.txt", (_req, res) => sendText(res, "User-agent: *\nDisallow:\n", 200, "text/plain"));
   setPrivateHostsForTests(["127.0.0.1"]);
+  setReportsBaseForTests(site.baseUrl);
 });
 afterEach(async () => {
   setPrivateHostsForTests(null);
+  setReportsBaseForTests(null);
   await site.close();
 });
 afterAll(async () => {
@@ -122,5 +124,30 @@ describe("firm_data step (B3)", () => {
     const companyId = await makeCompany({ secCrd: null });
     const out = await createFirmDataStep()(handle.db, randomUUID(), companyId);
     expect(out).toMatchObject({ status: "gap", reason: "no SEC CRD" });
+  });
+});
+
+describe("brochure step (B4)", () => {
+  it("stores Item documents from a readable PDF", async () => {
+    site.routes.set("/reports/ADV/900001/Part2ABrochure/900001.pdf", (_req, res) => {
+      res.writeHead(200, { "content-type": "application/pdf" });
+      res.end(fakePdf(FAKE_PDF_TEXT));
+    });
+    const companyId = await makeCompany();
+    const out = await brochureStep(handle.db, randomUUID(), companyId);
+    expect(out.status).toBe("done");
+    const docs = await handle.db.select().from(documents).where(eq(documents.companyId, companyId));
+    expect(docs.map((d) => d.path).sort()).toEqual([
+      "financials/brochure-item-4.md",
+      "financials/brochure-item-5.md",
+      "financials/brochure-item-9.md",
+    ]);
+  });
+
+  it("gaps (never fails) when the brochure is not downloadable", async () => {
+    const companyId = await makeCompany();
+    const out = await brochureStep(handle.db, randomUUID(), companyId);
+    expect(out.status).toBe("gap");
+    expect(out.reason).toContain("not publicly downloadable");
   });
 });

@@ -1,11 +1,15 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
 import { companies, researchRuns } from "../../db/schema.js";
 import { DEFAULT_ENDPOINTS } from "../../collect/collectors/types.js";
 import { secFirmCollector } from "../../collect/collectors/sec-firm.js";
+import { fetchUrl } from "../../collect/fetch.js";
 import { normalizeDomain } from "../../lib/apollo/parse.js";
+import { pdfText } from "../../lib/sec/pdf-text.js";
 import { toEffectiveCompany } from "../companies.js";
+import { saveDocument } from "../research/documents.js";
+import { brochureDate, splitBrochureItems } from "./brochure.js";
 import type { StepHandler } from "./runner.js";
 
 /** RIA light steps (Stage 5.8 B3-B7): code first, one AI call where text must be read. */
@@ -77,4 +81,75 @@ export function createFirmDataStep(endpoints = DEFAULT_ENDPOINTS): StepHandler {
   }
   };
 }
+
+// ---- B4: brochure text ----
+
+const REPORTS = "https://reports.adviserinfo.sec.gov";
+let reportsBase = REPORTS;
+export function setReportsBaseForTests(base: string | null): void { reportsBase = base ?? REPORTS; }
+
+export async function brochureUrls(crd: string): Promise<string[]> {
+  return [
+    `${reportsBase}/reports/ADV/${crd}/Part2ABrochure/${crd}.pdf`,
+    `${reportsBase}/reports/ADV/${crd}/Part2ABrochure.pdf`,
+  ];
+}
+
+export const brochureStep: StepHandler = async (db, _sectorId, companyId) => {
+  const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
+  if (!company?.secCrd) return { status: "gap", reason: "no SEC CRD" };
+  const runId = await newRun(db, companyId, "collect");
+  try {
+    let text: string | null = null;
+    let sourceId: string | null = null;
+    for (const url of await brochureUrls(company.secCrd)) {
+      const res = await fetchUrl(db, {
+        companyId,
+        runId,
+        collector: "ria_brochure",
+        url,
+        userAgent: SEC_UA,
+        accept: "application/pdf",
+        privateHostAllowlist: privateHosts,
+      });
+      if (res.source.status === "ok" && res.body && res.body.length > 500) {
+        try {
+          text = await pdfText(res.body);
+          sourceId = res.source.id;
+          break;
+        } catch {
+          // Unreadable PDF: try the next pattern, else gap below.
+        }
+      }
+    }
+    if (!text || !sourceId) {
+      await finishRun(db, runId, true);
+      return { status: "gap", reason: "brochure not publicly downloadable (IAPD auth) or unreadable", inputHash: company.secCrd };
+    }
+    const items = splitBrochureItems(text);
+    const date = brochureDate(text);
+    const found = Object.keys(items);
+    if (found.length === 0) {
+      await finishRun(db, runId, true);
+      return { status: "gap", reason: "brochure text has no Item headings (scanned?)", inputHash: company.secCrd };
+    }
+    for (const item of found) {
+      await saveDocument(db, {
+        companyId,
+        runId,
+        path: `financials/brochure-item-${item}.md`,
+        title: `Part 2A brochure Item ${item}${date ? ` (${date})` : ""}`,
+        contentMd: items[item] as string,
+        sourceIds: [sourceId],
+        createdBy: "collector:ria_brochure",
+      });
+    }
+    await finishRun(db, runId, true);
+    const hash = createHash("sha256").update(text.slice(0, 20_000)).digest("hex").slice(0, 16);
+    return { status: "done", reason: `items ${found.join(",")}${date ? `, brochure ${date}` : ""}`, inputHash: hash };
+  } catch (err) {
+    await finishRun(db, runId, false);
+    throw err;
+  }
+};
 
