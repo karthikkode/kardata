@@ -61,5 +61,7 @@ ops_read 99/4, contacts 91/12, signals 103, 0 failed; fee schedule on
 96% and billing timing on 95% of firms with a brochure; hand-check
 about 97% of stated fields correct (15 firms). Signal spread is wide
 (Complex fees 86%); see docs/reviews/stage-5.8-review.md.
-O6 (all eligible) replaced by owner direction with a next-200 R-group
-run; the rest awaits the owner's go.
+Next-200 R-group run done (2026-10-31): ops_read 197/200, contacts
+25/200 (Schedule A officer capture in firm_data is the blocker; see
+review), signals 200, quota 88%. The remaining firms await the
+owner's go.
