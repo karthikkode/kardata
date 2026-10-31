@@ -153,6 +153,18 @@ export function parseSecCsv(text: string): SecParseResult {
     const street = [clean(get("Main Office Street Address 1")), clean(get("Main Office Street Address 2"))]
       .filter((x) => x !== null)
       .join(", ");
+    // Private-residence main offices (Main Office Private Residence Flag Y)
+    // have their address suppressed in the public file: city/state/country
+    // are blank for ~1.4k firms. Fall back per field to the Mail Office,
+    // then to the Location of Books and Records, so US firms are not
+    // misread as foreign. The street stays the main office's only.
+    const mainCity = clean(get("Main Office City"));
+    const mainState = clean(get("Main Office State"));
+    const mainCountry = clean(get("Main Office Country"));
+    const suppressed = mainCity === null && mainState === null && mainCountry === null;
+    const city = suppressed ? (clean(get("Mail Office City")) ?? clean(get("Location of Books and Records City"))) : mainCity;
+    const state = suppressed ? (clean(get("Mail Office State")) ?? clean(get("Location of Books and Records State"))) : mainState;
+    const country = suppressed ? (clean(get("Mail Office Country")) ?? clean(get("Location of Books and Records Country"))) : mainCountry;
     const website = clean(get("Website Address"));
     const accountsTotal = parseCountField(get("5F(2)(f)"));
     const accounts =
@@ -173,9 +185,9 @@ export function parseSecCsv(text: string): SecParseResult {
       domain: normalizeDomain(website),
       phone: clean(get("Main Office Telephone Number")),
       address: street === "" ? null : street,
-      city: clean(get("Main Office City")),
-      state: clean(get("Main Office State")),
-      country: clean(get("Main Office Country")),
+      city,
+      state,
+      country,
       postalCode: clean(get("Main Office Postal Code")),
       employees: parseCountField(get("5A")),
       regulatoryAum: parseMoneyField(get("5F(2)(c)")),
