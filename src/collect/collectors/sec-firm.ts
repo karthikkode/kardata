@@ -43,7 +43,8 @@ export function extractPdfText(body: Buffer): string {
     from = e + 9;
     if (parts.length > 4000) break;
   }
-  return parts.join("\n").slice(0, 60_000);
+  // Postgres text cannot hold NUL bytes; raw PDF strings can contain them.
+  return parts.join("\n").replace(/\u0000/g, "").slice(0, 60_000);
 }
 
 export function parseLeaders(text: string): { name: string; title: string }[] {
