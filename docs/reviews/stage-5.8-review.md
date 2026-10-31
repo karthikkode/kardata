@@ -11,7 +11,7 @@ follow-ups #118–#130, all merged and deployed. Live runs were MCP-only; nothin
 | B1 `ria_status`, bulk cancel, extraction cancel, `not_current` | `src/domain/ria-steps/status.ts`, `company_jobs_cancel`, migration 0040 | `tests/db/ria-steps.test.ts`, `tests/unit/ria-preflight.test.ts` |
 | B2 step runner + pause, 90% quota stop | `src/domain/ria-steps/runner.ts` | `tests/db/ria-runner.test.ts` |
 | B3 firm data (code only) | `createFirmDataStep` over the SEC/IAPD collector; own-website pick | `tests/db/ria-light.test.ts`; live 8,403/8,403 done |
-| B4 brochure (bulk checked first) | FOIA Part 2A bulk stops Dec 2024; per-firm IAPD record + version endpoint; pdfjs Item split | `tests/db/ria-light.test.ts`; live 8,221 done / 182 gap |
+| B4 brochure (bulk checked first) | FOIA Part 2A bulk stops Dec 2024; per-firm IAPD record + version endpoint; pdfjs Item split | `tests/db/ria-light.test.ts`; live 8,217 done / 186 gap |
 | B5 fee terms, one call, quoted | Single extractor call, only quote-grounded facts stored, `ria.fee_*` keys | fees tests; gate firm facts verified on live |
 | B6 contacts, one call | Team page found in code, one call, leaders stored | contacts tests; live gate 58 done |
 | B7 signals/ICP/sheet in code | `computeSignals`, verdict, sheet columns (AUM, staff, growth, fees, custodians, brochure date) | signals tests; `src/domain/icp/sheet.ts` |
@@ -65,7 +65,7 @@ follow-ups #118–#130, all merged and deployed. Live runs were MCP-only; nothin
 
 - O6 not started (per plan): light steps for all eligible firms, R group first, sheet
   re-export. Gate parity fixes above should land first, as their own stage or follow-up.
-- 88-100 brochures have text but no recognizable Item headings; 41 firms are exempt,
+- 110 brochures have text but no recognizable Item headings; 41 firms are exempt,
   22 fetch errors, 13 brochures older than 2 years (stored, then gap).
 - Deep-era `company_jobs` for RIA remain cancelled/terminated by design; the 748
   not_current firms stay members until the next SEC file.
