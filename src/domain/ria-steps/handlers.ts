@@ -13,7 +13,7 @@ import { saveDocument } from "../research/documents.js";
 import { upsertRecords } from "../research/records.js";
 import { recordVerdicts } from "../tiering.js";
 import { brochureDate, splitBrochureItems } from "./brochure.js";
-import type { StepHandler, StepResult } from "./runner.js";
+import type { StepHandler } from "./runner.js";
 import { dockerExtractorCall, type ExtractorCall } from "../../runs/extract.js";
 
 /** RIA light steps (Stage 5.8 B3-B7): code first, one AI call where text must be read. */
