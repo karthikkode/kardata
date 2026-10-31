@@ -54,4 +54,12 @@ Part C/O on the live sector after PRs #117–#130 (deployed).
   (90% bar missed). Details: docs/reviews/stage-5.8-review.md.
 - Skincare unchanged: 626 eligible / 7,150 ineligible, as at the C2 baseline.
 
-O6 (light steps for all eligible, sheet re-export) not started, per plan.
+Follow-up (2026-10-31): fees replaced by ops_read (Items 4/5/8/12/14/15,
+normalised grounding); owner signal set (icp.md section 4) with lead
+signal column; Schedule A contact fallback. Gate re-run on the 103:
+ops_read 99/4, contacts 91/12, signals 103, 0 failed; fee schedule on
+96% and billing timing on 95% of firms with a brochure; hand-check
+about 97% of stated fields correct (15 firms). Signal spread is wide
+(Complex fees 86%); see docs/reviews/stage-5.8-review.md.
+O6 (all eligible) replaced by owner direction with a next-200 R-group
+run; the rest awaits the owner's go.
