@@ -258,6 +258,34 @@ describe("fees step (B5)", () => {
     expect(keys).not.toContain("ria.fee_collection");
   });
 
+  it("reads the current brochure version, not a superseded slice", async () => {
+    const companyId = await makeCompany();
+    const runId = await makeRun(companyId);
+    const sourceId = await makeSource(companyId, runId);
+    await saveDocument(handle.db, { companyId, runId, path: "financials/brochure-item-5.md", title: "Item 5 v1", contentMd: "Item 5 Fees and Compensation ............ 12 (table of contents only, superseded)", sourceIds: [sourceId], createdBy: "collector:ria_brochure" });
+    const item5 = "Our fee is tiered, negotiable, grouped by family, and billed quarterly in advance with proration.";
+    await saveDocument(handle.db, { companyId, runId, path: "financials/brochure-item-5.md", title: "Item 5 v2", contentMd: item5, sourceIds: [sourceId], createdBy: "collector:ria_brochure" });
+    const step = createOpsReadStep(async () => ({
+      json: {
+        fee_schedule: "tiered", family_grouping: true, negotiable: true, fee_types: ["percentage_of_aum"],
+        minimums: "", billing: "advance", proration: true, refunds: false, systems: [], collection: "",
+        services: [], outside_managers: false, sub_advisers: false, wrap_programs: false, tamp_providers: [],
+        custodians_named: [], brokers_named: [], directed_brokerage: false, trade_aggregation: false,
+        private_funds: false, custody_sloa: false, custody_exam: false,
+        quotes: [
+          { field: "fee_schedule", quote: "Our fee is tiered" },
+          { field: "negotiable", quote: "negotiable" },
+          { field: "billing", quote: "billed quarterly in advance" },
+        ],
+      },
+      usage: undefined,
+    }));
+    const out = await step(handle.db, randomUUID(), companyId);
+    expect(out.status).toBe("done");
+    const facts = await handle.db.select().from(factsCurrent).where(eq(factsCurrent.companyId, companyId));
+    expect(facts.map((f) => f.key)).toContain("ria.fee_schedule");
+  });
+
   it("gaps without a stored Item 5", async () => {
     const companyId = await makeCompany();
     const out = await createOpsReadStep(async () => ({ json: {}, usage: undefined }))(handle.db, randomUUID(), companyId);
