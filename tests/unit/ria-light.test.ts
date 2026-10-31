@@ -145,3 +145,21 @@ describe("splitBrochureItems heading styles (B4 gaps)", () => {
     expect(splitBrochureItems("Some scanned page image text without any structure at all.")).toEqual({});
   });
 });
+
+describe("splitBrochureItems table of contents (B4)", () => {
+  it("slices body sections, not the TOC", () => {
+    const body = "This section holds real brochure text that is long enough to be stored as an Item document body.";
+    const text = [
+      "Item 4: Advisory Business ............ 4",
+      "Item 5: Fees and Compensation ............ 6",
+      "Item 9: Disciplinary Information ............ 9",
+      "Item 4 Advisory Business", body,
+      "Item 5 Fees and Compensation", body,
+      "Item 9 Disciplinary Information", body,
+    ].join("\n");
+    const items = splitBrochureItems(text);
+    expect(Object.keys(items).sort()).toEqual(["4", "5", "9"]);
+    expect(items["5"]).toContain("real brochure text");
+    expect(items["5"]).not.toContain("............");
+  });
+});

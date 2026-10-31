@@ -36,7 +36,7 @@ export function brochureMarks(text: string): Mark[] {
       /^[A-Z][^\n]{0,70}[-–—]\s*(?:ITEM|Item)\s+(4|5|9|12|15)\b/.exec(trimmed);
     if (m?.[1]) strong.push({ item: m[1], start: offsets[i] ?? 0, contentStart: (offsets[i] ?? 0) + line.length });
   });
-  if (new Set(strong.map((m) => m.item)).size >= 2) return strong;
+  if (new Set(strong.map((m) => m.item)).size >= 2) return chooseBodyMarks(strong, text);
   // No usable Item numbers: fall back to the standard Part 2A section
   // titles (skipping table-of-contents lines, which carry dot leaders).
   const byTitle: Mark[] = [];
@@ -49,7 +49,27 @@ export function brochureMarks(text: string): Mark[] {
       }
     }
   });
-  return byTitle.length >= 2 ? byTitle : strong;
+  return byTitle.length >= 2 ? chooseBodyMarks(byTitle, text) : strong;
+}
+
+/**
+ * Brochures repeat every heading in the table of contents. The body
+ * heading is the first candidate whose following text is prose, not a
+ * run of TOC entries (dot leaders or several Item mentions at once).
+ */
+export function chooseBodyMarks(candidates: Mark[], text: string): Mark[] {
+  const items = [...new Set(candidates.map((m) => m.item))];
+  const chosen: Mark[] = [];
+  for (const item of items) {
+    const mine = candidates.filter((m) => m.item === item);
+    const body = mine.find((m) => {
+      const window = text.slice(m.contentStart, m.contentStart + 500);
+      const itemMentions = window.match(/\bItem\s+\d+/g)?.length ?? 0;
+      return itemMentions < 2 && !/\.{4,}/.test(window.slice(0, 200));
+    });
+    chosen.push(body ?? (mine[0] as Mark));
+  }
+  return chosen.sort((a, b) => a.start - b.start);
 }
 
 export function splitBrochureItems(text: string): Record<string, string> {
