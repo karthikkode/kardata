@@ -4,7 +4,7 @@ import { companies, facts, factsCurrent, records, sectorCompanies, sectorPreflig
 import { DomainError } from "../errors.js";
 import { getProfileOrNull } from "../sector-preflight/profile.js";
 import { companyRevenueTruth } from "../tiering.js";
-import { RIA_SIGNAL_RULES } from "./ria-rules.js";
+import { RIA_JUDGE_RULES } from "./ria-rules.js";
 import { ALL_RULES, type BucketRule, type Route } from "./rules.js";
 
 /**
@@ -346,7 +346,7 @@ export async function icpEvidence(db: Db, sectorId: string, companyId: string, n
   if (!company) throw new DomainError("not_found", `company not found: ${companyId}`);
   const sectorProfile = await getProfileOrNull(db, sectorId);
   const playbook: "d2c" | "ria" = sectorProfile?.playbook === "ria" ? "ria" : "d2c";
-  const rules: BucketRule[] = playbook === "ria" ? RIA_SIGNAL_RULES : ALL_RULES;
+  const rules: BucketRule[] = playbook === "ria" ? RIA_JUDGE_RULES : ALL_RULES;
   const factKeys = [...new Set(rules.flatMap((r) => r.routes.flatMap((route) => route.factKeys ?? [])))];
   const keyPrefixes = [...new Set(rules.flatMap((r) => r.routes.flatMap((route) => route.keyPrefixes ?? [])))];
   const recordTypes = [...new Set(rules.flatMap((r) => r.routes.flatMap((route) => route.recordTypes ?? [])))];

@@ -1483,10 +1483,10 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   registerTool(server, db, auth,
     "ria_step_run",
     {
-      description: "Operator: run one RIA pipeline step (firm_data, brochure, fees, contacts, signals) over eligible firms or a list. Skips firms already done; honours pause and the 90% quota stop for AI steps.",
+      description: "Operator: run one RIA pipeline step (firm_data, brochure, ops_read, contacts, signals) over eligible firms or a list. Skips firms already done; honours pause and the 90% quota stop for AI steps.",
       inputSchema: {
         sectorId: z.string().describe("Sector UUID"),
-        step: z.enum(["firm_data", "brochure", "fees", "contacts", "signals"]).describe("Step name"),
+        step: z.enum(["firm_data", "brochure", "ops_read", "contacts", "signals"]).describe("Step name"),
         companyIds: z.array(z.string()).optional().describe("Exactly these firms (re-runs even when done)"),
         limit: z.number().int().optional().describe("Cap firms in this call"),
         concurrency: z.number().int().optional().describe("Parallel firms (default 4, max 16; SEC host delay still applies)"),

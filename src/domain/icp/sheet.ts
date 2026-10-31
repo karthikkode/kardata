@@ -5,7 +5,7 @@ import { sectorSheetRows, type SheetRow } from "../tiering.js";
 import type { EvidenceItem } from "./evidence.js";
 import type { BucketResult } from "./judge.js";
 import { hasTechTeam, latestIcpCheck, sectorIcpCompanies, signalsMet, type SectorIcpCompanyRow } from "./reads.js";
-import { RIA_SIGNAL_RULES } from "./ria-rules.js";
+import { RIA_LEAD_PRIORITY, RIA_SIGNAL_RULES } from "./ria-rules.js";
 import { SIGNAL_RULES } from "./rules.js";
 
 const ALL_SIGNAL_RULES = [...SIGNAL_RULES, ...RIA_SIGNAL_RULES];
@@ -183,6 +183,7 @@ export interface RiaSheetRow {
   layer: number;
   score: number;
   signals: string[];
+  leadSignal: string;
   contactName: string;
   contactTitle: string;
   phone: string;
@@ -203,6 +204,7 @@ export const RIA_HEADER = [
   "Layer",
   "Score",
   "Signals",
+  "Lead signal",
   "Contact name",
   "Contact title",
   "Main phone",
@@ -217,19 +219,31 @@ export const RIA_HEADER = [
   ...TRACKING_COLUMNS,
 ];
 
-function signalsWithQuotes(check: CompanyIcpCheck): string[] {
+export function riaTopSignals(check: CompanyIcpCheck): { top: string[]; lead: string } {
   const results = (check.results as { signals?: BucketResult[] }).signals ?? [];
   const evidence = new Map((check.evidence as EvidenceItem[]).map((e) => [e.ref, e]));
-  const out: string[] = [];
-  for (const s of results) {
-    if (!s.counted) continue;
+  const counted = results.filter((s) => s.counted);
+  counted.sort((a, b) => {
+    const ia = (RIA_LEAD_PRIORITY as readonly string[]).indexOf(a.key);
+    const ib = (RIA_LEAD_PRIORITY as readonly string[]).indexOf(b.key);
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  });
+  const render = (s: BucketResult): string => {
     const first = s.refs.map((r) => evidence.get(r)).find((e) => e !== undefined);
     const label = ALL_SIGNAL_RULES.find((r) => r.key === s.key)?.label ?? s.key;
     const quote = first?.quote ? ` "${first.quote}"` : "";
     const date = first?.date ? ` (${first.date})` : "";
-    out.push(`${label}${date}: ${s.observation}${quote}`);
-  }
-  return out;
+    return `${label}${date}: ${s.observation}${quote}`;
+  };
+  const leadResult = counted[0];
+  return {
+    top: counted.slice(0, 3).map(render),
+    lead: leadResult ? (ALL_SIGNAL_RULES.find((r) => r.key === leadResult.key)?.label ?? leadResult.key) : "",
+  };
+}
+
+function signalsWithQuotes(check: CompanyIcpCheck): string[] {
+  return riaTopSignals(check).top;
 }
 
 export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRow[]> {
@@ -288,6 +302,7 @@ export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRo
       layer: row.layer,
       score: row.score,
       signals: check ? signalsWithQuotes(check) : [],
+      leadSignal: check ? riaTopSignals(check).lead : "",
       contactName: contact?.name ?? "",
       contactTitle: contact?.title ?? "",
       phone: company?.phone ?? "",
@@ -316,6 +331,7 @@ export function riaCsv(rows: RiaSheetRow[]): string {
         r.layer,
         r.score,
         cell(r.signals.join(" | ")),
+        cell(r.leadSignal),
         cell(r.contactName),
         cell(r.contactTitle),
         cell(r.phone),

@@ -14,7 +14,7 @@ import {
   type FlagKey,
   type SignalKey,
 } from "./rules.js";
-import { RIA_SIGNAL_KEYS, RIA_SIGNAL_RULES } from "./ria-rules.js";
+import { RIA_JUDGE_RULES, RIA_SIGNAL_KEYS, RIA_SIGNAL_RULES } from "./ria-rules.js";
 
 export type IcpVariant = "d2c" | "ria";
 
@@ -70,7 +70,7 @@ export function icpSchema(variant: IcpVariant = "d2c"): string {
       type: "object",
       additionalProperties: false,
       properties: {
-        signals: group(RIA_SIGNAL_RULES),
+        signals: group(RIA_JUDGE_RULES),
         exclusions: { type: "object", additionalProperties: false, properties: {}, required: [] },
         flags: { type: "object", additionalProperties: false, properties: {}, required: [] },
       },
@@ -229,7 +229,7 @@ export function buildIcpPrompt(pack: EvidencePack, variant: IcpVariant = "d2c"):
           company,
           preflight,
           revenue,
-          signals: section(RIA_SIGNAL_RULES, pack),
+          signals: section(RIA_JUDGE_RULES, pack),
           exclusions: "- (exclusions come from the preflight reason, decided by the server)",
           flags: "- (none for advisers)",
         }
@@ -340,7 +340,7 @@ export function decideRia(pack: EvidencePack, judgement: Judgement): IcpDecision
   const notes = new Set(Object.values(pack.buckets).flatMap((items) => items.filter((i) => i.origin === "notes").map((i) => i.ref)));
   const signalsMap = judgement.signals as unknown as Record<string, Answer>;
   const consumed = new Set<string>();
-  const signals = RIA_SIGNAL_RULES.map((rule) => {
+  const signals = RIA_JUDGE_RULES.map((rule) => {
     const answer = signalsMap[rule.key] ?? { verdict: "unknown" as const, evidence_refs: [], observation: "" };
     const result = checkAnswer(rule.key as BucketKey, answer, pack, all, notes);
     if (result.counted && result.refs.every((r) => consumed.has(r))) {

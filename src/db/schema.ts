@@ -1128,7 +1128,7 @@ export const apolloContacts = pgTable(
 );
 export type ApolloContact = typeof apolloContacts.$inferSelect;
 
-export const RIA_STEPS = ["firm_data", "brochure", "fees", "contacts", "signals"] as const;
+export const RIA_STEPS = ["firm_data", "brochure", "ops_read", "contacts", "signals"] as const;
 export type RiaStep = (typeof RIA_STEPS)[number];
 export const RIA_STEP_STATUSES = ["done", "gap", "failed"] as const;
 

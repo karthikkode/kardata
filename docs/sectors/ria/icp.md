@@ -25,22 +25,29 @@ Revenue, if needed, is estimated as AUM × 0.8% and always labelled an estimate.
 ## 4. Signals (each needs stored, quoted, dated evidence; evidence-rules.md applies)
 | Key | Signal | Where it shows |
 |---|---|---|
-| `fee_complexity` | Fees that are hard to bill right: tiered schedules with family grouping, negotiable fees, several fee options (percent plus flat or hourly), billing in advance with prorating and refunds | Brochure Item 5 |
-| `recent_deal` | Bought, merged with or was bought by another firm in the last 18 months; clients moved over | Filings, press, website |
-| `ops_hiring` | Job post in the last 6 months for operations, billing, client service or onboarding staff | Job boards, website careers page |
-| `multi_custodian` | Two or more custodians | Brochure Item 12/15, Part 1 |
-| `growth` | AUM or staff up 20%+ in a year, or a new office | SEC file history, filings, press |
-| `tool_sprawl` | Several named systems (portfolio, billing, CRM, planning) or a system change | Brochure, job posts, website |
+| `heavy_book` | Accounts or clients per employee in the top 25% of the firm's group (P or R) | Part 1 (accounts, clients, employees) |
+| `multi_custodian` | Two or more custodians | Brochure Item 12, Part 1 |
+| `growth` | AUM up 30%+ year on year, or staff up 20%+ and at least +2 people | SEC file history |
+| `many_services` | Three or more service lines (planning, tax, insurance, retirement plan consulting, trusts/estates, investment management) | Brochure Item 4 |
+| `outside_managers` | Outside managers, sub-advisers, wrap programs, model or TAMP providers | Brochure Items 4/8 |
+| `alternatives` | Private funds or alternatives advised | Brochure, Part 1 Schedule D count |
+| `custody_work` | Standing letters of authorization, third-party money movement, or surprise custody exams | Brochure Item 15 |
+| `fee_complexity` | At least two of: family grouping, negotiable fees, two or more fee types, advance billing with proration or refunds | Brochure Item 5 |
 | `fee_problem` | A fee or billing disclosure, refund or SEC deficiency on fees | Part 1 disclosures, brochure Item 9, SEC orders |
-Score = number of signals found (0–7). Layer = priority inside the size group: higher score is called first.
-Score 0 is still called (owner calls every company), last.
+| `tool_sprawl` | Two or more distinct named software systems (portfolio, billing, CRM, planning, trading); custodians do not count | Brochure, website |
+| `recent_deal` | Bought, merged with or was bought by another firm in the last 18 months; clients moved over | Deep research only |
+| `ops_hiring` | Job post in the last 6 months for operations, billing, client service or onboarding staff | Deep research only |
+Score = number of signals found. Layer = priority inside the size group: higher score is called first.
+Score 0 is still called (owner calls every company), last. The sheet shows each firm's top 3 signals
+(by lead priority: fee_problem, heavy_book, outside_managers, alternatives, custody_work,
+multi_custodian, many_services, fee_complexity, growth, tool_sprawl, recent_deal, ops_hiring) with
+quotes, plus a "Lead signal" column naming the strongest one for the call opener.
 
-**Light path (Stage 5.8).** The light steps (firm data → brochure → fees → contacts → signals) compute
-signals from stored facts in code, with no research run: `fee_complexity` only when at least two of family
-grouping, negotiable fees, two or more fee types, advance billing with proration or refunds; `multi_custodian`
-from the stored custodian filing text; `growth` when AUM or staff is up 20%+ year on year; `fee_problem` from
-fee-related disclosures or Item 9 text about fees or refunds; `tool_sprawl` from two or more named systems in
-the brochure. `recent_deal` and `ops_hiring` come only from deep research, so a light-path score is out of 5.
+**Light path (Stage 5.8).** The light steps (firm data → brochure → ops read → contacts → signals)
+compute these signals from stored facts in code, with no research run. The ops read is one model call
+over brochure Items 4, 5, 8, 12, 14 and 15; every value is kept only with a verbatim quote that
+grounds in the brochure text (PDF-normalised on both sides). `recent_deal` and `ops_hiring` come only
+from deep research.
 
 ## 5. Who to contact
 Retainer group: the COO, director or head of operations; else the chief compliance officer; else a founder.
