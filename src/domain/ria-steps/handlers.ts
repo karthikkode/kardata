@@ -165,10 +165,12 @@ export const brochureStep: StepHandler = async (db, _sectorId, companyId) => {
 
     // Already stored at this version: skip the download.
     const existing = await db
-      .select({ title: documents.title })
+      .select({ title: documents.title, contentMd: documents.contentMd })
       .from(documents)
       .where(and(eq(documents.companyId, companyId), eq(documents.path, "financials/brochure-item-5.md")));
-    const already = existing.some((d) => d.title.includes(`v${choice.versionId})`));
+    // A stored doc only counts when it holds body text: early runs could
+    // slice the table of contents instead of the Item itself.
+    const already = existing.some((d) => d.title.includes(`v${choice.versionId})`) && d.contentMd.length > 200 && !/\.{6,}/.test(d.contentMd.slice(0, 300)));
     const twoYearsAgo = new Date(Date.now() - 2 * 365.25 * 86_400_000).toISOString().slice(0, 10);
     const stale = choice.dateSubmitted < twoYearsAgo;
     if (already) {
@@ -315,11 +317,13 @@ ${item4?.text ?? ""}`.replace(/\s+/g, " ").toLowerCase();
           quoteSourceId: null,
         });
       }
-      if (facts.length > 0) {
-        const written = await addFacts(db, { companyId, runId, createdBy: "extractor:ria_fees", facts });
-        const bad = written.find((r) => !r.ok);
-        if (bad && !bad.ok) throw new Error(`fee fact write failed: ${bad.error}`);
+      if (facts.length === 0) {
+        await finishRun(db, runId, true);
+        return { status: "gap", reason: "no grounded fee terms in Item 5 text", tokensUsed: result.usage?.inputTokens ?? null };
       }
+      const written = await addFacts(db, { companyId, runId, createdBy: "extractor:ria_fees", facts });
+      const bad = written.find((r) => !r.ok);
+      if (bad && !bad.ok) throw new Error(`fee fact write failed: ${bad.error}`);
       await finishRun(db, runId, true);
       const tokens = result.usage?.inputTokens ?? null;
       return { status: "done", tokensUsed: tokens, inputHash: createHash("sha256").update(item5.text.slice(0, 5000)).digest("hex").slice(0, 16) };
