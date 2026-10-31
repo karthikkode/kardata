@@ -8,10 +8,14 @@ Stage 5.7 Part O, run 2026-10-31. Sector `ria-us` (01253fc6-3de6-464c-aca8-e86af
 - Collector: SEC firm collector queued for all 8,072 eligible firms (still running; SEC host
   politeness bounds throughput). Pilot: 10 company jobs (5 P, 5 R) started; R wave: 150 jobs
   started, R group first. Research runs continuously at the concurrency ceiling (agents 64).
-- Company jobs live at the check: 100 scheduled (running), 60 created (queued). ICP job
-  2f8659dc-2833-4e47-a567-afeff8f80f32 found 0 researched firms; re-run `sector_icp_start`
-  as research lands (it skips already-checked firms). ICP verdicts: none yet. Sheet exported with 0 rows to
-  `~/kardata-live/var/sectors/ria-us/analysis/companies-2026-10-31.csv`; re-export after ICP.
-- Research throughput (firms/hour): not yet measurable; preflight ran 17,210 firms in ~10 min.
+- Researched: 100 firms (97 R, 3 P) with ICP verdicts, all `icp_accepted` — by layer
+  R/L5 14, R/L6 32, R/L7 41, R/L8 10, P/L7 2, P/L8 1. `sector_icp_start` finds no
+  un-checked researched firms (company jobs run ICP themselves); re-run it as waves land.
+- Failed: 60 of the first 160 jobs (collect homepage/LinkedIn robots refusals, research
+  stalls) — retry in a later wave. A further 120-job R wave is running.
+- Sheet: 100 rows at `~/kardata-live/var/sectors/ria-us/analysis/companies-2026-10-31.csv`.
+- Research throughput: ~10 firms/hour at the concurrency ceiling (100 firms in ~10 hours,
+  ~20M input tokens per firm; Muse weekly quota 76% used at the check). At that rate the
+  full 8,072 eligible firms take weeks of quota, not one night — waves keep running.
 
 No Google Sheet writes, no Apollo purchases, no outreach.

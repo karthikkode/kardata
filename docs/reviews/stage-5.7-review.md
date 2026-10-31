@@ -13,8 +13,8 @@
 ## Part O counts (2026-10-31, sector `ria-us`)
 
 - Imported 17,210 (SEC file `ia100226.zip`, 2026-10-02), skipped 0. Eligible 8,072 (P 5,105 / R 2,967); aside 9,138 (not_wealth 4,691, not_us 2,252, large 1,545, no_staff 383, exempt_or_inactive 267).
-- Collector queued for all 8,072 eligible (`sec_firm` only). Pilot: 10 company jobs (5 P / 5 R). R wave: 150 more jobs started. Concurrency at ceiling (agents 64, extraction 64, company 100, collect 12); quota breaker untripped (weekly 65%).
-- Throughput so far: preflight 17,210 firms in ~10 min (rules, no tokens). Research throughput not yet measurable: no firm has completed research (see Unfinished). Sheet exported (0 rows for now): `~/kardata-live/var/sectors/ria-us/analysis/companies-2026-10-31.csv`; re-export after ICP.
+- Collector queued for all 8,072 eligible (`sec_firm` only). Pilot 10 + R wave 150 jobs: 100 firms researched with ICP verdicts (all accepted; layers R/L5-L8, P/L7-L8), 60 failed (collect robots refusals, research stalls). A further 120-job R wave is running at the ceiling (agents 64, extraction 64, company 100, collect 12); quota weekly 76%, breaker untripped.
+- Throughput: preflight 17,210 firms in ~10 min (rules, no tokens). Research ~10 firms/hour (~20M input tokens per firm): full coverage takes weeks of Muse quota. Sheet: 100 rows at `~/kardata-live/var/sectors/ria-us/analysis/companies-2026-10-31.csv`.
 - Skincare unchanged: baseline eligible 626 / ineligible 7,150 / sheet 454, re-checked equal before and after deploy.
 
 ## Deviations
@@ -27,4 +27,4 @@
 
 ## Unfinished (running, not blocked)
 
-- Collector for 8,072 firms runs for hours (SEC host politeness, ~2 s/host). Pilot scorecard check, prompt fixes if needed, remaining R then P waves, `sector_icp_start`, and the final sheet follow as research completes. No outreach, no sheet writes, no Apollo purchases.
+- Collector for 8,072 firms runs for hours (SEC host politeness, ~2 s/host); research waves (R then P), retries of the 60 failed jobs, repeat `sector_icp_start` and sheet re-exports continue as firms complete. Pilot scorecard was not separately clean-checked (jobs fold ICP in; verdicts above are the check). No outreach, no sheet writes, no Apollo purchases.
