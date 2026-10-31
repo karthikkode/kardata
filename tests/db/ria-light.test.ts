@@ -253,9 +253,9 @@ describe("fees step (B5)", () => {
     expect(out).toMatchObject({ status: "done", tokensUsed: 1234 });
     const facts = await handle.db.select().from(factsCurrent).where(eq(factsCurrent.companyId, companyId));
     const keys = facts.map((f) => f.key);
-    expect(keys).toContain("firm.fee_schedule");
-    expect(keys).toContain("firm.fee_negotiable");
-    expect(keys).not.toContain("firm.fee_collection");
+    expect(keys).toContain("ria.fee_schedule");
+    expect(keys).toContain("ria.fee_negotiable");
+    expect(keys).not.toContain("ria.fee_collection");
   });
 
   it("gaps without a stored Item 5", async () => {
@@ -302,8 +302,8 @@ describe("signals step (B7)", () => {
       runId,
       createdBy: "extractor:ria_fees",
       facts: [
-        { key: "firm.fee_family_grouping", value: true, sourceIds: [sourceId] },
-        { key: "firm.fee_negotiable", value: true, sourceIds: [sourceId] },
+        { key: "ria.fee_family_grouping", value: true, sourceIds: [sourceId] },
+        { key: "ria.fee_negotiable", value: true, sourceIds: [sourceId] },
         { key: "firm.custodians", value: "Fidelity, Charles Schwab", sourceIds: [sourceId] },
         { key: "firm.regulatory_aum", value: 100_000_000, asOf: "2024-01-01", sourceIds: [sourceId] },
         { key: "firm.regulatory_aum", value: 130_000_000, asOf: "2025-01-01", sourceIds: [sourceId] },
