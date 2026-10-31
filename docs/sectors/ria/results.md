@@ -19,3 +19,39 @@ Stage 5.7 Part O, run 2026-10-31. Sector `ria-us` (01253fc6-3de6-464c-aca8-e86af
   full 8,072 eligible firms take weeks of quota, not one night — waves keep running.
 
 No Google Sheet writes, no Apollo purchases, no outreach.
+
+## Stage 5.8 light pipeline (2026-10-31)
+
+Part C/O on the live sector after PRs #117–#130 (deployed).
+
+- O1/O2: 174 old-path RIA company jobs cancelled (paused + failed); pools restored
+  (collect 12, extraction 64, checkpoint cleared). No data deleted.
+- Preflight re-run (17,958 firms, 0 failed): eligible 8,082, ineligible 9,876
+  (9,128 in the current SEC file + 748 not_current from the older file).
+- SEC address fix (PR #124): 1,406 firms have a suppressed main office
+  (private residence); the parser now falls back to Mail Office, then Books and
+  Records. Recount: eligible 8,403 (P 5,396, R 3,007); ineligible 8,807 in file
+  (not_wealth 4,902, not_us 1,611, large 1,547, no_staff 480,
+  exempt_or_inactive 267) + 748 not_current.
+- firm_data: 8,403/8,403 done, 0 failed (SEC per-firm data + own-website pick;
+  websites re-picked for all 8,403 after the re-import).
+- brochure: 8,221 done, 182 gaps (no Item headings 100, exempt 41, fetch error
+  22, older than 2 years 13, no brochure filed 6), 0 failed. Brochures come
+  from the IAPD firm record + files.adviserinfo.sec.gov version endpoint;
+  the SEC offers no Part 2A bulk after Dec 2024.
+- O5 gate on the 103 deep-researched firms: fees 61 done / 42 gap, contacts
+  58 done / 45 gap, signals 103 done, 0 failed anywhere. Fee agreement vs deep
+  research (57 firms with light facts): schedule present 68%, minimums 56%,
+  negotiable 100% of 18 scored, proration 88%, refunds 82%, billing 54%.
+  Contacts: same first contact as deep research for 62 of 91 firms (68%).
+  Signals: Complex fees both 24 / deep-only 58; Multiple custodians deep-only
+  30, light 0 (light reads the custodian fact's text column; the stored fact
+  is JSON); Growing fast light-only 48 (light uses AUM change, deep required
+  stated growth); Tool sprawl light-only 57. Score equal for 31/103.
+  Tokens: fees ~21–23K input tokens per firm, contacts ~10–31K; total under
+  the 100K target. Time: fees ~20s per firm, signals instant.
+  Gate verdict: coverage and cost pass; fee-term and signal parity do not
+  (90% bar missed). Details: docs/reviews/stage-5.8-review.md.
+- Skincare unchanged: 626 eligible / 7,150 ineligible, as at the C2 baseline.
+
+O6 (light steps for all eligible, sheet re-export) not started, per plan.
