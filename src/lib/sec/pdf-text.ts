@@ -10,5 +10,5 @@ export async function pdfText(body: Buffer): Promise<string> {
     pages.push(content.items.map((item) => ("str" in item ? item.str : "")).join("\n"));
     if (pages.join("\n").length > 200_000) break;
   }
-  return pages.join("\n");
+  return pages.join("\n").replace(/\u0000/g, "");
 }

@@ -88,3 +88,13 @@ describe("sec_firm collector", () => {
     expect(result.outcomes[0]?.status).not.toBe("done");
   });
 });
+
+describe("extractPdfText null bytes", () => {
+  it("strips NUL bytes that Postgres text cannot store", async () => {
+    const { extractPdfText } = await import("../../src/collect/collectors/sec-firm.js");
+    const pdf = Buffer.from("%PDF-1.4\n1 0 obj<<>>stream\nBT (Fee\u0000Schedule) Tj ET\nendstream\nendobj\n%%EOF", "utf8");
+    const text = extractPdfText(pdf);
+    expect(text).not.toContain("\u0000");
+    expect(text).toContain("Fee");
+  });
+});
