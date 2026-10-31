@@ -1489,11 +1489,12 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         step: z.enum(["firm_data", "brochure", "fees", "contacts", "signals"]).describe("Step name"),
         companyIds: z.array(z.string()).optional().describe("Exactly these firms (re-runs even when done)"),
         limit: z.number().int().optional().describe("Cap firms in this call"),
+        concurrency: z.number().int().optional().describe("Parallel firms (default 4, max 16; SEC host delay still applies)"),
       },
     },
-    async ({ sectorId, step, companyIds, limit }) =>
+    async ({ sectorId, step, companyIds, limit, concurrency }) =>
       wrap(async () => {
-        const result = await runRiaStep(db, { sectorId, step: step as never, companyIds: companyIds ?? undefined, limit: limit ?? undefined }, RIA_STEP_HANDLERS);
+        const result = await runRiaStep(db, { sectorId, step: step as never, companyIds: companyIds ?? undefined, limit: limit ?? undefined, concurrency: concurrency ?? undefined }, RIA_STEP_HANDLERS);
         return { summary: `${step}: done ${result.done}, gap ${result.gap}, failed ${result.failed}, skipped ${result.skippedDone}${result.stopped ? `, stopped (${result.stopped})` : ""}, tokens ${result.tokensUsed}`, data: result };
       }),
   );
