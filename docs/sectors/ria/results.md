@@ -35,8 +35,8 @@ Part C/O on the live sector after PRs #117–#130 (deployed).
   exempt_or_inactive 267) + 748 not_current.
 - firm_data: 8,403/8,403 done, 0 failed (SEC per-firm data + own-website pick;
   websites re-picked for all 8,403 after the re-import).
-- brochure: 8,221 done, 182 gaps (no Item headings 100, exempt 41, fetch error
-  22, older than 2 years 13, no brochure filed 6), 0 failed. Brochures come
+- brochure: 8,217 done, 186 gaps (no Item headings 110, exempt 41, fetch error
+  22, older than 2 years 13), 0 failed. Brochures come
   from the IAPD firm record + files.adviserinfo.sec.gov version endpoint;
   the SEC offers no Part 2A bulk after Dec 2024.
 - O5 gate on the 103 deep-researched firms: fees 61 done / 42 gap, contacts
