@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { brochureDate, splitBrochureItems } from "../../src/domain/ria-steps/brochure.js";
-import { pickFirmWebsite, teamLinks, computeSignals, opsPrompt, OPS_SCHEMA, normalizeForGrounding } from "../../src/domain/ria-steps/handlers.js";
+import { pickFirmWebsite, teamLinks, computeSignals, custodianNames, opsPrompt, OPS_SCHEMA, normalizeForGrounding } from "../../src/domain/ria-steps/handlers.js";
 
 
 describe("pickFirmWebsite (B3)", () => {
@@ -61,8 +61,15 @@ describe("computeSignals (B7)", () => {
     billing: "arrears",
     proration: false,
     refunds: false,
-    custodians: null,
-    growthPct: null,
+    custodianCount: 0,
+    heavyBook: false,
+    growthAumPct: null,
+    growthStaffPct: null,
+    growthStaffDelta: null,
+    serviceCount: 0,
+    outsideManagers: false,
+    alternatives: false,
+    custodyWork: false,
     disclosureFee: false,
     systemCount: 0,
   };
@@ -73,11 +80,24 @@ describe("computeSignals (B7)", () => {
     expect(computeSignals({ ...base, billing: "advance", proration: true, feeTypeCount: 2 }).fee_complexity).toBe(true);
   });
 
-  it("multi_custodian, growth, fee_problem, tool_sprawl", () => {
-    const s = computeSignals({ ...base, custodians: "Fidelity, Charles Schwab", growthPct: 0.25, disclosureFee: true, systemCount: 2 });
-    expect(s).toMatchObject({ multi_custodian: true, growth: true, fee_problem: true, tool_sprawl: true });
-    expect(computeSignals({ ...base, custodians: "Fidelity", growthPct: 0.1 }).multi_custodian).toBe(false);
-    expect(computeSignals({ ...base, growthPct: 0.19 }).growth).toBe(false);
+  it("growth: AUM +30%+ or staff +20%+ with at least +2 people", () => {
+    expect(computeSignals({ ...base, growthAumPct: 0.29 }).growth).toBe(false);
+    expect(computeSignals({ ...base, growthAumPct: 0.3 }).growth).toBe(true);
+    expect(computeSignals({ ...base, growthStaffPct: 0.25, growthStaffDelta: 1 }).growth).toBe(false);
+    expect(computeSignals({ ...base, growthStaffPct: 0.25, growthStaffDelta: 2 }).growth).toBe(true);
+  });
+
+  it("ops signals and score", () => {
+    const s = computeSignals({ ...base, custodianCount: 2, heavyBook: true, serviceCount: 3, outsideManagers: true, alternatives: true, custodyWork: true, disclosureFee: true, systemCount: 2 });
+    expect(s).toMatchObject({ multi_custodian: true, heavy_book: true, many_services: true, outside_managers: true, alternatives: true, custody_work: true, fee_problem: true, tool_sprawl: true, recent_deal: false, ops_hiring: false });
+    expect(s.score).toBe(8);
+  });
+
+  it("custodianNames reads the stored JSON custodian fact", () => {
+    expect(custodianNames({ valueText: '["Fidelity", "Charles Schwab"]', valueJson: null }, [])).toEqual(["Fidelity", "Charles Schwab"]);
+    expect(custodianNames({ valueText: null, valueJson: ["Fidelity", "Pershing"] }, [])).toEqual(["Fidelity", "Pershing"]);
+    expect(custodianNames({ valueText: "Fidelity and Charles Schwab", valueJson: null }, [])).toEqual(["Fidelity", "Charles Schwab"]);
+    expect(custodianNames(null, ["Fidelity"])).toEqual(["Fidelity"]);
   });
 });
 

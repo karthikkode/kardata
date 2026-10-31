@@ -15,6 +15,27 @@ export const RIA_SIGNAL_KEYS = [
   "growth",
   "tool_sprawl",
   "fee_problem",
+  "heavy_book",
+  "many_services",
+  "outside_managers",
+  "alternatives",
+  "custody_work",
+] as const;
+
+/** Sheet order for the top-3 display and the lead (call-opener) signal. */
+export const RIA_LEAD_PRIORITY = [
+  "fee_problem",
+  "heavy_book",
+  "outside_managers",
+  "alternatives",
+  "custody_work",
+  "multi_custodian",
+  "many_services",
+  "fee_complexity",
+  "growth",
+  "tool_sprawl",
+  "recent_deal",
+  "ops_hiring",
 ] as const;
 export type RiaSignalKey = (typeof RIA_SIGNAL_KEYS)[number];
 
@@ -55,7 +76,7 @@ const RIA_RULES_LIST = [
   {
     key: "growth",
     label: "Growing fast",
-    question: "Did AUM or staff grow 20% or more in a year, or did it open a new office? State both dated numbers.",
+    question: "Did AUM grow 30% or more in a year, or staff 20% or more (at least 2 people)? State both dated numbers.",
     routes: [{ factKeys: ["firm.growth"], recordTypes: ["company_event"], windowDays: GROWTH_WINDOW_DAYS, statedDate: true }],
   },
   {
@@ -64,6 +85,36 @@ const RIA_RULES_LIST = [
     question:
       "Are several systems named (portfolio, billing, CRM, planning), or was there a system change? Name each system.",
     routes: [{ keyPrefixes: ["firm.system", "firm.software"] }],
+  },
+  {
+    key: "heavy_book",
+    label: "Heavy book",
+    question: "Accounts or clients per employee in the top quarter of its size group (P or R)? State both numbers.",
+    routes: [{ factKeys: ["firm.accounts", "firm.client_total", "financials.employees"] }],
+  },
+  {
+    key: "many_services",
+    label: "Many services",
+    question: "Three or more service lines (planning, tax, insurance, retirement plan consulting, trusts/estates, investment management)?",
+    routes: [{ factKeys: ["ria.services"] }],
+  },
+  {
+    key: "outside_managers",
+    label: "Outside managers",
+    question: "Uses outside managers, sub-advisers, wrap programs, model or TAMP providers? Quote the brochure.",
+    routes: [{ factKeys: ["ria.outside_managers", "ria.sub_advisers", "ria.wrap_programs", "ria.tamp_providers"] }],
+  },
+  {
+    key: "alternatives",
+    label: "Alternatives / private funds",
+    question: "Advises private funds or alternatives? Quote the brochure or state the Schedule D fund count.",
+    routes: [{ factKeys: ["ria.private_funds", "firm.private_fund_count"] }],
+  },
+  {
+    key: "custody_work",
+    label: "Custody work",
+    question: "Custody work beyond safekeeping: standing letters of authorization, third-party money movement, surprise exams? Quote Item 15.",
+    routes: [{ factKeys: ["ria.custody_sloa", "ria.custody_exam"] }],
   },
   {
     key: "fee_problem",

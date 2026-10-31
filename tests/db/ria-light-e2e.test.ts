@@ -183,7 +183,8 @@ describe("synthetic RIA sector through the light steps (B9)", () => {
     expect(row).toBeTruthy();
     expect(row?.feeSummary).toContain("tiered");
     expect(row?.contactName).toBe("Jane Test");
-    expect(row?.signals.join(" ")).toContain("fee_complexity");
+    expect(row?.signals.join(" ")).toContain("Complex fees");
+    expect(row?.leadSignal).toBe("Heavy book");
     void randomUUID;
   });
 });

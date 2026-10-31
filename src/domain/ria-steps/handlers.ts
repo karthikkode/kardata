@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
-import { companies, documents, facts, factsCurrent, researchRuns } from "../../db/schema.js";
+import { companies, documents, facts, factsCurrent, researchRuns, sectorCompanies } from "../../db/schema.js";
 import { DEFAULT_ENDPOINTS } from "../../collect/collectors/types.js";
 import { secFirmCollector } from "../../collect/collectors/sec-firm.js";
 import { fetchUrl } from "../../collect/fetch.js";
@@ -501,11 +501,18 @@ export function createContactsStep(call: ExtractorCall = dockerExtractorCall): S
 // ---- B7: signals, code only ----
 
 export interface RiaSignals {
-  fee_complexity: boolean;
+  heavy_book: boolean;
   multi_custodian: boolean;
   growth: boolean;
+  many_services: boolean;
+  outside_managers: boolean;
+  alternatives: boolean;
+  custody_work: boolean;
+  fee_complexity: boolean;
   fee_problem: boolean;
   tool_sprawl: boolean;
+  recent_deal: boolean;
+  ops_hiring: boolean;
   score: number;
 }
 
@@ -516,8 +523,15 @@ export function computeSignals(input: {
   billing: string | null;
   proration: boolean;
   refunds: boolean;
-  custodians: string | null;
-  growthPct: number | null;
+  custodianCount: number;
+  heavyBook: boolean;
+  growthAumPct: number | null;
+  growthStaffPct: number | null;
+  growthStaffDelta: number | null;
+  serviceCount: number;
+  outsideManagers: boolean;
+  alternatives: boolean;
+  custodyWork: boolean;
   disclosureFee: boolean;
   systemCount: number;
 }): RiaSignals {
@@ -528,13 +542,91 @@ export function computeSignals(input: {
     (input.billing === "advance" || input.billing === "both") && (input.proration || input.refunds),
   ].filter(Boolean).length;
   const signals: Omit<RiaSignals, "score"> = {
+    heavy_book: input.heavyBook,
+    multi_custodian: input.custodianCount >= 2,
+    growth:
+      (input.growthAumPct !== null && input.growthAumPct >= 0.3) ||
+      (input.growthStaffPct !== null && input.growthStaffPct >= 0.2 && (input.growthStaffDelta ?? 0) >= 2),
+    many_services: input.serviceCount >= 3,
+    outside_managers: input.outsideManagers,
+    alternatives: input.alternatives,
+    custody_work: input.custodyWork,
     fee_complexity: feeSignals >= 2,
-    multi_custodian: input.custodians !== null && (input.custodians.match(/,| and |;|\|/g)?.length ?? 0) >= 1 && input.custodians.trim().length > 3,
-    growth: input.growthPct !== null && input.growthPct >= 0.2,
     fee_problem: input.disclosureFee,
     tool_sprawl: input.systemCount >= 2,
+    recent_deal: false,
+    ops_hiring: false,
   };
   return { ...signals, score: Object.values(signals).filter(Boolean).length };
+}
+
+/** Parse a stored custodian value (JSON list, JSON text, or prose) into names. */
+export function custodianNames(raw: { valueText: string | null; valueJson: unknown } | undefined | null, extra: string[]): string[] {
+  const names: string[] = [...extra];
+  if (raw) {
+    if (Array.isArray(raw.valueJson)) names.push(...raw.valueJson.filter((x): x is string => typeof x === "string"));
+    const text = typeof raw.valueText === "string" ? raw.valueText.trim() : "";
+    if (text !== "") {
+      let parsed: unknown = null;
+      try {
+        parsed = JSON.parse(text.replace(/'/g, '"'));
+      } catch {
+        parsed = null;
+      }
+      if (Array.isArray(parsed)) names.push(...parsed.filter((x): x is string => typeof x === "string"));
+      else names.push(...text.split(/,|;|\band\b|\|/).map((s) => s.trim()));
+    }
+    if (typeof raw.valueJson === "string" && raw.valueJson.trim() !== "") names.push(...raw.valueJson.split(/,|;/).map((s) => s.trim()));
+  }
+  const seen = new Map<string, string>();
+  for (const n of names) {
+    const clean = n.replace(/^["'\[]+|["'\]]+$/g, "").trim();
+    if (clean.length < 2) continue;
+    seen.set(clean.toLowerCase(), clean);
+  }
+  return [...seen.values()];
+}
+
+const heavyCache = new Map<string, { at: number; accountsP75: number; clientsP75: number }>();
+
+function p75(values: number[]): number {
+  if (values.length === 0) return Number.POSITIVE_INFINITY;
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.75))] as number;
+}
+
+async function heavyThresholds(db: Db, sectorId: string, group: string | null): Promise<{ accountsP75: number; clientsP75: number }> {
+  const cacheKey = `${sectorId}:${group ?? "all"}`;
+  const hit = heavyCache.get(cacheKey);
+  if (hit && Date.now() - hit.at < 10 * 60_000) return hit;
+  const members = await db.select({ companyId: sectorCompanies.companyId, reason: sectorCompanies.eligibilityReason }).from(sectorCompanies).where(eq(sectorCompanies.sectorId, sectorId));
+  const ids = members.filter((m) => group === null || m.reason === `group:${group}`).map((m) => m.companyId);
+  const per = new Map<string, { accounts?: number; clients?: number; staff?: number }>();
+  if (ids.length > 0) {
+    const rows = await db
+      .select({ companyId: factsCurrent.companyId, key: factsCurrent.key, valueNum: factsCurrent.valueNum })
+      .from(factsCurrent)
+      .where(and(inArray(factsCurrent.companyId, ids), inArray(factsCurrent.key, ["firm.accounts", "firm.client_total", "financials.employees"])));
+    for (const r of rows) {
+      const slot = per.get(r.companyId) ?? {};
+      const n = r.valueNum === null || r.valueNum === undefined ? undefined : Number(r.valueNum);
+      if (r.key === "firm.accounts") slot.accounts = n;
+      else if (r.key === "firm.client_total") slot.clients = n;
+      else slot.staff = n;
+      per.set(r.companyId, slot);
+    }
+  }
+  const accountsRatios: number[] = [];
+  const clientsRatios: number[] = [];
+  for (const v of per.values()) {
+    if (v.staff !== undefined && v.staff > 0) {
+      if (v.accounts !== undefined) accountsRatios.push(v.accounts / v.staff);
+      if (v.clients !== undefined) clientsRatios.push(v.clients / v.staff);
+    }
+  }
+  const value = { at: Date.now(), accountsP75: p75(accountsRatios), clientsP75: p75(clientsRatios) };
+  heavyCache.set(cacheKey, value);
+  return value;
 }
 
 export const signalsStep: StepHandler = async (db, sectorId, companyId) => {
@@ -545,17 +637,35 @@ export const signalsStep: StepHandler = async (db, sectorId, companyId) => {
     const v = byKey.get(key)?.valueText;
     return typeof v === "string" && v !== "" ? v : null;
   };
+  const numOf = (key: string): number | null => {
+    const v = byKey.get(key)?.valueNum;
+    return v === null || v === undefined ? null : Number(v);
+  };
+  const listOf = (key: string): string[] => {
+    const v = byKey.get(key)?.valueJson;
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  };
   const types = byKey.get("ria.fee_types")?.valueJson;
   const feeTypeCount = Array.isArray(types) ? types.length : 0;
-  const systemCount = rows.filter((r) => r.key.startsWith("firm.system_")).length;
-  // Growth from AUM/staff history (facts table, oldest vs newest by asOf).
-  const history = await db
-    .select()
-    .from(facts)
-    .where(eq(facts.companyId, companyId))
-    .orderBy(asc(facts.createdAt));
-  let growthPct: number | null = null;
-  for (const key of ["firm.regulatory_aum", "financials.employees"] as const) {
+
+  // Custodians: the stored JSON fact (ria.custodians_named / firm.custodians).
+  const custodians = custodianNames(byKey.get("firm.custodians") ?? null, listOf("ria.custodians_named"));
+  // Systems: distinct named software, custodians excluded.
+  const custodianNorm = custodians.map((c) => c.toLowerCase());
+  const systemNames = new Map<string, string>();
+  for (const name of listOf("ria.systems_named")) systemNames.set(name.toLowerCase(), name);
+  for (const r of rows) {
+    if (!r.key.startsWith("firm.system_")) continue;
+    const name = typeof r.valueText === "string" && r.valueText !== "" ? r.valueText : r.key.slice("firm.system_".length).replace(/_/g, " ");
+    systemNames.set(name.toLowerCase(), name);
+  }
+  for (const key of [...systemNames.keys()]) {
+    if (custodianNorm.some((c) => key.includes(c) || c.includes(key))) systemNames.delete(key);
+  }
+
+  // Growth: AUM +30%+ or staff +20%+ with at least +2 people (dated history).
+  const history = await db.select().from(facts).where(eq(facts.companyId, companyId)).orderBy(asc(facts.createdAt));
+  const series = (key: string): { first: number; last: number } | null => {
     const pts = history
       .filter((f) => f.key === key && f.valueNum !== null && f.asOf)
       .map((f) => ({ n: Number(f.valueNum), d: String(f.asOf).slice(0, 10) }))
@@ -563,11 +673,31 @@ export const signalsStep: StepHandler = async (db, sectorId, companyId) => {
       .sort((a, b) => a.d.localeCompare(b.d));
     const first = pts[0];
     const last = pts[pts.length - 1];
-    if (!first || !last || first === last || first.n <= 0) continue;
+    if (!first || !last || first === last || first.n <= 0) return null;
     const days = (new Date(last.d).getTime() - new Date(first.d).getTime()) / 86_400_000;
-    if (days >= 180) growthPct = Math.max(growthPct ?? -Infinity, (last.n - first.n) / first.n);
-  }
-  if (growthPct === -Infinity) growthPct = null;
+    return days >= 180 ? { first: first.n, last: last.n } : null;
+  };
+  const aum = series("firm.regulatory_aum");
+  const staffSeries = series("financials.employees");
+  const growthAumPct = aum ? (aum.last - aum.first) / aum.first : null;
+  const growthStaffPct = staffSeries ? (staffSeries.last - staffSeries.first) / staffSeries.first : null;
+  const growthStaffDelta = staffSeries ? staffSeries.last - staffSeries.first : null;
+
+  // Heavy book: top quartile of accounts/clients per employee in the group.
+  const [membership] = await db
+    .select({ reason: sectorCompanies.eligibilityReason })
+    .from(sectorCompanies)
+    .where(and(eq(sectorCompanies.sectorId, sectorId), eq(sectorCompanies.companyId, companyId)));
+  const group = membership?.reason === "group:P" ? "P" : membership?.reason === "group:R" ? "R" : null;
+  const thresholds = await heavyThresholds(db, sectorId, group);
+  const staff = numOf("financials.employees");
+  const accounts = numOf("firm.accounts");
+  const clients = numOf("firm.client_total");
+  const accountsPer = staff !== null && staff > 0 && accounts !== null ? accounts / staff : null;
+  const clientsPer = staff !== null && staff > 0 && clients !== null ? clients / staff : null;
+  const heavyBook =
+    (accountsPer !== null && accountsPer >= thresholds.accountsP75) || (clientsPer !== null && clientsPer >= thresholds.clientsP75);
+
   const item9 = await brochureItemText(db, companyId, "9");
   const disclosureFee =
     boolOf("firm.fee_problem") ||
@@ -579,11 +709,36 @@ export const signalsStep: StepHandler = async (db, sectorId, companyId) => {
     billing: textOf("ria.fee_billing"),
     proration: boolOf("ria.fee_proration"),
     refunds: boolOf("ria.fee_refunds"),
-    custodians: textOf("firm.custodians"),
-    growthPct,
+    custodianCount: custodians.length,
+    heavyBook,
+    growthAumPct,
+    growthStaffPct,
+    growthStaffDelta,
+    serviceCount: listOf("ria.services").length,
+    outsideManagers:
+      boolOf("ria.outside_managers") || boolOf("ria.sub_advisers") || boolOf("ria.wrap_programs") || listOf("ria.tamp_providers").length > 0,
+    alternatives: boolOf("ria.private_funds") || (numOf("firm.private_fund_count") ?? 0) > 0,
+    custodyWork: boolOf("ria.custody_sloa") || boolOf("ria.custody_exam"),
     disclosureFee,
-    systemCount,
+    systemCount: systemNames.size,
   });
+  const observations: Record<string, string> = {
+    heavy_book: accountsPer !== null ? `${Math.round(accountsPer)} accounts per employee (top quartile of ${group ?? "group"})` : clientsPer !== null ? `${Math.round(clientsPer)} clients per employee (top quartile of ${group ?? "group"})` : "",
+    multi_custodian: custodians.join(", "),
+    growth:
+      growthAumPct !== null && growthAumPct >= 0.3
+        ? `AUM ${Math.round(growthAumPct * 100)}% year on year`
+        : `staff ${growthStaffDelta !== null ? `+${growthStaffDelta}` : ""} (${growthStaffPct !== null ? Math.round(growthStaffPct * 100) : "?"}%) year on year`,
+    many_services: listOf("ria.services").join(", "),
+    outside_managers: listOf("ria.tamp_providers").length > 0 ? `TAMP/model providers: ${listOf("ria.tamp_providers").join(", ")}` : "outside managers / sub-advisers / wrap per brochure",
+    alternatives: (numOf("firm.private_fund_count") ?? 0) > 0 ? `${numOf("firm.private_fund_count")} private funds (Schedule D)` : "private funds / alternatives per brochure",
+    custody_work: boolOf("ria.custody_sloa") ? "standing letters of authorization" : "surprise custody examination",
+    fee_complexity: textOf("ria.fee_schedule") ?? "fee terms per brochure Item 5",
+    fee_problem: "fee/billing disclosure in Part 1 Item 9 or brochure Item 9",
+    tool_sprawl: [...systemNames.values()].join(", "),
+    recent_deal: "",
+    ops_hiring: "",
+  };
   const entries = Object.entries(signals).filter(([k]) => k !== "score") as [string, boolean][];
   const packHash = createHash("sha256").update(rows.map((r) => r.id).sort().join(",")).digest("hex").slice(0, 16);
   const runId = await newRun(db, companyId, "icp");
@@ -594,12 +749,12 @@ export const signalsStep: StepHandler = async (db, sectorId, companyId) => {
     companyId,
     sectorId,
     runId,
-    promptVersion: "ria-light-v1",
+    promptVersion: "ria-light-v2",
     packHash,
     score: signals.score,
     status: "icp_accepted",
     results: {
-      signals: entries.map(([key, on]) => ({ key, verdict: on ? "yes" : "no", counted: on, refs: [], observation: on ? `${key} from stored facts` : "", note: null })),
+      signals: entries.map(([key, on]) => ({ key, verdict: on ? "yes" : "no", counted: on, refs: [], observation: on ? (observations[key] ?? `${key} from stored facts`) : "", note: null })),
       exclusions: [],
       flags: [],
     },
@@ -614,9 +769,9 @@ export const signalsStep: StepHandler = async (db, sectorId, companyId) => {
       score: signals.score,
       signals: Object.fromEntries(entries),
       exclusionReason: null,
-      source: `ria-light-v1:${checkId}`,
+      source: `ria-light-v2:${checkId}`,
     },
   ]);
   await finishRun(db, runId, true);
-  return { status: "done", reason: `score ${signals.score} (complex ${signals.fee_complexity}, growth ${signals.growth})`, inputHash: packHash };
+  return { status: "done", reason: `score ${signals.score} (heavy ${signals.heavy_book}, services ${signals.many_services}, complex ${signals.fee_complexity})`, inputHash: packHash };
 };
