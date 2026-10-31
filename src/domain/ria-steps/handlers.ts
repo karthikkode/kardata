@@ -12,8 +12,8 @@ import { addFacts } from "../research/facts.js";
 import { saveDocument } from "../research/documents.js";
 import { upsertRecords } from "../research/records.js";
 import { recordVerdicts } from "../tiering.js";
-import { brochureDate, splitBrochureItems } from "./brochure.js";
-import type { StepHandler } from "./runner.js";
+import { splitBrochureItems } from "./brochure.js";
+import type { StepHandler, StepResult } from "./runner.js";
 import { dockerExtractorCall, type ExtractorCall } from "../../runs/extract.js";
 
 /** RIA light steps (Stage 5.8 B3-B7): code first, one AI call where text must be read. */
@@ -88,69 +88,135 @@ export function createFirmDataStep(endpoints = DEFAULT_ENDPOINTS): StepHandler {
 
 // ---- B4: brochure text ----
 
-const REPORTS = "https://reports.adviserinfo.sec.gov";
-let reportsBase = REPORTS;
-export function setReportsBaseForTests(base: string | null): void { reportsBase = base ?? REPORTS; }
+const IAPD_API = "https://api.adviserinfo.sec.gov";
+const IAPD_FILES = "https://files.adviserinfo.sec.gov";
+let iapdApiBase = IAPD_API;
+let iapdFilesBase = IAPD_FILES;
+export function setBrochureBasesForTests(api: string | null, files: string | null): void {
+  iapdApiBase = api ?? IAPD_API;
+  iapdFilesBase = files ?? IAPD_FILES;
+}
 
-export async function brochureUrls(crd: string): Promise<string[]> {
-  return [
-    `${reportsBase}/reports/ADV/${crd}/Part2ABrochure/${crd}.pdf`,
-    `${reportsBase}/reports/ADV/${crd}/Part2ABrochure.pdf`,
-  ];
+export interface BrochureChoice {
+  versionId: number;
+  name: string;
+  dateSubmitted: string; // ISO yyyy-mm-dd
+}
+
+export function parseBrochureChoice(iacontent: unknown): { exempt: boolean; choice: BrochureChoice | null } {
+  const brochures = (iacontent as { brochures?: { part2ExemptFlag?: string; brochuredetails?: unknown[] } } | null)?.brochures;
+  if (!brochures) return { exempt: false, choice: null };
+  if ((brochures.part2ExemptFlag ?? "").trim().toUpperCase() === "Y") return { exempt: true, choice: null };
+  const details = (brochures.brochuredetails ?? [])
+    .map((d) => {
+      const o = d as { brochureVersionID?: number; brochureName?: string; dateSubmitted?: string };
+      const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec((o.dateSubmitted ?? "").trim());
+      if (!o.brochureVersionID || !m) return null;
+      const iso = `${m[3]}-${String(Number(m[1])).padStart(2, "0")}-${String(Number(m[2])).padStart(2, "0")}`;
+      return { versionId: o.brochureVersionID, name: o.brochureName ?? "", dateSubmitted: iso };
+    })
+    .filter((d): d is BrochureChoice => d !== null);
+  if (details.length === 0) return { exempt: false, choice: null };
+  // Prefer the firm brochure (Part 2A) over 2B supplements and wrap-fee
+  // program brochures when both kinds are filed.
+  const firm = details.filter((d) => !/2b|wrap/i.test(d.name));
+  const pool = firm.length > 0 ? firm : details;
+  const choice = pool.reduce((a, b) => (b.dateSubmitted > a.dateSubmitted ? b : a));
+  return { exempt: false, choice };
 }
 
 export const brochureStep: StepHandler = async (db, _sectorId, companyId) => {
   const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
   if (!company?.secCrd) return { status: "gap", reason: "no SEC CRD" };
+  const crd = company.secCrd;
   const runId = await newRun(db, companyId, "collect");
+  const finish = async (r: StepResult): Promise<StepResult> => {
+    await finishRun(db, runId, true);
+    return r;
+  };
   try {
-    let text: string | null = null;
-    let sourceId: string | null = null;
-    for (const url of await brochureUrls(company.secCrd)) {
-      const res = await fetchUrl(db, {
-        companyId,
-        runId,
-        collector: "ria_brochure",
-        url,
-        userAgent: SEC_UA,
-        accept: "application/pdf",
-        privateHostAllowlist: privateHosts,
-      });
-      if (res.source.status === "ok" && res.body && res.body.length > 500) {
-        try {
-          text = await pdfText(res.body);
-          sourceId = res.source.id;
-          break;
-        } catch {
-          // Unreadable PDF: try the next pattern, else gap below.
-        }
-      }
+    // 1. The IAPD firm record lists filed brochures (the reports.* PDF
+    // URLs are not public; the files.* aspx endpoint is).
+    const lookupUrl = `${iapdApiBase}/search/firm/${encodeURIComponent(crd)}?hl=true&nrows=12&query=${encodeURIComponent(crd)}&r=25&sort=score%2Bdesc&wt=json`;
+    const lookup = await fetchUrl(db, {
+      companyId,
+      runId,
+      collector: "ria_brochure",
+      url: lookupUrl,
+      userAgent: SEC_UA,
+      accept: "application/json",
+      privateHostAllowlist: privateHosts,
+    });
+    if (lookup.source.status !== "ok" || !lookup.text) {
+      return finish({ status: "gap", reason: `brochure lookup fetch error (HTTP ${lookup.source.httpStatus ?? lookup.source.status})`, inputHash: crd });
     }
-    if (!text || !sourceId) {
-      await finishRun(db, runId, true);
-      return { status: "gap", reason: "brochure not publicly downloadable (IAPD auth) or unreadable", inputHash: company.secCrd };
+    let choice: BrochureChoice | null = null;
+    try {
+      const parsed = JSON.parse(lookup.text) as { hits?: { hits?: { _source?: { iacontent?: string } }[] } };
+      const iacontent = parsed.hits?.hits?.[0]?._source?.iacontent;
+      const inner: unknown = typeof iacontent === "string" ? JSON.parse(iacontent) : null;
+      const result = parseBrochureChoice(inner);
+      if (result.exempt) return finish({ status: "gap", reason: "exempt from Part 2 brochure", inputHash: crd });
+      choice = result.choice;
+    } catch {
+      return finish({ status: "gap", reason: "brochure lookup unreadable (invalid IAPD response)", inputHash: crd });
+    }
+    if (!choice) return finish({ status: "gap", reason: "no brochure filed", inputHash: crd });
+
+    // Already stored at this version: skip the download.
+    const existing = await db
+      .select({ title: documents.title })
+      .from(documents)
+      .where(and(eq(documents.companyId, companyId), eq(documents.path, "financials/brochure-item-5.md")));
+    const already = existing.some((d) => d.title.includes(`v${choice.versionId})`));
+    const twoYearsAgo = new Date(Date.now() - 2 * 365.25 * 86_400_000).toISOString().slice(0, 10);
+    const stale = choice.dateSubmitted < twoYearsAgo;
+    if (already) {
+      return finish(
+        stale
+          ? { status: "gap", reason: "brochure older than 2 years", inputHash: String(choice.versionId) }
+          : { status: "done", reason: `brochure v${choice.versionId} (${choice.dateSubmitted}) already stored`, inputHash: String(choice.versionId) },
+      );
+    }
+
+    // 2. The public brochure PDF endpoint, keyed by brochure version id.
+    const pdfUrl = `${iapdFilesBase}/IAPD/Content/Common/crd_iapd_Brochure.aspx?BRCHR_VRSN_ID=${choice.versionId}`;
+    const res = await fetchUrl(db, {
+      companyId,
+      runId,
+      collector: "ria_brochure",
+      url: pdfUrl,
+      userAgent: SEC_UA,
+      accept: "application/pdf",
+      privateHostAllowlist: privateHosts,
+    });
+    if (res.source.status !== "ok" || !res.body) {
+      return finish({ status: "gap", reason: `brochure fetch error (HTTP ${res.source.httpStatus ?? res.source.status})`, inputHash: String(choice.versionId) });
+    }
+    let text: string;
+    try {
+      text = await pdfText(res.body);
+    } catch {
+      return finish({ status: "gap", reason: "brochure unreadable (PDF text extraction failed)", inputHash: String(choice.versionId) });
     }
     const items = splitBrochureItems(text);
-    const date = brochureDate(text);
     const found = Object.keys(items);
     if (found.length === 0) {
-      await finishRun(db, runId, true);
-      return { status: "gap", reason: "brochure text has no Item headings (scanned?)", inputHash: company.secCrd };
+      return finish({ status: "gap", reason: "brochure has no Item headings (scanned?)", inputHash: String(choice.versionId) });
     }
     for (const item of found) {
       await saveDocument(db, {
         companyId,
         runId,
         path: `financials/brochure-item-${item}.md`,
-        title: `Part 2A brochure Item ${item}${date ? ` (${date})` : ""}`,
+        title: `Part 2A brochure Item ${item} (${choice.dateSubmitted}, v${choice.versionId})`,
         contentMd: items[item] as string,
-        sourceIds: [sourceId],
+        sourceIds: [res.source.id],
         createdBy: "collector:ria_brochure",
       });
     }
-    await finishRun(db, runId, true);
-    const hash = createHash("sha256").update(text.slice(0, 20_000)).digest("hex").slice(0, 16);
-    return { status: "done", reason: `items ${found.join(",")}${date ? `, brochure ${date}` : ""}`, inputHash: hash };
+    if (stale) return finish({ status: "gap", reason: "brochure older than 2 years", inputHash: String(choice.versionId) });
+    return finish({ status: "done", reason: `items ${found.join(",")}, brochure ${choice.dateSubmitted} (v${choice.versionId})`, inputHash: String(choice.versionId) });
   } catch (err) {
     await finishRun(db, runId, false);
     throw err;

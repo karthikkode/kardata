@@ -11,7 +11,7 @@ import {
   createFeesStep,
   createFirmDataStep,
   setPrivateHostsForTests,
-  setReportsBaseForTests,
+  setBrochureBasesForTests,
   signalsStep,
 } from "../../src/domain/ria-steps/handlers.js";
 import { runRiaStep, type StepHandlers } from "../../src/domain/ria-steps/runner.js";
@@ -74,7 +74,16 @@ beforeEach(async () => {
     res.writeHead(200, { "content-type": "application/pdf" });
     res.end(fakePdf(["Jane Test - Chief Compliance Officer"]));
   });
-  site.routes.set("/reports/ADV/900001/Part2ABrochure/900001.pdf", (_req, res) => {
+  const iacontent = JSON.stringify({
+    brochures: {
+      part2ExemptFlag: "N",
+      brochuredetails: [{ brochureVersionID: 424242, brochureName: "FIRM BROCHURE", dateSubmitted: "3/15/2026" }],
+    },
+  });
+  site.routes.set("/search/firm/900001", (_req, res) =>
+    sendJson(res, { hits: { hits: [{ _source: { iacontent } }] } }),
+  );
+  site.routes.set("/IAPD/Content/Common/crd_iapd_Brochure.aspx", (_req, res) => {
     res.writeHead(200, { "content-type": "application/pdf" });
     res.end(fakePdf(BROCHURE));
   });
@@ -83,11 +92,11 @@ beforeEach(async () => {
     sendText(res, `<html><body>${"Meet the team. ".repeat(30)} Jane Test is Chief Operating Officer.</body></html>`),
   );
   setPrivateHostsForTests(["127.0.0.1"]);
-  setReportsBaseForTests(site.baseUrl);
+  setBrochureBasesForTests(site.baseUrl, site.baseUrl);
 });
 afterEach(async () => {
   setPrivateHostsForTests(null);
-  setReportsBaseForTests(null);
+  setBrochureBasesForTests(null, null);
   await site.close();
 });
 afterAll(async () => {

@@ -5,13 +5,13 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { DbHandle } from "../../src/db/client.js";
 import { companies, documents, factsCurrent, records, researchRuns, sources } from "../../src/db/schema.js";
-import { createFirmDataStep, setPrivateHostsForTests, brochureStep, setReportsBaseForTests, createFeesStep, createContactsStep, signalsStep } from "../../src/domain/ria-steps/handlers.js";
+import { createFirmDataStep, setPrivateHostsForTests, brochureStep, setBrochureBasesForTests, createFeesStep, createContactsStep, signalsStep } from "../../src/domain/ria-steps/handlers.js";
 import { addFacts } from "../../src/domain/research/facts.js";
 import { saveDocument } from "../../src/domain/research/documents.js";
 import { storeBlob } from "../../src/domain/research/sources.js";
 import { createSector } from "../../src/domain/sectors.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
-import { sendJson, sendText, startFakeSite, type FakeSite } from "../collect/fake-site.js";
+import { sendJson, sendText, startFakeSite, type FakeSite, type RouteHandler } from "../collect/fake-site.js";
 import { restoreHostDelay, shrinkHostDelay } from "../collect/helpers.js";
 
 let handle: DbHandle;
@@ -83,11 +83,11 @@ beforeEach(async () => {
   site = await startFakeSite();
   site.routes.set("/robots.txt", (_req, res) => sendText(res, "User-agent: *\nDisallow:\n", 200, "text/plain"));
   setPrivateHostsForTests(["127.0.0.1"]);
-  setReportsBaseForTests(site.baseUrl);
+  setBrochureBasesForTests(site.baseUrl, site.baseUrl);
 });
 afterEach(async () => {
   setPrivateHostsForTests(null);
-  setReportsBaseForTests(null);
+  setBrochureBasesForTests(null, null);
   await site.close();
 });
 afterAll(async () => {
@@ -142,27 +142,79 @@ describe("firm_data step (B3)", () => {
 });
 
 describe("brochure step (B4)", () => {
-  it("stores Item documents from a readable PDF", async () => {
-    site.routes.set("/reports/ADV/900001/Part2ABrochure/900001.pdf", (_req, res) => {
+  const iapd = (brochures: unknown): RouteHandler => (_req, res) =>
+    sendJson(res, { hits: { hits: [{ _source: { iacontent: JSON.stringify({ brochures }) } }] } });
+  const detail = (id: number, name: string, date: string) => ({ brochureVersionID: id, brochureName: name, dateSubmitted: date });
+  const recent = new Date(Date.now() - 30 * 86_400_000);
+  const recentStr = `${recent.getMonth() + 1}/${recent.getDate()}/${recent.getFullYear()}`;
+
+  it("stores Item documents from the IAPD brochure PDF", async () => {
+    site.routes.set("/search/firm/900001", iapd({ part2ExemptFlag: "N", brochuredetails: [detail(424242, "FIRM BROCHURE", recentStr)] }));
+    site.routes.set("/IAPD/Content/Common/crd_iapd_Brochure.aspx", (_req, res) => {
       res.writeHead(200, { "content-type": "application/pdf" });
       res.end(fakePdf(FAKE_PDF_TEXT));
     });
     const companyId = await makeCompany();
     const out = await brochureStep(handle.db, randomUUID(), companyId);
     expect(out.status).toBe("done");
+    expect(out.inputHash).toBe("424242");
     const docs = await handle.db.select().from(documents).where(eq(documents.companyId, companyId));
     expect(docs.map((d) => d.path).sort()).toEqual([
       "financials/brochure-item-4.md",
       "financials/brochure-item-5.md",
       "financials/brochure-item-9.md",
     ]);
+    expect(docs[0]?.title).toContain("v424242");
+    // Second run at the same version skips the download and stays done.
+    const again = await brochureStep(handle.db, randomUUID(), companyId);
+    expect(again).toMatchObject({ status: "done", inputHash: "424242" });
   });
 
-  it("gaps (never fails) when the brochure is not downloadable", async () => {
+  it("gaps exempt firms", async () => {
+    site.routes.set("/search/firm/900001", iapd({ part2ExemptFlag: "Y", brochuredetails: [] }));
+    const companyId = await makeCompany();
+    const out = await brochureStep(handle.db, randomUUID(), companyId);
+    expect(out).toMatchObject({ status: "gap", reason: "exempt from Part 2 brochure" });
+  });
+
+  it("gaps when no brochure is filed", async () => {
+    site.routes.set("/search/firm/900001", iapd({ part2ExemptFlag: "N", brochuredetails: [] }));
+    const companyId = await makeCompany();
+    const out = await brochureStep(handle.db, randomUUID(), companyId);
+    expect(out).toMatchObject({ status: "gap", reason: "no brochure filed" });
+  });
+
+  it("gaps with the HTTP code when the lookup fails", async () => {
+    site.routes.set("/search/firm/900001", (_req, res) => sendText(res, "nope", 503));
     const companyId = await makeCompany();
     const out = await brochureStep(handle.db, randomUUID(), companyId);
     expect(out.status).toBe("gap");
-    expect(out.reason).toContain("not publicly downloadable");
+    expect(out.reason).toContain("HTTP 503");
+  });
+
+  it("gaps when the PDF is unreadable", async () => {
+    site.routes.set("/search/firm/900001", iapd({ part2ExemptFlag: "N", brochuredetails: [detail(424243, "FIRM BROCHURE", recentStr)] }));
+    site.routes.set("/IAPD/Content/Common/crd_iapd_Brochure.aspx", (_req, res) => {
+      res.writeHead(200, { "content-type": "application/pdf" });
+      res.end(Buffer.from("%PDF-1.4 garbage not a real pdf at all, just bytes bytes bytes"));
+    });
+    const companyId = await makeCompany();
+    const out = await brochureStep(handle.db, randomUUID(), companyId);
+    expect(out.status).toBe("gap");
+    expect(out.reason).toContain("unreadable");
+  });
+
+  it("stores but gaps a brochure older than 2 years", async () => {
+    site.routes.set("/search/firm/900001", iapd({ part2ExemptFlag: "N", brochuredetails: [detail(424244, "FIRM BROCHURE", "3/1/2020")] }));
+    site.routes.set("/IAPD/Content/Common/crd_iapd_Brochure.aspx", (_req, res) => {
+      res.writeHead(200, { "content-type": "application/pdf" });
+      res.end(fakePdf(FAKE_PDF_TEXT));
+    });
+    const companyId = await makeCompany();
+    const out = await brochureStep(handle.db, randomUUID(), companyId);
+    expect(out).toMatchObject({ status: "gap", reason: "brochure older than 2 years" });
+    const docs = await handle.db.select().from(documents).where(eq(documents.companyId, companyId));
+    expect(docs.length).toBeGreaterThan(0);
   });
 });
 

@@ -80,3 +80,28 @@ describe("computeSignals (B7)", () => {
     expect(computeSignals({ ...base, growthPct: 0.19 }).growth).toBe(false);
   });
 });
+
+describe("parseBrochureChoice (B4)", () => {
+  it("prefers the latest firm brochure over 2B and wrap-fee brochures", async () => {
+    const { parseBrochureChoice } = await import("../../src/domain/ria-steps/handlers.js");
+    const out = parseBrochureChoice({
+      brochures: {
+        part2ExemptFlag: "N",
+        brochuredetails: [
+          { brochureVersionID: 11, brochureName: "FIRM BROCHURE", dateSubmitted: "3/1/2025" },
+          { brochureVersionID: 12, brochureName: "BROCHURE SUPPLEMENT 2B", dateSubmitted: "6/1/2026" },
+          { brochureVersionID: 13, brochureName: "WRAP FEE PROGRAM BROCHURE", dateSubmitted: "7/1/2026" },
+          { brochureVersionID: 14, brochureName: "FIRM BROCHURE", dateSubmitted: "4/1/2026" },
+        ],
+      },
+    });
+    expect(out).toEqual({ exempt: false, choice: { versionId: 14, name: "FIRM BROCHURE", dateSubmitted: "2026-04-01" } });
+  });
+
+  it("reports exempt and none-filed", async () => {
+    const { parseBrochureChoice } = await import("../../src/domain/ria-steps/handlers.js");
+    expect(parseBrochureChoice({ brochures: { part2ExemptFlag: "Y", brochuredetails: [] } })).toEqual({ exempt: true, choice: null });
+    expect(parseBrochureChoice({ brochures: { part2ExemptFlag: "N", brochuredetails: [] } })).toEqual({ exempt: false, choice: null });
+    expect(parseBrochureChoice(null)).toEqual({ exempt: false, choice: null });
+  });
+});

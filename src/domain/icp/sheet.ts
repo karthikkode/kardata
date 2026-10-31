@@ -278,7 +278,7 @@ export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRo
       .select({ title: documents.title })
       .from(documents)
       .where(and(eq(documents.companyId, row.companyId), eq(documents.path, "financials/brochure-item-5.md")));
-    const brochureDate = /\((\d{4}-\d{2}-\d{2})\)/.exec(brochureDocs[brochureDocs.length - 1]?.title ?? "")?.[1] ?? "";
+    const brochureDate = /\((\d{4}-\d{2}-\d{2})[),]/.exec(brochureDocs[brochureDocs.length - 1]?.title ?? "")?.[1] ?? "";
     rows.push({
       companyId: row.companyId,
       firm: row.company,
