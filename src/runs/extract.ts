@@ -607,10 +607,10 @@ export interface ExtractorCallResult {
 }
 
 /** One tool-less schema call; injectable for tests. */
-export type ExtractorCall = (input: { runId: string; area: string; prompt: string }) => Promise<ExtractorCallResult>;
+export type ExtractorCall = (input: { runId: string; area: string; prompt: string; schema?: string }) => Promise<ExtractorCallResult>;
 
-export const dockerExtractorCall: ExtractorCall = async ({ runId, area, prompt }) => {
-  const input = await prepareExtractInput(prompt, extractSchema());
+export const dockerExtractorCall: ExtractorCall = async ({ runId, area, prompt, schema }) => {
+  const input = await prepareExtractInput(prompt, schema ?? extractSchema());
   try {
     const child = spawn("docker", extractRunArgs({ runId, area, inputDir: input.dir }), {
       stdio: ["ignore", "pipe", "pipe"],

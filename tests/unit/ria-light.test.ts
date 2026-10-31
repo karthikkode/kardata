@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { brochureDate, splitBrochureItems } from "../../src/domain/ria-steps/brochure.js";
-import { pickFirmWebsite } from "../../src/domain/ria-steps/handlers.js";
+import { pickFirmWebsite, feePrompt } from "../../src/domain/ria-steps/handlers.js";
 
 
 describe("pickFirmWebsite (B3)", () => {
@@ -32,6 +32,15 @@ describe("splitBrochureItems / brochureDate (B4)", () => {
   it("reads the brochure date", () => {
     expect(brochureDate(text)).toBe("2025-03-15");
     expect(brochureDate("no date here")).toBeNull();
+  });
+});
+
+
+describe("feePrompt (B5)", () => {
+  it("carries the Item 5 text and the verbatim-quote rule", () => {
+    const prompt = feePrompt("Fees are tiered and negotiable.", "");
+    expect(prompt).toContain("Fees are tiered and negotiable.");
+    expect(prompt).toContain("Never invent a quote");
   });
 });
 
