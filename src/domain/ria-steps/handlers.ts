@@ -239,7 +239,7 @@ export const FEE_SCHEMA = JSON.stringify({
     refunds: { type: "boolean" },
     systems: { type: "array", items: { type: "string" } },
     collection: { type: "string" },
-    quotes: { type: "object", additionalProperties: { type: "string" } },
+    quotes: { type: "array", items: { type: "object", additionalProperties: false, properties: { field: { type: "string" }, quote: { type: "string" } }, required: ["field", "quote"] } },
   },
   required: ["fee_schedule", "family_grouping", "negotiable", "fee_types", "minimums", "billing", "proration", "refunds", "systems", "collection", "quotes"],
 });
@@ -249,7 +249,7 @@ export function feePrompt(item5: string, item4: string): string {
     "Read this Form ADV Part 2A brochure text and return one JSON object matching the schema. No tools.",
     "fee_schedule: the schedule and tiers in plain words. family_grouping / negotiable / proration / refunds: true only when the text says so.",
     "fee_types: e.g. percentage_of_aum, flat, hourly, planning. billing: advance, arrears, both or unknown. collection: how fees are collected (e.g. deducted from account, invoiced). systems: software or platforms named.",
-    "quotes: map each field you set to a verbatim passage (max 300 chars) copied EXACTLY from the text. Never invent a quote.",
+    "quotes: one entry per field you set: {field, quote} where quote is a verbatim passage (max 300 chars) copied EXACTLY from the text. Never invent a quote.",
     "",
     "## Item 5",
     item5.slice(0, 30_000),
@@ -276,7 +276,9 @@ export function createFeesStep(call: ExtractorCall = dockerExtractorCall): StepH
     try {
       const result = await call({ runId, area: "firm_and_fees", prompt: feePrompt(item5.text, item4?.text ?? ""), schema: FEE_SCHEMA });
       const json = result.json as Record<string, unknown>;
-      const quotes = (json["quotes"] ?? {}) as Record<string, string>;
+      const quoteList = Array.isArray(json["quotes"]) ? (json["quotes"] as { field?: string; quote?: string }[]) : [];
+      const quotes: Record<string, string> = {};
+      for (const q of quoteList) if (typeof q.field === "string" && typeof q.quote === "string") quotes[q.field] = q.quote;
       const sourceIds = item5.sourceIds;
       const quoteFor = (key: string): string => (typeof quotes[key] === "string" ? (quotes[key] as string) : "");
       const items = [
