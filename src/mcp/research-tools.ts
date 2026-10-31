@@ -54,6 +54,7 @@ import { ADAPTERS } from "../collect/adapters.js";
 import { riaStatus } from "../domain/ria-steps/status.js";
 import { runRiaStep, setRiaStepPaused } from "../domain/ria-steps/runner.js";
 import { RIA_STEP_HANDLERS } from "../domain/ria-steps/steps.js";
+import { queueRiaDeepResearch } from "../domain/ria-steps/deep-research.js";
 import { quotaSnapshotGet } from "../runs/quota-monitor.js";
 import { researchStart } from "../runs/agent.js";
 import {
@@ -1507,6 +1508,22 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       wrap(async () => {
         await setRiaStepPaused(db, paused);
         return { summary: `ria steps ${paused ? "paused" : "resumed"}`, data: { paused } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "ria_deep_research",
+    {
+      description: "Operator: queue deep research for a NAMED list of eligible RIA firms only (opt-in; the light steps are the default). The run reads stored step data first and researches only deals, ops job posts and recent news.",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+        companyIds: z.array(z.string()).min(1).describe("Named firms to research (max 50)"),
+      },
+    },
+    async ({ sectorId, companyIds }) =>
+      wrap(async () => {
+        const result = await queueRiaDeepResearch(db, { sectorId, companyIds: companyIds ?? [] });
+        return { summary: `deep research queued ${result.queued.length}, rejected ${result.rejected.length}`, data: result };
       }),
   );
 

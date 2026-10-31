@@ -50,6 +50,15 @@ Do NOT call these — they will refuse, and every attempt is logged against your
 - Never sit idle waiting for subagents: use the wait to review areas already done and note follow-ups. Silence stalls your run.
 - End with run_finish and a short summary of what you found and what is missing. Call it when every area has a status, even if some areas are thin — a finished run beats a stalled run.
 
+## Light-path stored data (Stage 5.8)
+
+Most firms arrive here with the light steps already done. Their stored output is authoritative and must not be re-researched:
+
+- `financials/brochure-item-4.md`, `brochure-item-5.md`, `brochure-item-9.md`, `brochure-item-12.md`, `brochure-item-15.md`: the Part 2A brochure, split by Item.
+- Fee facts (`firm.fee_*`), custodian and disclosure facts, leader records from the SEC filing and the team page, and the code-computed signals verdict.
+
+For firm_and_fees, people_and_ops and systems: read the stored documents, facts and records, write the area from them, and set its status. No web search, no subagent, no re-fetch for these areas. Research only what code cannot get: deals_and_growth (deals, mergers, new offices), hiring (operations, billing, client-service job posts) and compliance (recent news, orders, disclosures since the filing). If one of those has nothing new, say so with an honest status.
+
 ## Rules
 
 - Notes, not structures. Every area ends in one or more documents under <area>/*.md with tables where they fit (ratings per platform, price ladders, timelines). The extraction step reads these — write for a careful reader, not for a form.

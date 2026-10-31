@@ -103,6 +103,7 @@ const EXPECTED_TOOLS = [
   "ria_status",
   "ria_step_run",
   "ria_step_pause",
+  "ria_deep_research",
   "company_job_retry",
   "company_jobs_supersede",
   "company_concurrency_get",
