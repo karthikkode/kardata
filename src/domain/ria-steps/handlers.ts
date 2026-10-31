@@ -10,6 +10,7 @@ import { pdfText } from "../../lib/sec/pdf-text.js";
 import { toEffectiveCompany } from "../companies.js";
 import { addFacts } from "../research/facts.js";
 import { saveDocument } from "../research/documents.js";
+import { upsertRecords } from "../research/records.js";
 import { brochureDate, splitBrochureItems } from "./brochure.js";
 import type { StepHandler } from "./runner.js";
 import { dockerExtractorCall, type ExtractorCall } from "../../runs/extract.js";
@@ -252,6 +253,99 @@ ${item4?.text ?? ""}`.replace(/\s+/g, " ").toLowerCase();
       await finishRun(db, runId, true);
       const tokens = result.usage?.inputTokens ?? null;
       return { status: "done", tokensUsed: tokens, inputHash: createHash("sha256").update(item5.text.slice(0, 5000)).digest("hex").slice(0, 16) };
+    } catch (err) {
+      await finishRun(db, runId, false);
+      throw err;
+    }
+  };
+}
+
+// ---- B6: contacts ----
+
+export function teamLinks(html: string, base: string): string[] {
+  const out: string[] = [];
+  for (const m of html.matchAll(/<a[^>]+href="([^"]+)"[^>]*>([^<]{0,60})<\/a>/gi)) {
+    const href = m[1] ?? "";
+    const label = `${href} ${m[2] ?? ""}`.toLowerCase();
+    if (!/(team|people|about|leadership|our-firm|who-we-are)/.test(label)) continue;
+    try {
+      const url = new URL(href, base).toString();
+      if (!out.includes(url)) out.push(url);
+    } catch {
+      // Bad href: skip.
+    }
+    if (out.length >= 3) break;
+  }
+  return out;
+}
+
+export const PEOPLE_SCHEMA = JSON.stringify({
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    people: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: { name: { type: "string" }, title: { type: "string" }, quote: { type: "string" } },
+        required: ["name", "title", "quote"],
+      },
+    },
+  },
+  required: ["people"],
+});
+
+export function createContactsStep(call: ExtractorCall = dockerExtractorCall): StepHandler {
+  return async (db, _sectorId, companyId) => {
+    const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
+    if (!company?.website) return { status: "gap", reason: "no firm website" };
+    const runId = await newRun(db, companyId, "collect");
+    try {
+      const home = await fetchUrl(db, { companyId, runId, collector: "ria_contacts", url: company.website, userAgent: SEC_UA, privateHostAllowlist: privateHosts });
+      if (home.source.status !== "ok" || !home.text) {
+        await finishRun(db, runId, true);
+        return { status: "gap", reason: `website fetch ${home.source.status}`, inputHash: company.website };
+      }
+      const links = teamLinks(home.text, company.website);
+      let pageText: string | null = null;
+      let pageSource: string | null = null;
+      for (const link of links) {
+        const page = await fetchUrl(db, { companyId, runId, collector: "ria_contacts", url: link, userAgent: SEC_UA, privateHostAllowlist: privateHosts });
+        if (page.source.status === "ok" && page.text && page.text.length > 200) {
+          pageText = page.text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").slice(0, 25_000);
+          pageSource = page.source.id;
+          break;
+        }
+      }
+      if (!pageText || !pageSource) {
+        await finishRun(db, runId, true);
+        return { status: "gap", reason: "no team/about page found", inputHash: company.website };
+      }
+      const prompt = [
+        "From this firm team/about page text, list people with their titles. Return one JSON object: {\"people\": [{\"name\": \"...\", \"title\": \"...\", \"quote\": \"verbatim passage naming the person and title\"}]}. No tools. Names and titles only.",
+        "",
+        pageText,
+      ].join("\n");
+      const result = await call({ runId, area: "people_and_ops", prompt, schema: PEOPLE_SCHEMA });
+      const json = result.json as { people?: { name?: string; title?: string; quote?: string }[] };
+      const people = (json.people ?? []).filter((p) => typeof p.name === "string" && p.name.trim() !== "");
+      if (people.length > 0) {
+        await upsertRecords(db, {
+          companyId,
+          runId,
+          createdBy: "extractor:ria_contacts",
+          records: people.slice(0, 30).map((p) => ({
+            type: "leader",
+            data: { name: String(p.name), title: String(p.title ?? "") },
+            sourceIds: [pageSource as string],
+            quote: typeof p.quote === "string" ? p.quote : null,
+            quoteSourceId: pageSource,
+          })),
+        });
+      }
+      await finishRun(db, runId, true);
+      return { status: "done", reason: `${people.length} people from team page`, tokensUsed: result.usage?.inputTokens ?? null, inputHash: company.website };
     } catch (err) {
       await finishRun(db, runId, false);
       throw err;

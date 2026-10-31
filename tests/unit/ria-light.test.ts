@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { brochureDate, splitBrochureItems } from "../../src/domain/ria-steps/brochure.js";
-import { pickFirmWebsite, feePrompt } from "../../src/domain/ria-steps/handlers.js";
+import { pickFirmWebsite, feePrompt, teamLinks } from "../../src/domain/ria-steps/handlers.js";
 
 
 describe("pickFirmWebsite (B3)", () => {
@@ -41,6 +41,14 @@ describe("feePrompt (B5)", () => {
     const prompt = feePrompt("Fees are tiered and negotiable.", "");
     expect(prompt).toContain("Fees are tiered and negotiable.");
     expect(prompt).toContain("Never invent a quote");
+  });
+});
+
+
+describe("teamLinks (B6)", () => {
+  it("finds team/about links only", () => {
+    const html = `<a href="/team">Our Team</a><a href="/careers">Careers</a><a href="https://x.example/about-us">About</a>`;
+    expect(teamLinks(html, "https://x.example/")).toEqual(["https://x.example/team", "https://x.example/about-us"]);
   });
 });
 

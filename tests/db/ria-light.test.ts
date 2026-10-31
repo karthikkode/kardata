@@ -5,7 +5,7 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { DbHandle } from "../../src/db/client.js";
 import { companies, documents, factsCurrent, records, researchRuns, sources } from "../../src/db/schema.js";
-import { createFirmDataStep, setPrivateHostsForTests, brochureStep, setReportsBaseForTests, createFeesStep } from "../../src/domain/ria-steps/handlers.js";
+import { createFirmDataStep, setPrivateHostsForTests, brochureStep, setReportsBaseForTests, createFeesStep, createContactsStep } from "../../src/domain/ria-steps/handlers.js";
 import { addFacts } from "../../src/domain/research/facts.js";
 import { saveDocument } from "../../src/domain/research/documents.js";
 import { storeBlob } from "../../src/domain/research/sources.js";
@@ -196,5 +196,30 @@ describe("fees step (B5)", () => {
     const companyId = await makeCompany();
     const out = await createFeesStep(async () => ({ json: {}, usage: undefined }))(handle.db, randomUUID(), companyId);
     expect(out).toMatchObject({ status: "gap", reason: "no brochure Item 5 stored" });
+  });
+});
+
+describe("contacts step (B6)", () => {
+  it("stores leaders from the team page via one call", async () => {
+    site.routes.set("/", (_req, res) => sendText(res, `<html><a href="/team">Our Team</a></html>`));
+    site.routes.set("/team", (_req, res) =>
+      sendText(res, `<html><body>${"Meet the team. ".repeat(30)} Jane Test is Chief Operating Officer. John Roe is Founder and Managing Partner.</body></html>`),
+    );
+    const companyId = await makeCompany({ website: `${site.baseUrl}/` });
+    const step = createContactsStep(async () => ({
+      json: { people: [{ name: "Jane Test", title: "Chief Operating Officer", quote: "Jane Test is Chief Operating Officer" }] },
+      usage: { inputTokens: 500, outputTokens: 0, cachedTokens: 0, reasoningTokens: 0, calls: 1 },
+    }));
+    const out = await step(handle.db, randomUUID(), companyId);
+    expect(out.status).toBe("done");
+    const leaders = await handle.db.select().from(records).where(eq(records.companyId, companyId));
+    expect(leaders).toHaveLength(1);
+    expect(leaders[0]?.data).toMatchObject({ name: "Jane Test" });
+  });
+
+  it("gaps when the firm has no website", async () => {
+    const companyId = await makeCompany({ website: null });
+    const out = await createContactsStep(async () => ({ json: { people: [] }, usage: undefined }))(handle.db, randomUUID(), companyId);
+    expect(out).toMatchObject({ status: "gap", reason: "no firm website" });
   });
 });
