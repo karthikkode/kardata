@@ -21,7 +21,9 @@ import {
 import { checkPreflightGate, getPreflightSummary, riaPreflightReport, savePreflightReport } from "../domain/company-jobs/preflight.js";
 import { logJobEvent } from "../domain/company-jobs/events.js";
 import {
-  QUOTA_EARLY_TRIP_RATIO,
+  earlyTripDecision,
+  quotaEarlyTripRatioGet,
+  quotaSnapshotWeeklyPct,
   parseQuotaExhaustion,
   estimateInflightBurn,
   quotaBreakerClear,
@@ -115,15 +117,7 @@ export async function startCompanyJob(db: Db, input: StartCompanyJobInput): Prom
       throw new DomainError("invalid_input", `company is in ${memberships.length} sectors; pass sectorId`);
     }
   }
-  const budgetCheck = checkBudget(input.budget);
-  let maxTokens = budgetCheck.maxTokens;
-  const maxHours = budgetCheck.maxHours;
-  // RIA token cap (Stage 5.7 follow-up): research ran ~25M input tokens per
-  // firm; ria jobs default to a 6M cap unless the caller sets a budget.
-  if (maxTokens === null && sectorId) {
-    const profile = await getProfileOrNull(db, sectorId);
-    if (profile?.playbook === "ria") maxTokens = 6_000_000;
-  }
+  const { maxTokens, maxHours } = checkBudget(input.budget);
   const jobId = randomUUID();
   try {
     await db.insert(companyJobs).values({
@@ -567,23 +561,42 @@ export async function maybeQuotaResume(db: Db, now: Date = new Date()): Promise<
   return { resumed };
 }
 
-/** Early trip at 95% of the learned allowance, at most once per window. */
+/** Early trip at the operator ratio (default 90%) of the learned allowance, at most once per window. */
 export async function maybeQuotaEarlyTrip(db: Db): Promise<{ tripped: boolean }> {
   const trip = await quotaBreakerGet(db);
   if (trip.tripped) return { tripped: false };
+  const { ratio } = await quotaEarlyTripRatioGet(db);
   const cal = await quotaCalibrationGet(db);
-  if (!cal || cal.allowanceEstimate <= 0 || !cal.windowMs) return { tripped: false };
-  if (cal.earlyTrips.includes(cal.windowStart)) return { tripped: false };
-  const start = new Date(cal.windowStart);
-  if (Number.isNaN(start.getTime())) return { tripped: false };
-  const burn = await windowBurn(db, start);
-  const total = burn + (await estimateInflightBurn(db));
-  if (total < QUOTA_EARLY_TRIP_RATIO * cal.allowanceEstimate) return { tripped: false };
-  const resumeAt = new Date(start.getTime() + cal.windowMs);
+  const calibrated = Boolean(cal && cal.allowanceEstimate > 0 && cal.windowMs);
+  if (calibrated && cal) {
+    if (cal.earlyTrips.includes(cal.windowStart)) return { tripped: false };
+    const start = new Date(cal.windowStart);
+    if (Number.isNaN(start.getTime())) return { tripped: false };
+    const burn = await windowBurn(db, start);
+    const total = burn + (await estimateInflightBurn(db));
+    if (!earlyTripDecision({ ratio, calibrated: true, burnTotal: total, allowanceEstimate: cal.allowanceEstimate, weeklyPct: null })) {
+      return { tripped: false };
+    }
+    const resumeAt = new Date(start.getTime() + (cal.windowMs ?? 0));
+    await tripQuotaBreaker(db, {
+      resumeAt,
+      estimated: true,
+      error: `${Math.round(ratio * 100)}% of learned window burn (${total} >= ${Math.round(ratio * cal.allowanceEstimate)})`,
+    });
+    return { tripped: true };
+  }
+  // No calibration yet: fall back to the live weekly usage reading. At the
+  // ratio (default 90%) new agent work stops; running jobs finish because
+  // the breaker only parks fed jobs at their next stage boundary.
+  const snap = await quotaSnapshotWeeklyPct(db);
+  if (!earlyTripDecision({ ratio, calibrated: false, burnTotal: 0, allowanceEstimate: 0, weeklyPct: snap.weeklyPct })) {
+    return { tripped: false };
+  }
+  const reset = snap.weeklyResetAt ? new Date(snap.weeklyResetAt) : null;
   await tripQuotaBreaker(db, {
-    resumeAt,
+    resumeAt: reset && !Number.isNaN(reset.getTime()) ? reset : null,
     estimated: true,
-    error: `95% of learned window burn (${total} >= ${Math.round(QUOTA_EARLY_TRIP_RATIO * cal.allowanceEstimate)})`,
+    error: `weekly quota at ${snap.weeklyPct}% (>= ${Math.round(ratio * 100)}% early-trip stop, no calibration)`,
   });
   return { tripped: true };
 }
@@ -622,10 +635,16 @@ export async function beginStageReal(db: Db, job: CompanyJob, stage: CompanyStag
     if (!entry || entry.status === "already_running") return { busy: true };
     return { runId: entry.runId };
   }
-  // Preflight is recon, not research: a short leash.
-  const agentOpts =
-    stage === "preflight" ? { maxMinutes: 15, maxModelSteps: 30 } : { maxMinutes: 40, maxModelSteps: 100 };
+  // Preflight is recon, not research: a short leash. RIA research reads the
+  // stored collector output first, so it gets a tighter step budget too.
   const sectorProfile = job.sectorId ? await getProfileOrNull(db, job.sectorId) : null;
+  const isRia = sectorProfile?.playbook === "ria";
+  const agentOpts =
+    stage === "preflight"
+      ? { maxMinutes: 15, maxModelSteps: 30 }
+      : isRia
+        ? { maxMinutes: 30, maxModelSteps: 50 }
+        : { maxMinutes: 40, maxModelSteps: 100 };
   const result = await researchStart(db, {
     companyIds: [job.companyId],
     promptVersion: stage === "research" ? researchVersionForPlaybook(sectorProfile?.playbook) : researchVersionForPlaybook("d2c"),

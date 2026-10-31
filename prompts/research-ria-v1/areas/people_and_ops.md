@@ -7,4 +7,4 @@ Checklist:
 - Team size and shape: adviser vs operations staff where a source states it.
 - Note a named operations or billing leader explicitly (call priority depends on it), or write "none found" with the pages you checked.
 - If you cannot reach 3 sources, end honest: area_status_set not_found listing what you tried.
-- Budgets: about 8 searches, 15 pages.
+- Budgets: about 4 searches, 8 pages.

@@ -7,4 +7,4 @@ Checklist:
 - Named software anywhere (brochure, job posts, firm site): portfolio, billing, CRM and planning systems, one row each with the quoting source.
 - A system change (migration, "experience with X preferred" in a post) with its date.
 - Name only systems a source names. Never infer a stack from firm size.
-- Budgets: about 8 searches, 15 pages.
+- Budgets: about 4 searches, 8 pages.

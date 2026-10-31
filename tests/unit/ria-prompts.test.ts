@@ -57,6 +57,7 @@ describe("RIA prompts (Stage 5.7 B5)", () => {
     for (const area of RIA_AREAS) expect(prompt).toContain(area);
     expect(prompt).toContain("fee schedule");
     expect(prompt).not.toContain("Revenue plausibility");
+    expect(prompt).toContain("Stored evidence first");
   });
 
   it("renders the ria extraction template for a DB area", () => {
