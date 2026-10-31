@@ -70,3 +70,76 @@ follow-ups #118–#130, all merged and deployed. Live runs were MCP-only; nothin
 - Deep-era `company_jobs` for RIA remain cancelled/terminated by design; the 748
   not_current firms stay members until the next SEC file.
 - One CI failure on PR #127 was an agent-runner flake (passed locally and on rerun).
+
+## Follow-up: ops_read redesign and gate re-run (2026-10-31)
+
+Owner change of direction: RIA research is judged on visible manual-work
+problems, not fees alone. `fees` was replaced by `ops_read` (one model call
+over brochure Items 4, 5, 8, 12, 14, 15; Items 8/14 now split and stored),
+with PDF-normalised quote grounding (ligatures, curly quotes, hyphenation,
+whitespace). New code-only Part 1 measures: offices, private fund count,
+pension/trust clients. Signal set per owner (icp.md section 4): heavy_book,
+multi_custodian, growth (AUM +30%+ or staff +20%+ and +2), many_services,
+outside_managers, alternatives, custody_work, fee_complexity, fee_problem,
+tool_sprawl; score = signal count; sheet shows top 3 signals with quotes
+plus a Lead signal column. Contacts fall back to Schedule A officers
+(COO/head of operations, then CCO, then CEO/president, source marked).
+Shipped as PR #133 (redesign) and PR #134 (batch fix), merged on green CI
+and deployed with drain.
+
+Gate re-run on the same 103 firms (MCP only):
+- brochure 100 done / 3 gap; ops_read 99 done / 4 gap (all "no brochure
+  Item 5 stored"), 0 failed. "No grounded terms" (38 firms at O5) is gone.
+- Fee recall was the production bug the local diagnostic could not see:
+  brochureItemText read an arbitrary versioned document row, so ops_read
+  often read the superseded O5-era table-of-contents Item 5 slice. Fixed
+  to the current version (PR #134). Local reproduction on current text
+  grounds every field (35,282 input tokens for a large brochure, ~78 s).
+- Coverage on current facts (100 gate firms with a brochure): fee schedule
+  96%, billing timing (advance/arrears) 95%. Contacts 91 done / 12 gap
+  (was 58/45 at O5); every remaining gap ends "no Schedule A officer".
+  Signals 103 done, 0 failed.
+- Hand-check, 15 sampled firms, every stated ops value read against the
+  brochure text (firm id only): 138 fields stated, 3 confirmed errors
+  (one negotiable, one custody_exam where the text says the exam is
+  avoided under SLOA conditions, one billing=arrears with no timing
+  wording) — about 97% correct where stated, above the 90% bar.
+
+| Firm id | Fields stated | Errors |
+|---|---|---|
+| 123173cb-ba0d-42f3-a687-2876c23a440b | 12 | 0 |
+| f6a1a12b-148e-457e-8605-d8e713db9d55 | 16 | 0 |
+| f5926bdd-8fba-4b35-bd08-cc63bce15433 | 0 (no brochure) | – |
+| 73d5a4e8-8472-48a7-ba74-1e29ec2e8d6c | 11 | 1 (negotiable) |
+| 88aff119-c201-4bc6-a32a-96a2ce44c137 | 14 | 0 |
+| 759210aa-db59-480b-bc2f-5dae42b21bee | 16 | 0 |
+| a0df78ab-e9f0-4f3b-a697-a57e68bdd185 | 15 | 0 |
+| 081d2883-59a8-4672-8fcf-e9eb1c2bba35 | 18 | 0 |
+| 5068a01b-6094-4f1c-930b-41f973389ff0 | 18 | 0 |
+| ba51c08a-dfea-4a20-997a-d31c1d096987 | 16 | 0 |
+| 31ef7848-ca70-4b3f-b5c5-691e0354ed4c | 17 | 0 |
+| 9e7284fa-76b4-48cb-add0-333f93ba869f | 12 | 0 |
+| 0d3d629a-ffe2-4fef-be2b-96fdd10fda6c | 20 | 1 (custody_exam) |
+| e114eb27-b40f-4efe-9f8e-7282b65b7ee7 | 16 | 0 |
+| 10ccecca-5b17-4a95-8d3c-e39cb092c467 | 12 | 1 (billing) |
+
+Signal spread on the 103 (guideline: no signal over ~60% — missed):
+Complex fees 86%, Multiple custodians 73%, Outside managers 68%, Many
+services 62%, Alternatives 62%, Tool sprawl 57%, Custody work 54%, Heavy
+book 36%, Growing fast 30%, Fee problem 11%. Scores spread 0-9. The top
+signals fire on brochure boilerplate (negotiable fees plus advance billing
+with proration; custodians named in Item 12), so they rank weakly on
+their own; lead-signal spread: Outside managers 43, Heavy book 32, Fee
+problem 11, Alternatives 6, Custody work 4, Multiple custodians 4, Many
+services 1, Growing fast 1, none 1. Owner decision needed: raise
+fee_complexity to 3 of 4 traits, or accept and rank by score only.
+
+Remaining defect for the next batch: brochures in all-caps heading style
+("ITEM 5 – …") can still slice the table of contents as a stub Item 5
+(3 of 103 under 1K chars). Next batch: splitter TOC/all-caps fix plus a
+stub-length guard in ops_read, then re-run those firms.
+
+Sheet re-exported after the gate (103 rows, ria-us analysis CSV, no
+Google Sheet writes). O6 as originally scoped (all 8,403) not run; the
+owner replaced it with a next-200 R-group run (highest signal score
+first), reported separately below.
