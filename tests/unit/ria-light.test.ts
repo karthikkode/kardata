@@ -214,6 +214,7 @@ describe("pickScheduleAContact", () => {
     expect(pickScheduleAContact(leaders)?.name).toBe("C Ops");
     expect(pickScheduleAContact(leaders.slice(0, 2))?.name).toBe("B Compliance");
     expect(pickScheduleAContact(leaders.slice(0, 1))?.name).toBe("A Boss");
+    expect(pickScheduleAContact([{ name: "E Dual", title: "Chief Operating Financial Officer" }])?.name).toBe("E Dual");
     expect(pickScheduleAContact([{ name: "D Adviser", title: "Financial Advisor" }])).toBeNull();
   });
 });

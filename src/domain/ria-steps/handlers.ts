@@ -300,11 +300,19 @@ export function opsPrompt(items: { item: string; text: string }[]): string {
 }
 
 async function brochureItemText(db: Db, companyId: string, item: string): Promise<{ text: string; sourceIds: string[] } | null> {
-  const all = await db
+  // Documents are versioned rows; only the current version is the brochure
+  // text. An unordered pick can return a superseded slice (the O5-era
+  // table-of-contents Item 5), which starves the grounding check.
+  const [latest] = await db
     .select()
     .from(documents)
-    .where(and(eq(documents.companyId, companyId), eq(documents.path, `financials/brochure-item-${item}.md`)));
-  const latest = all[all.length - 1];
+    .where(
+      and(
+        eq(documents.companyId, companyId),
+        eq(documents.path, `financials/brochure-item-${item}.md`),
+        eq(documents.isCurrent, true),
+      ),
+    );
   if (!latest) return null;
   return { text: latest.contentMd ?? "", sourceIds: latest.sourceIds ?? [] };
 }
@@ -442,7 +450,7 @@ export const PEOPLE_SCHEMA = JSON.stringify({
 });
 
 const SCHEDULE_A_ORDER: { label: string; pattern: RegExp }[] = [
-  { label: "COO / head of operations", pattern: /chief operating officer|\bcoo\b|head of operations|director of operations|operations manager/i },
+  { label: "COO / head of operations", pattern: /chief operating|operating officer|\bcoo\b|head of operations|director of operations|operations director|(?:vp|vice president)[^.]{0,30}operations|operations manager/i },
   { label: "CCO", pattern: /chief compliance officer|\bcco\b/i },
   { label: "CEO / president", pattern: /chief executive officer|\bceo\b|president|managing partner|principal/i },
 ];
