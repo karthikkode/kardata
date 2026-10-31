@@ -247,6 +247,18 @@ describe("site collector", () => {
     expect(await docsForRun(handle.db, runId)).toHaveLength(0);
   });
 
+  it("records blocked without a fatal for ria when the homepage is robots-disallowed", async () => {
+    site.routes.set("/robots.txt", (_req, res) =>
+      sendText(res, "User-agent: *\nDisallow: /\n", 200, "text/plain"),
+    );
+    site.routes.set("/", (_req, res) => sendText(res, homepage()));
+    const ctx = await collectorCtx(handle.db, site, companyId, runId);
+    (ctx.shared as Record<string, unknown>)["riaPlaybook"] = true;
+    const result = await siteCollector.run(ctx);
+    expect(result.fatal).toBeUndefined();
+    expect(result.outcomes.every((o) => o.status === "blocked")).toBe(true);
+  });
+
   it("fails fatal when the homepage is robots-disallowed", async () => {
     site.routes.set("/robots.txt", (_req, res) =>
       sendText(res, "User-agent: *\nDisallow: /\n", 200, "text/plain"),

@@ -10,7 +10,51 @@ import { harnessSettings, providerCalls, researchRuns } from "../../db/schema.js
  */
 export const QUOTA_BREAKER_KEY = "quota_breaker";
 export const QUOTA_CALIBRATION_KEY = "quota_calibration";
-export const QUOTA_EARLY_TRIP_RATIO = 0.95;
+export const QUOTA_EARLY_TRIP_RATIO = 0.9;
+export const DEFAULT_QUOTA_EARLY_TRIP_RATIO = 0.9;
+export const QUOTA_EARLY_TRIP_KEY = "quota_early_trip_ratio";
+
+/** Operator setting (MCP harness_settings): early-trip ratio, default 0.90. */
+export async function quotaEarlyTripRatioGet(db: Db): Promise<{ ratio: number; source: "db" | "default"; dbValue: number | null }> {
+  const value = await readKey(db, QUOTA_EARLY_TRIP_KEY);
+  const raw = value?.["ratio"];
+  if (typeof raw === "number" && raw > 0 && raw < 1) return { ratio: raw, source: "db", dbValue: raw };
+  return { ratio: DEFAULT_QUOTA_EARLY_TRIP_RATIO, source: "default", dbValue: null };
+}
+
+export async function quotaEarlyTripRatioSet(db: Db, ratio: number): Promise<{ ratio: number; source: "db"; dbValue: number }> {
+  if (typeof ratio !== "number" || !(ratio > 0 && ratio < 1)) {
+    throw new Error("quota early trip ratio must be between 0 and 1 (exclusive)");
+  }
+  await writeKey(db, QUOTA_EARLY_TRIP_KEY, { ratio });
+  return { ratio, source: "db", dbValue: ratio };
+}
+
+/** Pure early-trip decision: learned burn when calibrated, else the live weekly reading. */
+export function earlyTripDecision(input: {
+  ratio: number;
+  calibrated: boolean;
+  burnTotal: number;
+  allowanceEstimate: number;
+  weeklyPct: number | null;
+}): boolean {
+  if (input.calibrated && input.allowanceEstimate > 0) {
+    return input.burnTotal >= input.ratio * input.allowanceEstimate;
+  }
+  if (input.weeklyPct !== null) return input.weeklyPct >= Math.round(input.ratio * 100);
+  return false;
+}
+
+/** Latest live weekly % from the quota monitor snapshot (null when never read). */
+export async function quotaSnapshotWeeklyPct(db: Db): Promise<{ weeklyPct: number | null; weeklyResetAt: string | null }> {
+  const value = await readKey(db, "quota_snapshot");
+  const pct = value?.["weeklyPct"];
+  const reset = value?.["weeklyResetAt"];
+  return {
+    weeklyPct: typeof pct === "number" && pct >= 0 && pct <= 100 ? pct : null,
+    weeklyResetAt: typeof reset === "string" ? reset : null,
+  };
+}
 
 export interface QuotaTrip {
   trippedAt: string;

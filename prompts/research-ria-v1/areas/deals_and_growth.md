@@ -7,4 +7,4 @@ Checklist:
 - New offices with dates. AUM and staff change from SEC file history (stored facts) — state both numbers and dates, never annualize yourself.
 - Growth language on the firm site with the page that states it.
 - If nothing is dated inside 18 months, say so plainly; an old deal is context, not a signal.
-- Budgets: about 8 searches, 15 pages.
+- Budgets: about 4 searches, 8 pages.

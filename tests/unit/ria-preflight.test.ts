@@ -9,6 +9,7 @@ const base: RiaFacts = {
   firmType: "Registered",
   registrationStatus: "Approved",
   country: "United States",
+  state: "TX",
 };
 
 describe("evaluateRia", () => {
@@ -28,5 +29,12 @@ describe("evaluateRia", () => {
     expect(evaluateRia({ ...base, firmType: "Exempt Reporting" }, DEFAULT_RIA_THRESHOLDS).reason).toBe("exempt_or_inactive");
     expect(evaluateRia({ ...base, registrationStatus: "Terminated" }, DEFAULT_RIA_THRESHOLDS).reason).toBe("exempt_or_inactive");
     expect(evaluateRia({ ...base, country: "Canada" }, DEFAULT_RIA_THRESHOLDS).reason).toBe("not_us");
+  });
+
+  it("treats a blank country with a US state as US", () => {
+    expect(evaluateRia({ ...base, country: null, state: "TX" }, DEFAULT_RIA_THRESHOLDS).eligible).toBe(true);
+    expect(evaluateRia({ ...base, country: "", state: "ca" }, DEFAULT_RIA_THRESHOLDS).eligible).toBe(true);
+    expect(evaluateRia({ ...base, country: null, state: null }, DEFAULT_RIA_THRESHOLDS).reason).toBe("not_us");
+    expect(evaluateRia({ ...base, country: null, state: "ON" }, DEFAULT_RIA_THRESHOLDS).reason).toBe("not_us");
   });
 });

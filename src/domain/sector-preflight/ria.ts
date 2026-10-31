@@ -15,7 +15,12 @@ export interface RiaFacts {
   firmType: string | null;
   registrationStatus: string | null;
   country: string | null;
+  state?: string | null;
 }
+
+const US_STATES = new Set(
+  "AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY".split(" "),
+);
 
 export interface RiaVerdict {
   eligible: boolean;
@@ -26,9 +31,12 @@ export interface RiaVerdict {
 
 const US_NAMES = new Set(["united states", "united states of america", "usa", "us", "u.s.", "u.s.a."]);
 
-export function isUsCountry(country: string | null): boolean {
-  if (!country) return false;
-  return US_NAMES.has(country.trim().toLowerCase());
+export function isUsCountry(country: string | null, state?: string | null): boolean {
+  const c = (country ?? "").trim().toLowerCase();
+  if (c !== "") return US_NAMES.has(c);
+  // Blank country with a US state (or US address state) is US (follow-up fix).
+  const s = (state ?? "").trim().toUpperCase();
+  return s !== "" && US_STATES.has(s);
 }
 
 export function evaluateRia(facts: RiaFacts, t: RiaThresholds): RiaVerdict {
@@ -40,7 +48,7 @@ export function evaluateRia(facts: RiaFacts, t: RiaThresholds): RiaVerdict {
   if (status !== "" && status !== "approved" && status !== "active") {
     return { eligible: false, reason: "exempt_or_inactive", group: null, detail: `registration status ${facts.registrationStatus}` };
   }
-  if (!isUsCountry(facts.country)) {
+  if (!isUsCountry(facts.country, facts.state)) {
     return { eligible: false, reason: "not_us", group: null, detail: `main office country ${facts.country ?? "unknown"}` };
   }
   if ((facts.aum !== null && facts.aum > t.maxAum) || (facts.employees !== null && facts.employees > t.maxEmployees)) {

@@ -122,6 +122,28 @@ export async function getPreflightReport(db: Db, jobId: string): Promise<Preflig
 
 export type PreflightGate = { ok: true; report: PreflightReportV1 } | { ok: false; reason: string };
 
+/** Fixed RIA collect plan (Stage 5.7 follow-up): no LLM preflight for ria jobs. */
+export const RIA_COLLECT_ADAPTERS = ["sec_firm", "site", "jobs", "news"] as const;
+export const RIA_COLLECT_AREAS = ["financials", "decisions", "product", "business_model", "hiring", "other"] as const;
+
+export function riaPreflightReport(): PreflightReportV1 {
+  return {
+    version: 1,
+    reviewLocations: [],
+    adaptersRequired: RIA_COLLECT_ADAPTERS.map((adapterId) => ({
+      adapterId,
+      reason: "fixed RIA plan: SEC filing first, then site, jobs and news",
+    })),
+    adaptersMissing: [],
+    collectDirectives: {
+      areas: [...RIA_COLLECT_AREAS],
+      notes: "SEC data is the primary source; a failed homepage is recorded, never fatal.",
+    },
+    confidence: 1,
+    notes: "Fixed RIA plan (no LLM).",
+  };
+}
+
 /** Latest filed report version + confidence for status views; null when missing or unparsable. */
 export async function getPreflightSummary(db: Db, jobId: string): Promise<{ version: number; confidence: number } | null> {
   const row = await getPreflightReport(db, jobId);

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { EvidencePack } from "../../src/domain/icp/evidence.js";
+import { buildPack, type EvidencePack } from "../../src/domain/icp/evidence.js";
+import { RIA_SIGNAL_RULES } from "../../src/domain/icp/ria-rules.js";
 import { decideRia, icpSchema, parseJudgement } from "../../src/domain/icp/judge.js";
 import { pickContact, timeZoneForState } from "../../src/domain/icp/sheet.js";
 
@@ -84,6 +85,24 @@ describe("RIA ICP (Stage 5.7 B6)", () => {
   it("builds the ria schema with the 7 signals", () => {
     const schema = JSON.parse(icpSchema("ria")) as { properties: { signals: { required: string[] } } };
     expect(schema.properties.signals.required).toHaveLength(7);
+  });
+
+  it("routes firm.deal facts and dated company_event records to recent_deal", () => {
+    const src = { url: "https://fake.example/deal", status: "ok", fetchedAt: new Date("2026-06-01") };
+    const built = buildPack(
+      {
+        facts: [{
+          id: "f-deal", key: "firm.deal", valueText: "Acquired Fake Advisers", valueNum: null, valueDate: null,
+          valueBool: null, valueJson: null, currency: null, unit: null, qualifiers: {}, asOf: "2026-06-01",
+          sourceIds: ["s1"], verification: "verified", quote: "Acquired Fake Advisers", createdBy: "extractor:test",
+        }],
+        records: [],
+        sources: new Map([["s1", src]]),
+        now: new Date("2026-10-31"),
+      },
+      RIA_SIGNAL_RULES,
+    );
+    expect(built.buckets["recent_deal"]?.length).toBeGreaterThanOrEqual(1);
   });
 
   it("maps states to time zones and picks contacts by group", () => {

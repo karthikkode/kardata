@@ -34,7 +34,10 @@ const RIA_RULES_LIST = [
     key: "recent_deal",
     label: "Recent deal",
     question: "Did it buy, merge with, or get bought by another firm in the last 18 months, with clients moved over?",
-    routes: [{ recordTypes: ["company_event"], windowDays: DEAL_WINDOW_DAYS, statedDate: true }],
+    routes: [
+      { recordTypes: ["company_event"], windowDays: DEAL_WINDOW_DAYS, statedDate: true },
+      { keyPrefixes: ["firm.deal", "firm.acquisition"] },
+    ],
   },
   {
     key: "ops_hiring",

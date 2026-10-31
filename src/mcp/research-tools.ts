@@ -46,6 +46,8 @@ import {
   quotaBreakerClear,
   quotaBreakerGet,
   quotaCalibrationGet,
+  quotaEarlyTripRatioGet,
+  quotaEarlyTripRatioSet,
   windowBurn,
 } from "../domain/quota/breaker.js";
 import { ADAPTERS } from "../collect/adapters.js";
@@ -1134,20 +1136,39 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
     async () =>
       wrap(async () => {
         const settings = await harnessSettingsGet(db);
-        return { summary: `maxConcurrentAgents=${settings.maxConcurrentAgents} (${settings.source})`, data: settings };
+        const earlyTrip = await quotaEarlyTripRatioGet(db);
+        return {
+          summary: `maxConcurrentAgents=${settings.maxConcurrentAgents} (${settings.source}); quotaEarlyTripRatio=${earlyTrip.ratio} (${earlyTrip.source})`,
+          data: { ...settings, quotaEarlyTripRatio: earlyTrip.ratio, quotaEarlyTripSource: earlyTrip.source },
+        };
       }),
   );
 
   registerTool(server, db, auth,
     "harness_settings_set",
     {
-      description: "Operator: change agent concurrency at runtime (1..64, stored in the DB, immediate).",
-      inputSchema: { maxConcurrentAgents: z.number().int().describe("Max parallel agent runs") },
+      description: "Operator: change agent concurrency (1..64) and/or the quota early-trip ratio (default 0.90) at runtime, stored in the DB, immediate.",
+      inputSchema: {
+        maxConcurrentAgents: z.number().int().optional().describe("Max parallel agent runs"),
+        quotaEarlyTripRatio: z.number().optional().describe("Early-trip ratio between 0 and 1 (default 0.90)"),
+      },
     },
-    async ({ maxConcurrentAgents }) =>
+    async ({ maxConcurrentAgents, quotaEarlyTripRatio }) =>
       wrap(async () => {
-        const settings = await harnessSettingsSet(db, maxConcurrentAgents);
-        return { summary: `maxConcurrentAgents -> ${settings.maxConcurrentAgents}`, data: settings };
+        let settings = await harnessSettingsGet(db);
+        if (maxConcurrentAgents !== undefined) settings = await harnessSettingsSet(db, maxConcurrentAgents);
+        let earlyTrip = await quotaEarlyTripRatioGet(db);
+        if (quotaEarlyTripRatio !== undefined) {
+          try {
+            earlyTrip = await quotaEarlyTripRatioSet(db, quotaEarlyTripRatio);
+          } catch (err) {
+            throw new DomainError("invalid_input", err instanceof Error ? err.message : "bad ratio");
+          }
+        }
+        return {
+          summary: `maxConcurrentAgents=${settings.maxConcurrentAgents}; quotaEarlyTripRatio=${earlyTrip.ratio} (${earlyTrip.source})`,
+          data: { ...settings, quotaEarlyTripRatio: earlyTrip.ratio, quotaEarlyTripSource: earlyTrip.source },
+        };
       }),
   );
 

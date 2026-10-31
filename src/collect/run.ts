@@ -1,8 +1,9 @@
 import { eq } from "drizzle-orm";
 import type { Db } from "../db/client.js";
-import { companies, documents, researchRuns, type Area, type ResearchRun } from "../db/schema.js";
+import { companies, companyJobs, documents, researchRuns, type Area, type ResearchRun } from "../db/schema.js";
 import { toEffectiveCompany } from "../domain/companies.js";
 import { getPreflightReport } from "../domain/company-jobs/preflight.js";
+import { getProfileOrNull } from "../domain/sector-preflight/profile.js";
 import { DomainError } from "../domain/errors.js";
 import { saveDocument } from "../domain/research/documents.js";
 import { setAreaStatus } from "../domain/research/status.js";
@@ -79,6 +80,16 @@ export async function executeCollectRun(
   if (!company) throw new DomainError("not_found", `company not found: ${run.companyId}`);
 
   const shared: RunShared = {};
+  if (run.companyJobId) {
+    const [jobRow] = await db
+      .select({ sectorId: companyJobs.sectorId })
+      .from(companyJobs)
+      .where(eq(companyJobs.id, run.companyJobId));
+    if (jobRow?.sectorId) {
+      const profile = await getProfileOrNull(db, jobRow.sectorId);
+      if (profile?.playbook === "ria") (shared as Record<string, unknown>)["riaPlaybook"] = true;
+    }
+  }
   const ctx: CollectorCtx = {
     db,
     runId,

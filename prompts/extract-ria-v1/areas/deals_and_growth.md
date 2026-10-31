@@ -10,7 +10,7 @@ You turn research notes into structured data. Output MUST be one JSON object wit
 {{vocabTypes}}
 
 ## Area notes
-- Deals as `company_event` records with parties and dates; AUM/staff change as facts with both dated numbers. New offices with dates.
+- Deals as `company_event` records with parties and a `date` field (YYYY-MM-DD of the deal); also emit a `firm.deal` fact per deal with the same date as `as_of`; AUM/staff change as facts with both dated numbers. New offices with dates.
 
 ## Rules
 - Extract only what the notes and sources state. Never infer numbers, dates or names.

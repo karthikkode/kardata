@@ -7,4 +7,4 @@ Checklist:
 - Duties in the post that name billing, onboarding paperwork, or named systems: quote them.
 - Posts older than 6 months: list as stale, never as current hiring.
 - If there are no relevant posts, write "none found" with the boards and searches you ran.
-- Budgets: about 8 searches, 15 pages.
+- Budgets: about 4 searches, 8 pages.
