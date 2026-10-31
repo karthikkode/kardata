@@ -1128,6 +1128,39 @@ export const apolloContacts = pgTable(
 );
 export type ApolloContact = typeof apolloContacts.$inferSelect;
 
+export const RIA_STEPS = ["firm_data", "brochure", "fees", "contacts", "signals"] as const;
+export type RiaStep = (typeof RIA_STEPS)[number];
+export const RIA_STEP_STATUSES = ["done", "gap", "failed"] as const;
+
+/** Per-firm RIA pipeline step state (Stage 5.8): no row = pending. */
+export const riaStepRuns = pgTable(
+  "ria_step_runs",
+  {
+    id: uuid("id").primaryKey(),
+    sectorId: uuid("sector_id")
+      .notNull()
+      .references(() => sectors.id, { onDelete: "cascade" }),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    step: text("step", { enum: RIA_STEPS }).notNull(),
+    status: text("status", { enum: RIA_STEP_STATUSES }).notNull(),
+    reason: text("reason"),
+    inputHash: text("input_hash"),
+    tokensUsed: integer("tokens_used"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("ria_step_runs_sector_company_step_key").on(t.sectorId, t.companyId, t.step),
+    index("ria_step_runs_sector_step_idx").on(t.sectorId, t.step, t.status),
+  ],
+);
+export type RiaStepRun = typeof riaStepRuns.$inferSelect;
+
 // Human verdict on a flagged (over $1M per staff) public revenue figure.
 export const revenueConfirmations = pgTable("revenue_confirmations", {
   companyId: uuid("company_id")

@@ -51,10 +51,12 @@ import {
   windowBurn,
 } from "../domain/quota/breaker.js";
 import { ADAPTERS } from "../collect/adapters.js";
+import { riaStatus } from "../domain/ria-steps/status.js";
 import { quotaSnapshotGet } from "../runs/quota-monitor.js";
 import { researchStart } from "../runs/agent.js";
 import {
   companyJobCancel,
+  companyJobsCancelBulk,
   companyJobList,
   companyJobPause,
   companyJobsPauseAll,
@@ -1441,6 +1443,37 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       wrap(async () => {
         await companyJobCancel(db, id, { stopRunning: stopRunning ?? undefined });
         return { summary: `job ${id} cancelled`, data: { jobId: id } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_jobs_cancel",
+    {
+      description: "Operator: bulk-cancel company jobs in a sector by status (e.g. paused, failed), with their active subjobs stopped.",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+        statuses: z.array(z.string()).min(1).describe("Job statuses to cancel"),
+        reason: z.string().optional().describe("Recorded in the summary only"),
+      },
+    },
+    async ({ sectorId, statuses }) =>
+      wrap(async () => {
+        const result = await companyJobsCancelBulk(db, { sectorId, statuses });
+        return { summary: `${result.cancelled} jobs cancelled`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "ria_status",
+    {
+      description: "Operator: RIA step coverage for a sector: per step done/gap/failed/pending over eligible firms, plus latest import and preflight counts.",
+      inputSchema: { sectorId: z.string().describe("Sector UUID") },
+    },
+    async ({ sectorId }) =>
+      wrap(async () => {
+        const view = await riaStatus(db, sectorId);
+        const parts = Object.entries(view.steps).map(([k, v]) => `${k} ${v.done}/${v.gap}/${v.failed}/${v.pending}`).join("; ");
+        return { summary: `eligible ${view.eligible}: ${parts}`, data: view };
       }),
   );
 
