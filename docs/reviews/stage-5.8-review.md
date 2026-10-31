@@ -123,9 +123,6 @@ Gate re-run on the same 103 firms (MCP only):
 | e114eb27-b40f-4efe-9f8e-7282b65b7ee7 | 16 | 0 |
 | 10ccecca-5b17-4a95-8d3c-e39cb092c467 | 12 | 1 (billing) |
 
-(Two uuid digits above are as recorded in the sample log; ids only, no
-names, per owner rule.)
-
 Signal spread on the 103 (guideline: no signal over ~60% — missed):
 Complex fees 86%, Multiple custodians 73%, Outside managers 68%, Many
 services 62%, Alternatives 62%, Tool sprawl 57%, Custody work 54%, Heavy
