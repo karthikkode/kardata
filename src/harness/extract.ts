@@ -31,6 +31,10 @@ export const EXTRACT_MUSE_ARGS = [
   "--no-foreign-personal-context",
   "--max-model-steps",
   "3",
+  // Same as RESEARCH_MUSE_ARGS: muse refuses to run in an untrusted
+  // workspace ("Agent delegation: auto unavailable"), which exits 1.
+  // /workspace is an empty tmpfs in the container.
+  "--trust-workspace",
 ];
 
 export function extractContainerName(runId: string, area: string): string {

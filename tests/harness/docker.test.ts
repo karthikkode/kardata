@@ -152,3 +152,28 @@ describe("docker harness", () => {
     expect(checkAppMuseVersion("1.4.11-R6667.1", "garbage\n").ok).toBe(false);
   });
 });
+
+describe("single-shot muse args workspace trust", () => {
+  it("extraction and classification also trust the empty container workspace", async () => {
+    const { EXTRACT_MUSE_ARGS } = await import("../../src/harness/extract.js");
+    const { CLASSIFY_MUSE_ARGS } = await import("../../src/harness/classify.js");
+    expect(EXTRACT_MUSE_ARGS).toContain("--trust-workspace");
+    expect(CLASSIFY_MUSE_ARGS).toContain("--trust-workspace");
+  });
+});
+
+describe("fees step container command (single-shot)", () => {
+  it("trusts the empty workspace and gives the model no tools or delegation path", async () => {
+    const { extractRunArgs } = await import("../../src/harness/extract.js");
+    const args = extractRunArgs({ runId: "00000000-0000-0000-0000-000000000001", area: "firm_and_fees", inputDir: "/tmp/input" });
+    expect(args).toContain("--trust-workspace");
+    expect(args).toContain("--disable-shell");
+    expect(args).toContain("--disable-write");
+    expect(args).toContain("--disable-web-tools");
+    // No agent definitions and no MCP servers: delegation has nothing to run.
+    expect(args).not.toContain("--agents");
+    expect(args.join(" ")).not.toContain("mcp");
+    const steps = args[args.indexOf("--max-model-steps") + 1];
+    expect(steps).toBe("3");
+  });
+});
