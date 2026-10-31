@@ -80,7 +80,7 @@ export async function riaStatus(db: Db, sectorId: string): Promise<RiaStatusView
         gapReasons[key] = (gapReasons[key] ?? 0) + 1;
       }
       if (r.status === "failed") {
-        const key = (r.reason ?? "failed").slice(0, 80);
+        const key = (r.reason ?? "failed").slice(0, 160);
         failedReasons[key] = (failedReasons[key] ?? 0) + 1;
       }
     }
