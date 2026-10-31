@@ -280,15 +280,15 @@ export function createFeesStep(call: ExtractorCall = dockerExtractorCall): StepH
       const sourceIds = item5.sourceIds;
       const quoteFor = (key: string): string => (typeof quotes[key] === "string" ? (quotes[key] as string) : "");
       const items = [
-        { key: "firm.fee_schedule", value: String(json["fee_schedule"] ?? ""), q: quoteFor("fee_schedule") },
-        { key: "firm.fee_family_grouping", value: json["family_grouping"] === true, q: quoteFor("family_grouping") },
-        { key: "firm.fee_negotiable", value: json["negotiable"] === true, q: quoteFor("negotiable") },
-        { key: "firm.fee_types", value: Array.isArray(json["fee_types"]) ? (json["fee_types"] as string[]) : [], q: quoteFor("fee_types") },
-        { key: "firm.fee_minimums", value: String(json["minimums"] ?? ""), q: quoteFor("minimums") },
-        { key: "firm.fee_billing", value: String(json["billing"] ?? "unknown"), q: quoteFor("billing") },
-        { key: "firm.fee_proration", value: json["proration"] === true, q: quoteFor("proration") },
-        { key: "firm.fee_refunds", value: json["refunds"] === true, q: quoteFor("refunds") },
-        { key: "firm.fee_collection", value: String(json["collection"] ?? ""), q: quoteFor("collection") },
+        { key: "ria.fee_schedule", value: String(json["fee_schedule"] ?? ""), q: quoteFor("fee_schedule") },
+        { key: "ria.fee_family_grouping", value: json["family_grouping"] === true, q: quoteFor("family_grouping") },
+        { key: "ria.fee_negotiable", value: json["negotiable"] === true, q: quoteFor("negotiable") },
+        { key: "ria.fee_types", value: Array.isArray(json["fee_types"]) ? (json["fee_types"] as string[]) : [], q: quoteFor("fee_types") },
+        { key: "ria.fee_minimums", value: String(json["minimums"] ?? ""), q: quoteFor("minimums") },
+        { key: "ria.fee_billing", value: String(json["billing"] ?? "unknown"), q: quoteFor("billing") },
+        { key: "ria.fee_proration", value: json["proration"] === true, q: quoteFor("proration") },
+        { key: "ria.fee_refunds", value: json["refunds"] === true, q: quoteFor("refunds") },
+        { key: "ria.fee_collection", value: String(json["collection"] ?? ""), q: quoteFor("collection") },
       ].filter((i) => !(typeof i.value === "string" && i.value === "") && !(Array.isArray(i.value) && i.value.length === 0));
       const haystack = `${item5.text}
 ${item4?.text ?? ""}`.replace(/\s+/g, " ").toLowerCase();
@@ -315,7 +315,8 @@ ${item4?.text ?? ""}`.replace(/\s+/g, " ").toLowerCase();
       }
       if (facts.length > 0) {
         const written = await addFacts(db, { companyId, runId, createdBy: "extractor:ria_fees", facts });
-        void written;
+        const bad = written.find((r) => !r.ok);
+        if (bad && !bad.ok) throw new Error(`fee fact write failed: ${bad.error}`);
       }
       await finishRun(db, runId, true);
       const tokens = result.usage?.inputTokens ?? null;
@@ -467,7 +468,7 @@ export const signalsStep: StepHandler = async (db, sectorId, companyId) => {
     const v = byKey.get(key)?.valueText;
     return typeof v === "string" && v !== "" ? v : null;
   };
-  const types = byKey.get("firm.fee_types")?.valueJson;
+  const types = byKey.get("ria.fee_types")?.valueJson;
   const feeTypeCount = Array.isArray(types) ? types.length : 0;
   const systemCount = rows.filter((r) => r.key.startsWith("firm.system_")).length;
   // Growth from AUM/staff history (facts table, oldest vs newest by asOf).
@@ -495,12 +496,12 @@ export const signalsStep: StepHandler = async (db, sectorId, companyId) => {
     boolOf("firm.fee_problem") ||
     (textOf("firm.disclosure_flag") === "Y" && item9 !== null && /fee|refund|billing/i.test(item9.text));
   const signals = computeSignals({
-    familyGrouping: boolOf("firm.fee_family_grouping"),
-    negotiable: boolOf("firm.fee_negotiable"),
+    familyGrouping: boolOf("ria.fee_family_grouping"),
+    negotiable: boolOf("ria.fee_negotiable"),
     feeTypeCount,
-    billing: textOf("firm.fee_billing"),
-    proration: boolOf("firm.fee_proration"),
-    refunds: boolOf("firm.fee_refunds"),
+    billing: textOf("ria.fee_billing"),
+    proration: boolOf("ria.fee_proration"),
+    refunds: boolOf("ria.fee_refunds"),
     custodians: textOf("firm.custodians"),
     growthPct,
     disclosureFee,

@@ -295,7 +295,7 @@ export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRo
       aum: numOf("firm.regulatory_aum") !== null ? String(Math.round(numOf("firm.regulatory_aum") as number)) : "",
       staff: numOf("financials.employees") !== null ? String(Math.round(numOf("financials.employees") as number)) : "",
       growth,
-      feeSummary: textOf("firm.fee_schedule").slice(0, 120),
+      feeSummary: (textOf("ria.fee_schedule") || textOf("firm.fee_schedule")).slice(0, 120),
       custodians: textOf("firm.custodians").slice(0, 120),
       brochureDate,
     });
