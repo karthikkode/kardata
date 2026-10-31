@@ -7,6 +7,11 @@ import type { BucketRule } from "./rules.js";
  * ria come from the preflight reason keys, not judge buckets.
  */
 
+/**
+ * The deep-research judge scores these 7. The other five signals in
+ * RIA_SIGNAL_RULES are light-path only (code-computed) and never asked
+ * of the judge.
+ */
 export const RIA_SIGNAL_KEYS = [
   "fee_complexity",
   "recent_deal",
@@ -15,11 +20,6 @@ export const RIA_SIGNAL_KEYS = [
   "growth",
   "tool_sprawl",
   "fee_problem",
-  "heavy_book",
-  "many_services",
-  "outside_managers",
-  "alternatives",
-  "custody_work",
 ] as const;
 
 /** Sheet order for the top-3 display and the lead (call-opener) signal. */
@@ -129,3 +129,6 @@ export function riaLayer(score: number): number {
 }
 
 export const RIA_SIGNAL_RULES = RIA_RULES_LIST as unknown as BucketRule[];
+
+/** Rules the deep-research judge sees (the original 7 signals). */
+export const RIA_JUDGE_RULES = RIA_RULES_LIST.filter((r) => (RIA_SIGNAL_KEYS as readonly string[]).includes(r.key)) as unknown as BucketRule[];
