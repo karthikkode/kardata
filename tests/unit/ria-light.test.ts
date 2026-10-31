@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { brochureDate, splitBrochureItems } from "../../src/domain/ria-steps/brochure.js";
-import { pickFirmWebsite, feePrompt, teamLinks, computeSignals } from "../../src/domain/ria-steps/handlers.js";
+import { pickFirmWebsite, teamLinks, computeSignals, opsPrompt, OPS_SCHEMA, normalizeForGrounding } from "../../src/domain/ria-steps/handlers.js";
 
 
 describe("pickFirmWebsite (B3)", () => {
@@ -36,9 +36,9 @@ describe("splitBrochureItems / brochureDate (B4)", () => {
 });
 
 
-describe("feePrompt (B5)", () => {
+describe("opsPrompt (B5)", () => {
   it("carries the Item 5 text and the verbatim-quote rule", () => {
-    const prompt = feePrompt("Fees are tiered and negotiable.", "");
+    const prompt = opsPrompt([{ item: "5", text: "Fees are tiered and negotiable." }]);
     expect(prompt).toContain("Fees are tiered and negotiable.");
     expect(prompt).toContain("Never invent a quote");
   });

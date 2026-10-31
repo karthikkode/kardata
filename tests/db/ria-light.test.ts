@@ -5,7 +5,7 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { DbHandle } from "../../src/db/client.js";
 import { companies, documents, factsCurrent, records, researchRuns, sources } from "../../src/db/schema.js";
-import { createFirmDataStep, setPrivateHostsForTests, brochureStep, setBrochureBasesForTests, createFeesStep, createContactsStep, signalsStep } from "../../src/domain/ria-steps/handlers.js";
+import { createFirmDataStep, setPrivateHostsForTests, brochureStep, setBrochureBasesForTests, createOpsReadStep, createContactsStep, signalsStep } from "../../src/domain/ria-steps/handlers.js";
 import { addFacts } from "../../src/domain/research/facts.js";
 import { saveDocument } from "../../src/domain/research/documents.js";
 import { storeBlob } from "../../src/domain/research/sources.js";
@@ -225,7 +225,7 @@ describe("fees step (B5)", () => {
     const sourceId = await makeSource(companyId, runId);
     const item5 = "Our fee is tiered, negotiable, grouped by family, and billed quarterly in advance with proration.";
     await saveDocument(handle.db, { companyId, runId, path: "financials/brochure-item-5.md", title: "Item 5", contentMd: item5, sourceIds: [sourceId], createdBy: "collector:ria_brochure" });
-    const step = createFeesStep(async () => ({
+    const step = createOpsReadStep(async () => ({
       json: {
         fee_schedule: "tiered 1.00% to 0.50%",
         family_grouping: true,
@@ -260,7 +260,7 @@ describe("fees step (B5)", () => {
 
   it("gaps without a stored Item 5", async () => {
     const companyId = await makeCompany();
-    const out = await createFeesStep(async () => ({ json: {}, usage: undefined }))(handle.db, randomUUID(), companyId);
+    const out = await createOpsReadStep(async () => ({ json: {}, usage: undefined }))(handle.db, randomUUID(), companyId);
     expect(out).toMatchObject({ status: "gap", reason: "no brochure Item 5 stored" });
   });
 });
@@ -300,7 +300,7 @@ describe("signals step (B7)", () => {
     await addFacts(handle.db, {
       companyId,
       runId,
-      createdBy: "extractor:ria_fees",
+      createdBy: "extractor:ria_ops",
       facts: [
         { key: "ria.fee_family_grouping", value: true, sourceIds: [sourceId] },
         { key: "ria.fee_negotiable", value: true, sourceIds: [sourceId] },

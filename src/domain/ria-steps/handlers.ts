@@ -170,7 +170,12 @@ export const brochureStep: StepHandler = async (db, _sectorId, companyId) => {
       .where(and(eq(documents.companyId, companyId), eq(documents.path, "financials/brochure-item-5.md")));
     // A stored doc only counts when it holds body text: early runs could
     // slice the table of contents instead of the Item itself.
-    const already = existing.some((d) => d.title.includes(`v${choice.versionId})`) && d.contentMd.length > 200 && !/\.{6,}/.test(d.contentMd.slice(0, 300)));
+    const hasItem8 = await db
+      .select({ title: documents.title })
+      .from(documents)
+      .where(and(eq(documents.companyId, companyId), eq(documents.path, "financials/brochure-item-8.md")));
+    const stored8 = hasItem8.some((d) => d.title.includes(`v${choice.versionId})`));
+    const already = stored8 && existing.some((d) => d.title.includes(`v${choice.versionId})`) && (d.contentMd?.length ?? 0) > 200 && !/\.{6,}/.test((d.contentMd ?? "").slice(0, 300)));
     const twoYearsAgo = new Date(Date.now() - 2 * 365.25 * 86_400_000).toISOString().slice(0, 10);
     const stale = choice.dateSubmitted < twoYearsAgo;
     if (already) {
@@ -225,12 +230,42 @@ export const brochureStep: StepHandler = async (db, _sectorId, companyId) => {
   }
 };
 
-// ---- B5: fee terms, one AI call ----
+// ---- B5 (revised): ops read, one AI call over the brochure ----
 
-export const FEE_SCHEMA = JSON.stringify({
+/**
+ * PDF text and model quotes differ in ligatures, curly quotes, dashes,
+ * hyphenated line breaks and spacing. Normalise both sides the same way
+ * before the grounding check.
+ */
+export function normalizeForGrounding(s: string): string {
+  return s
+    .normalize("NFKC")
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/[–—]/g, "-")
+    .replace(/([A-Za-z])-\s*\n\s*/g, "$1")
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+    .trim();
+}
+
+export const OPS_SCHEMA = JSON.stringify({
   type: "object",
   additionalProperties: false,
   properties: {
+    services: { type: "array", items: { type: "string" } },
+    outside_managers: { type: "boolean" },
+    sub_advisers: { type: "boolean" },
+    wrap_programs: { type: "boolean" },
+    tamp_providers: { type: "array", items: { type: "string" } },
+    custodians_named: { type: "array", items: { type: "string" } },
+    brokers_named: { type: "array", items: { type: "string" } },
+    directed_brokerage: { type: "boolean" },
+    trade_aggregation: { type: "boolean" },
+    private_funds: { type: "boolean" },
+    custody_sloa: { type: "boolean" },
+    custody_exam: { type: "boolean" },
+    systems: { type: "array", items: { type: "string" } },
     fee_schedule: { type: "string" },
     family_grouping: { type: "boolean" },
     negotiable: { type: "boolean" },
@@ -239,24 +274,29 @@ export const FEE_SCHEMA = JSON.stringify({
     billing: { type: "string", enum: ["advance", "arrears", "both", "unknown"] },
     proration: { type: "boolean" },
     refunds: { type: "boolean" },
-    systems: { type: "array", items: { type: "string" } },
     collection: { type: "string" },
     quotes: { type: "array", items: { type: "object", additionalProperties: false, properties: { field: { type: "string" }, quote: { type: "string" } }, required: ["field", "quote"] } },
   },
-  required: ["fee_schedule", "family_grouping", "negotiable", "fee_types", "minimums", "billing", "proration", "refunds", "systems", "collection", "quotes"],
+  required: ["services", "outside_managers", "sub_advisers", "wrap_programs", "tamp_providers", "custodians_named", "brokers_named", "directed_brokerage", "trade_aggregation", "private_funds", "custody_sloa", "custody_exam", "systems", "fee_schedule", "family_grouping", "negotiable", "fee_types", "minimums", "billing", "proration", "refunds", "collection", "quotes"],
 });
 
-export function feePrompt(item5: string, item4: string): string {
-  return [
-    "Read this Form ADV Part 2A brochure text and return one JSON object matching the schema. No tools.",
-    "fee_schedule: the schedule and tiers in plain words. family_grouping / negotiable / proration / refunds: true only when the text says so.",
-    "fee_types: e.g. percentage_of_aum, flat, hourly, planning. billing: advance, arrears, both or unknown. collection: how fees are collected (e.g. deducted from account, invoiced). systems: software or platforms named.",
+const OPS_ITEM_CAPS: Record<string, number> = { "5": 40_000, "4": 30_000, "12": 20_000, "15": 10_000, "8": 12_000, "14": 8_000 };
+
+export function opsPrompt(items: { item: string; text: string }[]): string {
+  const parts = [
+    "Read this Form ADV Part 2A brochure text (Items 4, 5, 8, 12, 14, 15) and return one JSON object matching the schema. No tools.",
+    "services: service lines offered, from: financial_planning, tax, insurance, retirement_plan_consulting, trusts_estates, investment_management, other (use these words).",
+    "outside_managers / sub_advisers / wrap_programs: true only when the text says the firm uses them. tamp_providers: model or TAMP provider names.",
+    "custodians_named / brokers_named: custodian and broker names stated. directed_brokerage / trade_aggregation: true only when stated.",
+    "private_funds: true when the firm advises private funds or alternatives. custody_sloa: standing letters of authorization or third-party money movement. custody_exam: surprise examination for custody.",
+    "systems: software or platform names (portfolio, billing, CRM, planning, trading). Custodians do not count as systems.",
+    "fee_schedule: schedule and tiers in plain words. family_grouping / negotiable / proration / refunds: true only when the text says so. fee_types: e.g. percentage_of_aum, flat, hourly, planning. billing: advance, arrears, both or unknown. minimums, collection: as stated.",
     "quotes: one entry per field you set: {field, quote} where quote is a verbatim passage (max 300 chars) copied EXACTLY from the text. Never invent a quote.",
-    "",
-    "## Item 5",
-    item5.slice(0, 30_000),
-    item4 ? `\n## Item 4\n${item4.slice(0, 10_000)}` : "",
-  ].join("\n");
+  ];
+  for (const { item, text } of items) {
+    parts.push("", `## Item ${item}`, text.slice(0, OPS_ITEM_CAPS[item] ?? 10_000));
+  }
+  return parts.join("\n");
 }
 
 async function brochureItemText(db: Db, companyId: string, item: string): Promise<{ text: string; sourceIds: string[] } | null> {
@@ -269,61 +309,92 @@ async function brochureItemText(db: Db, companyId: string, item: string): Promis
   return { text: latest.contentMd ?? "", sourceIds: latest.sourceIds ?? [] };
 }
 
-export function createFeesStep(call: ExtractorCall = dockerExtractorCall): StepHandler {
+export function createOpsReadStep(call: ExtractorCall = dockerExtractorCall): StepHandler {
   return async (db, _sectorId, companyId) => {
     const item5 = await brochureItemText(db, companyId, "5");
     if (!item5 || item5.text.trim().length < 40) return { status: "gap", reason: "no brochure Item 5 stored" };
-    const item4 = await brochureItemText(db, companyId, "4");
+    const loaded: { item: string; text: string; sourceIds: string[] }[] = [{ item: "5", ...item5 }];
+    for (const item of ["4", "12", "15", "8", "14"]) {
+      const got = await brochureItemText(db, companyId, item);
+      if (got && got.text.trim().length >= 40) loaded.push({ item, ...got });
+    }
     const runId = await newRun(db, companyId, "extraction");
     try {
-      const result = await call({ runId, area: "firm_and_fees", prompt: feePrompt(item5.text, item4?.text ?? ""), schema: FEE_SCHEMA });
+      const result = await call({ runId, area: "ops_read", prompt: opsPrompt(loaded), schema: OPS_SCHEMA });
       const json = result.json as Record<string, unknown>;
       const quoteList = Array.isArray(json["quotes"]) ? (json["quotes"] as { field?: string; quote?: string }[]) : [];
       const quotes: Record<string, string> = {};
       for (const q of quoteList) if (typeof q.field === "string" && typeof q.quote === "string") quotes[q.field] = q.quote;
-      const sourceIds = item5.sourceIds;
-      const quoteFor = (key: string): string => (typeof quotes[key] === "string" ? (quotes[key] as string) : "");
-      const items = [
-        { key: "ria.fee_schedule", value: String(json["fee_schedule"] ?? ""), q: quoteFor("fee_schedule") },
-        { key: "ria.fee_family_grouping", value: json["family_grouping"] === true, q: quoteFor("family_grouping") },
-        { key: "ria.fee_negotiable", value: json["negotiable"] === true, q: quoteFor("negotiable") },
-        { key: "ria.fee_types", value: Array.isArray(json["fee_types"]) ? (json["fee_types"] as string[]) : [], q: quoteFor("fee_types") },
-        { key: "ria.fee_minimums", value: String(json["minimums"] ?? ""), q: quoteFor("minimums") },
-        { key: "ria.fee_billing", value: String(json["billing"] ?? "unknown"), q: quoteFor("billing") },
-        { key: "ria.fee_proration", value: json["proration"] === true, q: quoteFor("proration") },
-        { key: "ria.fee_refunds", value: json["refunds"] === true, q: quoteFor("refunds") },
-        { key: "ria.fee_collection", value: String(json["collection"] ?? ""), q: quoteFor("collection") },
-      ].filter((i) => !(typeof i.value === "string" && i.value === "") && !(Array.isArray(i.value) && i.value.length === 0));
-      const haystack = `${item5.text}
-${item4?.text ?? ""}`.replace(/\s+/g, " ").toLowerCase();
-      const grounded = items.filter((i) => i.q !== "" && haystack.includes(i.q.replace(/\s+/g, " ").toLowerCase().slice(0, 300)));
-      const facts: { key: string; value: never; sourceIds: string[]; confidence: "high" | "medium" | "low"; quote: string | null; quoteSourceId: string | null }[] = grounded.map((i) => ({
-        key: i.key,
-        value: i.value as never,
-        sourceIds,
-        confidence: "high" as const,
-        quote: i.q === "" ? null : i.q,
-        quoteSourceId: i.q === "" || sourceIds.length === 0 ? null : (sourceIds[0] as string),
-      }));
-      const systemsQuote = quoteFor("systems");
-      const systems = Array.isArray(json["systems"]) && systemsQuote !== "" && haystack.includes(systemsQuote.replace(/\s+/g, " ").toLowerCase().slice(0, 300)) ? (json["systems"] as string[]) : [];
-      for (const sys of systems.slice(0, 8)) {
+      const haystacks = loaded.map((l) => ({ norm: normalizeForGrounding(l.text), sourceIds: l.sourceIds }));
+      const ground = (field: string): { quote: string; sourceId: string | null } | null => {
+        const q = quotes[field];
+        if (!q) return null;
+        const needle = normalizeForGrounding(q).slice(0, 300);
+        if (needle === "") return null;
+        for (const h of haystacks) {
+          if (h.norm.includes(needle)) return { quote: q, sourceId: h.sourceIds[0] ?? null };
+        }
+        return null;
+      };
+      const strList = (v: unknown): string[] => (Array.isArray(v) ? (v as unknown[]).filter((x): x is string => typeof x === "string" && x.trim() !== "") : []);
+      const items: { key: string; value: unknown; field: string }[] = [
+        { key: "ria.services", value: strList(json["services"]), field: "services" },
+        { key: "ria.outside_managers", value: json["outside_managers"] === true, field: "outside_managers" },
+        { key: "ria.sub_advisers", value: json["sub_advisers"] === true, field: "sub_advisers" },
+        { key: "ria.wrap_programs", value: json["wrap_programs"] === true, field: "wrap_programs" },
+        { key: "ria.tamp_providers", value: strList(json["tamp_providers"]), field: "tamp_providers" },
+        { key: "ria.custodians_named", value: strList(json["custodians_named"]), field: "custodians_named" },
+        { key: "ria.brokers_named", value: strList(json["brokers_named"]), field: "brokers_named" },
+        { key: "ria.directed_brokerage", value: json["directed_brokerage"] === true, field: "directed_brokerage" },
+        { key: "ria.trade_aggregation", value: json["trade_aggregation"] === true, field: "trade_aggregation" },
+        { key: "ria.private_funds", value: json["private_funds"] === true, field: "private_funds" },
+        { key: "ria.custody_sloa", value: json["custody_sloa"] === true, field: "custody_sloa" },
+        { key: "ria.custody_exam", value: json["custody_exam"] === true, field: "custody_exam" },
+        { key: "ria.systems_named", value: strList(json["systems"]), field: "systems" },
+        { key: "ria.fee_schedule", value: String(json["fee_schedule"] ?? ""), field: "fee_schedule" },
+        { key: "ria.fee_family_grouping", value: json["family_grouping"] === true, field: "family_grouping" },
+        { key: "ria.fee_negotiable", value: json["negotiable"] === true, field: "negotiable" },
+        { key: "ria.fee_types", value: strList(json["fee_types"]), field: "fee_types" },
+        { key: "ria.fee_minimums", value: String(json["minimums"] ?? ""), field: "minimums" },
+        { key: "ria.fee_billing", value: String(json["billing"] ?? "unknown"), field: "billing" },
+        { key: "ria.fee_proration", value: json["proration"] === true, field: "proration" },
+        { key: "ria.fee_refunds", value: json["refunds"] === true, field: "refunds" },
+        { key: "ria.fee_collection", value: String(json["collection"] ?? ""), field: "collection" },
+      ].filter((i) => !(typeof i.value === "string" && i.value === "") && !(Array.isArray(i.value) && i.value.length === 0) && i.value !== false);
+      const facts: { key: string; value: never; sourceIds: string[]; confidence: "high" | "medium" | "low"; quote: string | null; quoteSourceId: string | null }[] = [];
+      for (const i of items) {
+        const g = ground(i.field);
+        if (!g) continue;
         facts.push({
-          key: `firm.system_${sys.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 40)}`,
-          value: sys as never,
-          sourceIds,
-          confidence: "medium" as "high" | "medium" | "low",
-          quote: systemsQuote === "" ? null : systemsQuote,
-          quoteSourceId: null,
+          key: i.key,
+          value: i.value as never,
+          sourceIds: item5.sourceIds,
+          confidence: "high" as const,
+          quote: g.quote,
+          quoteSourceId: g.sourceId,
         });
+      }
+      // Named systems also land as firm.system_* facts (site/deep convention).
+      const sysG = ground("systems");
+      if (sysG) {
+        for (const sys of strList(json["systems"]).slice(0, 8)) {
+          facts.push({
+            key: `firm.system_${sys.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 40)}`,
+            value: sys as never,
+            sourceIds: item5.sourceIds,
+            confidence: "medium" as const,
+            quote: sysG.quote,
+            quoteSourceId: sysG.sourceId,
+          });
+        }
       }
       if (facts.length === 0) {
         await finishRun(db, runId, true);
-        return { status: "gap", reason: "no grounded fee terms in Item 5 text", tokensUsed: result.usage?.inputTokens ?? null };
+        return { status: "gap", reason: "no grounded ops terms in brochure text", tokensUsed: result.usage?.inputTokens ?? null };
       }
-      const written = await addFacts(db, { companyId, runId, createdBy: "extractor:ria_fees", facts });
+      const written = await addFacts(db, { companyId, runId, createdBy: "extractor:ria_ops", facts });
       const bad = written.find((r) => !r.ok);
-      if (bad && !bad.ok) throw new Error(`fee fact write failed: ${bad.error}`);
+      if (bad && !bad.ok) throw new Error(`ops fact write failed: ${bad.error}`);
       await finishRun(db, runId, true);
       const tokens = result.usage?.inputTokens ?? null;
       return { status: "done", tokensUsed: tokens, inputHash: createHash("sha256").update(item5.text.slice(0, 5000)).digest("hex").slice(0, 16) };

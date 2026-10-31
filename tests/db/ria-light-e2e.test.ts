@@ -8,7 +8,7 @@ import { companies } from "../../src/db/schema.js";
 import {
   brochureStep,
   createContactsStep,
-  createFeesStep,
+  createOpsReadStep,
   createFirmDataStep,
   setPrivateHostsForTests,
   setBrochureBasesForTests,
@@ -105,7 +105,7 @@ afterAll(async () => {
 });
 
 describe("synthetic RIA sector through the light steps (B9)", () => {
-  it("firm data -> brochure -> fees -> contacts -> signals -> sheet", async () => {
+  it("firm data -> brochure -> ops read -> contacts -> signals -> sheet", async () => {
     const db = handle.db;
     const profile = JSON.parse(readFileSync(resolve("docs/sectors/ria/profile.json"), "utf8")) as unknown;
     const { sector } = await createSector(db, { name: "ria-light-e2e", profile });
@@ -123,7 +123,7 @@ describe("synthetic RIA sector through the light steps (B9)", () => {
     const handlers: StepHandlers = {
       firm_data: createFirmDataStep(endpoints),
       brochure: brochureStep,
-      fees: createFeesStep(async () => ({
+      ops_read: createOpsReadStep(async () => ({
         json: {
           fee_schedule: "tiered 1.00% to 0.50%",
           family_grouping: true,
@@ -155,7 +155,7 @@ describe("synthetic RIA sector through the light steps (B9)", () => {
       signals: signalsStep,
     };
 
-    for (const step of ["firm_data", "brochure", "fees"] as const) {
+    for (const step of ["firm_data", "brochure", "ops_read"] as const) {
       const out = await runRiaStep(db, { sectorId: sector.id, step, companyIds: [firm.id] }, handlers);
       expect(out.failed, step).toBe(0);
       expect(out.done, step).toBe(1);
@@ -168,7 +168,7 @@ describe("synthetic RIA sector through the light steps (B9)", () => {
       expect(out.done, step).toBe(1);
     }
     const view = await riaStatus(db, sector.id);
-    for (const step of ["firm_data", "brochure", "fees"] as const) {
+    for (const step of ["firm_data", "brochure", "ops_read"] as const) {
       const out = await runRiaStep(db, { sectorId: sector.id, step, companyIds: [firm.id] }, handlers);
       expect(out.failed, step).toBe(0);
       expect(out.done, step).toBe(1);

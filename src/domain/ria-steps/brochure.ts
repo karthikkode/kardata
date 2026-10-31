@@ -1,12 +1,14 @@
 /** Split Part 2A brochure text by Item headings (Stage 5.8 B4). Pure. */
 
-export const BROCHURE_ITEMS = ["4", "5", "9", "12", "15"] as const;
+export const BROCHURE_ITEMS = ["4", "5", "8", "9", "12", "14", "15"] as const;
 
 const ITEM_TITLES: Record<string, string> = {
   "4": "Advisory Business",
   "5": "Fees and Compensation",
+  "8": "Methods of Analysis",
   "9": "Disciplinary Information",
   "12": "Brokerage Practices",
+  "14": "Client Referrals",
   "15": "Custody",
 };
 
@@ -32,8 +34,8 @@ export function brochureMarks(text: string): Mark[] {
     const trimmed = line.trim();
     if (trimmed.length > 120 || LEADERS.test(trimmed)) return;
     const m =
-      /^(?:Form ADV(?:\s*,\s*|\s+)(?:Part 2A,?\s*)?|Part 2A,?\s*)?(?:ITEM|Item)\s+(4|5|9|12|15)\b/.exec(trimmed) ??
-      /^[A-Z][^\n]{0,70}[-–—]\s*(?:ITEM|Item)\s+(4|5|9|12|15)\b/.exec(trimmed);
+      /^(?:Form ADV(?:\s*,\s*|\s+)(?:Part 2A,?\s*)?|Part 2A,?\s*)?(?:ITEM|Item)\s+(4|5|8|9|12|14|15)\b/.exec(trimmed) ??
+      /^[A-Z][^\n]{0,70}[-–—]\s*(?:ITEM|Item)\s+(4|5|8|9|12|14|15)\b/.exec(trimmed);
     if (m?.[1]) strong.push({ item: m[1], start: offsets[i] ?? 0, contentStart: (offsets[i] ?? 0) + line.length });
   });
   if (new Set(strong.map((m) => m.item)).size >= 2) return chooseBodyMarks(strong, text);

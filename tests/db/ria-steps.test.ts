@@ -32,9 +32,9 @@ describe("RIA step status (B1)", () => {
     expect(view.steps.firm_data).toMatchObject({ done: 1, pending: 1 });
     expect(view.steps.brochure.gap).toBe(1);
     expect(view.steps.brochure.gapReasons).toEqual({ "no brochure": 1 });
-    await recordStep(handle.db, { sectorId: sector.id, companyId: p.id, step: "fees", status: "failed", reason: "extractor down" });
+    await recordStep(handle.db, { sectorId: sector.id, companyId: p.id, step: "ops_read", status: "failed", reason: "extractor down" });
     const view2 = await riaStatus(handle.db, sector.id);
-    expect(view2.steps.fees.failedReasons).toEqual({ "extractor down": 1 });
+    expect(view2.steps.ops_read.failedReasons).toEqual({ "extractor down": 1 });
   });
 
   it("marks firms absent from the latest file not_current", async () => {
