@@ -106,10 +106,12 @@ export async function runRiaStep(
         outcome[result.status] += 1;
         outcome.tokensUsed += result.tokensUsed ?? 0;
       } catch (err) {
-        const parts: string[] = [];
+        // The deepest cause names the actual failure (e.g. the Postgres
+        // constraint); the wrapper message is a truncated query dump.
+        let deepest = "step error";
         let cur: unknown = err;
-        for (let i = 0; i < 3 && cur instanceof Error; i++) {
-          parts.push(cur.message);
+        for (let i = 0; i < 5 && cur instanceof Error; i++) {
+          deepest = cur.message;
           cur = (cur as { cause?: unknown }).cause;
         }
         await recordStep(db, {
@@ -117,7 +119,7 @@ export async function runRiaStep(
           companyId,
           step: input.step,
           status: "failed",
-          reason: parts.join(" | ").slice(0, 300) || "step error",
+          reason: deepest.slice(0, 300),
         });
         outcome.failed += 1;
       }
