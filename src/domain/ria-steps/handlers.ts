@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
-import { companies, documents, researchRuns } from "../../db/schema.js";
+import { companies, documents, facts, factsCurrent, researchRuns } from "../../db/schema.js";
 import { DEFAULT_ENDPOINTS } from "../../collect/collectors/types.js";
 import { secFirmCollector } from "../../collect/collectors/sec-firm.js";
 import { fetchUrl } from "../../collect/fetch.js";
@@ -11,8 +11,9 @@ import { toEffectiveCompany } from "../companies.js";
 import { addFacts } from "../research/facts.js";
 import { saveDocument } from "../research/documents.js";
 import { upsertRecords } from "../research/records.js";
+import { recordVerdicts } from "../tiering.js";
 import { brochureDate, splitBrochureItems } from "./brochure.js";
-import type { StepHandler } from "./runner.js";
+import type { StepHandler, StepResult } from "./runner.js";
 import { dockerExtractorCall, type ExtractorCall } from "../../runs/extract.js";
 
 /** RIA light steps (Stage 5.8 B3-B7): code first, one AI call where text must be read. */
@@ -353,3 +354,125 @@ export function createContactsStep(call: ExtractorCall = dockerExtractorCall): S
   };
 }
 
+// ---- B7: signals, code only ----
+
+export interface RiaSignals {
+  fee_complexity: boolean;
+  multi_custodian: boolean;
+  growth: boolean;
+  fee_problem: boolean;
+  tool_sprawl: boolean;
+  score: number;
+}
+
+export function computeSignals(input: {
+  familyGrouping: boolean;
+  negotiable: boolean;
+  feeTypeCount: number;
+  billing: string | null;
+  proration: boolean;
+  refunds: boolean;
+  custodians: string | null;
+  growthPct: number | null;
+  disclosureFee: boolean;
+  systemCount: number;
+}): RiaSignals {
+  const feeSignals = [
+    input.familyGrouping,
+    input.negotiable,
+    input.feeTypeCount >= 2,
+    (input.billing === "advance" || input.billing === "both") && (input.proration || input.refunds),
+  ].filter(Boolean).length;
+  const signals: Omit<RiaSignals, "score"> = {
+    fee_complexity: feeSignals >= 2,
+    multi_custodian: input.custodians !== null && (input.custodians.match(/,| and |;|\|/g)?.length ?? 0) >= 1 && input.custodians.trim().length > 3,
+    growth: input.growthPct !== null && input.growthPct >= 0.2,
+    fee_problem: input.disclosureFee,
+    tool_sprawl: input.systemCount >= 2,
+  };
+  return { ...signals, score: Object.values(signals).filter(Boolean).length };
+}
+
+export const signalsStep: StepHandler = async (db, sectorId, companyId) => {
+  const rows = await db.select().from(factsCurrent).where(eq(factsCurrent.companyId, companyId));
+  const byKey = new Map(rows.map((r) => [r.key, r]));
+  const boolOf = (key: string): boolean => byKey.get(key)?.valueBool === true;
+  const textOf = (key: string): string | null => {
+    const v = byKey.get(key)?.valueText;
+    return typeof v === "string" && v !== "" ? v : null;
+  };
+  const types = byKey.get("firm.fee_types")?.valueJson;
+  const feeTypeCount = Array.isArray(types) ? types.length : 0;
+  const systemCount = rows.filter((r) => r.key.startsWith("firm.system_")).length;
+  // Growth from AUM/staff history (facts table, oldest vs newest by asOf).
+  const history = await db
+    .select()
+    .from(facts)
+    .where(eq(facts.companyId, companyId))
+    .orderBy(asc(facts.createdAt));
+  let growthPct: number | null = null;
+  for (const key of ["firm.regulatory_aum", "financials.employees"] as const) {
+    const pts = history
+      .filter((f) => f.key === key && f.valueNum !== null && f.asOf)
+      .map((f) => ({ n: Number(f.valueNum), d: String(f.asOf).slice(0, 10) }))
+      .filter((x) => Number.isFinite(x.n))
+      .sort((a, b) => a.d.localeCompare(b.d));
+    const first = pts[0];
+    const last = pts[pts.length - 1];
+    if (!first || !last || first === last || first.n <= 0) continue;
+    const days = (new Date(last.d).getTime() - new Date(first.d).getTime()) / 86_400_000;
+    if (days >= 180) growthPct = Math.max(growthPct ?? -Infinity, (last.n - first.n) / first.n);
+  }
+  if (growthPct === -Infinity) growthPct = null;
+  const item9 = await brochureItemText(db, companyId, "9");
+  const disclosureFee =
+    boolOf("firm.fee_problem") ||
+    (textOf("firm.disclosure_flag") === "Y" && item9 !== null && /fee|refund|billing/i.test(item9.text));
+  const signals = computeSignals({
+    familyGrouping: boolOf("firm.fee_family_grouping"),
+    negotiable: boolOf("firm.fee_negotiable"),
+    feeTypeCount,
+    billing: textOf("firm.fee_billing"),
+    proration: boolOf("firm.fee_proration"),
+    refunds: boolOf("firm.fee_refunds"),
+    custodians: textOf("firm.custodians"),
+    growthPct,
+    disclosureFee,
+    systemCount,
+  });
+  const entries = Object.entries(signals).filter(([k]) => k !== "score") as [string, boolean][];
+  const packHash = createHash("sha256").update(rows.map((r) => r.id).sort().join(",")).digest("hex").slice(0, 16);
+  const runId = await newRun(db, companyId, "icp");
+  const { companyIcpChecks } = await import("../../db/schema.js");
+  const checkId = randomUUID();
+  await db.insert(companyIcpChecks).values({
+    id: checkId,
+    companyId,
+    sectorId,
+    runId,
+    promptVersion: "ria-light-v1",
+    packHash,
+    score: signals.score,
+    status: "icp_accepted",
+    results: {
+      signals: entries.map(([key, on]) => ({ key, verdict: on ? "yes" : "no", counted: on, refs: [], observation: on ? `${key} from stored facts` : "", note: null })),
+      exclusions: [],
+      flags: [],
+    },
+    evidence: [],
+    usage: null,
+  });
+  await recordVerdicts(db, [
+    {
+      companyId,
+      sectorId,
+      status: "icp_accepted",
+      score: signals.score,
+      signals: Object.fromEntries(entries),
+      exclusionReason: null,
+      source: `ria-light-v1:${checkId}`,
+    },
+  ]);
+  await finishRun(db, runId, true);
+  return { status: "done", reason: `score ${signals.score} (complex ${signals.fee_complexity}, growth ${signals.growth})`, inputHash: packHash };
+};

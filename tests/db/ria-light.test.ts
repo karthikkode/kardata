@@ -5,7 +5,7 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { DbHandle } from "../../src/db/client.js";
 import { companies, documents, factsCurrent, records, researchRuns, sources } from "../../src/db/schema.js";
-import { createFirmDataStep, setPrivateHostsForTests, brochureStep, setReportsBaseForTests, createFeesStep, createContactsStep } from "../../src/domain/ria-steps/handlers.js";
+import { createFirmDataStep, setPrivateHostsForTests, brochureStep, setReportsBaseForTests, createFeesStep, createContactsStep, signalsStep } from "../../src/domain/ria-steps/handlers.js";
 import { addFacts } from "../../src/domain/research/facts.js";
 import { saveDocument } from "../../src/domain/research/documents.js";
 import { storeBlob } from "../../src/domain/research/sources.js";
@@ -221,5 +221,34 @@ describe("contacts step (B6)", () => {
     const companyId = await makeCompany({ website: null });
     const out = await createContactsStep(async () => ({ json: { people: [] }, usage: undefined }))(handle.db, randomUUID(), companyId);
     expect(out).toMatchObject({ status: "gap", reason: "no firm website" });
+  });
+});
+
+describe("signals step (B7)", () => {
+  it("writes a code-only verdict from stored facts", async () => {
+    const profile = JSON.parse(readFileSync(resolve("docs/sectors/ria/profile.json"), "utf8")) as unknown;
+    const { sector } = await createSector(handle.db, { name: "ria-b7", profile });
+    const companyId = await makeCompany();
+    const runId = await makeRun(companyId);
+    const sourceId = await makeSource(companyId, runId);
+    await addFacts(handle.db, {
+      companyId,
+      runId,
+      createdBy: "extractor:ria_fees",
+      facts: [
+        { key: "firm.fee_family_grouping", value: true, sourceIds: [sourceId] },
+        { key: "firm.fee_negotiable", value: true, sourceIds: [sourceId] },
+        { key: "firm.custodians", value: "Fidelity, Charles Schwab", sourceIds: [sourceId] },
+        { key: "firm.regulatory_aum", value: 100_000_000, asOf: "2024-01-01", sourceIds: [sourceId] },
+        { key: "firm.regulatory_aum", value: 130_000_000, asOf: "2025-01-01", sourceIds: [sourceId] },
+      ],
+    });
+    const out = await signalsStep(handle.db, sector.id, companyId);
+    expect(out.status).toBe("done");
+    const counts = (await handle.db.execute(sql`SELECT status FROM company_icp_checks WHERE company_id = ${companyId}`)) as unknown as { status: string }[];
+    expect(counts).toHaveLength(1);
+    const verdicts = (await handle.db.execute(sql`SELECT score, signals FROM company_verdicts WHERE company_id = ${companyId}`)) as unknown as { score: number; signals: Record<string, boolean> }[];
+    expect(verdicts[0]?.signals).toMatchObject({ fee_complexity: true, multi_custodian: true, growth: true });
+    expect(verdicts[0]?.score).toBeGreaterThanOrEqual(3);
   });
 });

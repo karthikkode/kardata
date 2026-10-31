@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { brochureDate, splitBrochureItems } from "../../src/domain/ria-steps/brochure.js";
-import { pickFirmWebsite, feePrompt, teamLinks } from "../../src/domain/ria-steps/handlers.js";
+import { pickFirmWebsite, feePrompt, teamLinks, computeSignals } from "../../src/domain/ria-steps/handlers.js";
 
 
 describe("pickFirmWebsite (B3)", () => {
@@ -52,3 +52,31 @@ describe("teamLinks (B6)", () => {
   });
 });
 
+
+describe("computeSignals (B7)", () => {
+  const base = {
+    familyGrouping: false,
+    negotiable: false,
+    feeTypeCount: 1,
+    billing: "arrears",
+    proration: false,
+    refunds: false,
+    custodians: null,
+    growthPct: null,
+    disclosureFee: false,
+    systemCount: 0,
+  };
+
+  it("fee_complexity needs at least two of the four fee traits", () => {
+    expect(computeSignals({ ...base, negotiable: true }).fee_complexity).toBe(false);
+    expect(computeSignals({ ...base, negotiable: true, familyGrouping: true }).fee_complexity).toBe(true);
+    expect(computeSignals({ ...base, billing: "advance", proration: true, feeTypeCount: 2 }).fee_complexity).toBe(true);
+  });
+
+  it("multi_custodian, growth, fee_problem, tool_sprawl", () => {
+    const s = computeSignals({ ...base, custodians: "Fidelity, Charles Schwab", growthPct: 0.25, disclosureFee: true, systemCount: 2 });
+    expect(s).toMatchObject({ multi_custodian: true, growth: true, fee_problem: true, tool_sprawl: true });
+    expect(computeSignals({ ...base, custodians: "Fidelity", growthPct: 0.1 }).multi_custodian).toBe(false);
+    expect(computeSignals({ ...base, growthPct: 0.19 }).growth).toBe(false);
+  });
+});

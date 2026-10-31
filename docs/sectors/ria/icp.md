@@ -35,6 +35,13 @@ Revenue, if needed, is estimated as AUM × 0.8% and always labelled an estimate.
 Score = number of signals found (0–7). Layer = priority inside the size group: higher score is called first.
 Score 0 is still called (owner calls every company), last.
 
+**Light path (Stage 5.8).** The light steps (firm data → brochure → fees → contacts → signals) compute
+signals from stored facts in code, with no research run: `fee_complexity` only when at least two of family
+grouping, negotiable fees, two or more fee types, advance billing with proration or refunds; `multi_custodian`
+from the stored custodian filing text; `growth` when AUM or staff is up 20%+ year on year; `fee_problem` from
+fee-related disclosures or Item 9 text about fees or refunds; `tool_sprawl` from two or more named systems in
+the brochure. `recent_deal` and `ops_hiring` come only from deep research, so a light-path score is out of 5.
+
 ## 5. Who to contact
 Retainer group: the COO, director or head of operations; else the chief compliance officer; else a founder.
 Proof group: the founder or managing partner; else an operations or office manager.
@@ -44,3 +51,4 @@ SEC file. Direct numbers and emails only from bought Apollo contacts (D-67).
 ## 6. What never counts as evidence
 Guesses from the firm's size, a fee schedule that is simple, or "every firm has this problem". A signal is a fact
 about this firm, with a source and a date.
+
