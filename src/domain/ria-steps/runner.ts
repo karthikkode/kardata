@@ -106,12 +106,18 @@ export async function runRiaStep(
         outcome[result.status] += 1;
         outcome.tokensUsed += result.tokensUsed ?? 0;
       } catch (err) {
+        const parts: string[] = [];
+        let cur: unknown = err;
+        for (let i = 0; i < 3 && cur instanceof Error; i++) {
+          parts.push(cur.message);
+          cur = (cur as { cause?: unknown }).cause;
+        }
         await recordStep(db, {
           sectorId: input.sectorId,
           companyId,
           step: input.step,
           status: "failed",
-          reason: err instanceof Error ? err.message.slice(0, 300) : "step error",
+          reason: parts.join(" | ").slice(0, 300) || "step error",
         });
         outcome.failed += 1;
       }
