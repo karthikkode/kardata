@@ -143,3 +143,37 @@ Sheet re-exported after the gate (103 rows, ria-us analysis CSV, no
 Google Sheet writes). O6 as originally scoped (all 8,403) not run; the
 owner replaced it with a next-200 R-group run (highest signal score
 first), reported separately below.
+
+## Next-200 run (owner-directed step 7 change, 2026-10-31)
+
+After the gate report and sheet re-export, the light steps ran on the
+next 200 firms only: R group, highest signal score first, excluding the
+103 gate firms. Ranking used pre-ops signal scores (Part 1 facts only;
+pool maximum was 3: 27 firms at 3, 173 at 2). Brochure was re-run first
+so Items 8/14 are split for these firms.
+
+- ops_read: 197 done / 3 gap ("no brochure Item 5 stored") / 0 failed.
+- contacts: 25 done / 175 gap. All 25 came from team pages (fresh leader
+  records in the run window); the Schedule A officer fallback fired 0
+  times because these firms have no stored leader records at all.
+  Gaps by reason: no firm website and no Schedule A officer 81, team
+  page named no people 42, no team/about page 25, website fetch blocked
+  13, fetch error 12, robots disallowed 2. Root cause is upstream:
+  firm_data's Schedule A parse (sec-firm collector, "Name - Title" line
+  regex) rarely matches the filing PDF table layout, so officers are
+  almost never stored. This is the first item for the next fix batch
+  (collector parse + firm_data/contacts re-run); contacts coverage on
+  unresearched firms depends on it.
+- signals: 200 done. Post-ops scores 2-9. Spread: Heavy book 86% and
+  Growing fast 84% (both enriched by the score-first selection), Complex
+  fees 84%, Outside managers 73%, Many services 66%, Multiple
+  custodians 57%, Custody work 50%, Alternatives 48%, Fee problem 39%,
+  Tool sprawl 18%. Lead signal: Heavy book 119, Fee problem 78, Outside
+  managers 2, Alternatives 1.
+- Tokens: ops_read median about 26K input tokens per firm, max about
+  40K (estimated from stored prompt sizes, calibrated on one exact
+  usage reading of 35,282 for a large brochure). Weekly quota after
+  the run: 88% (resets Mon 2026-11-02 00:00 UTC).
+
+Stopped here per owner instruction. The remaining ~8,100 eligible
+firms have not been run.
