@@ -1,4 +1,4 @@
-Status: reference · Last updated: 2026-10-27
+Status: reference · Last updated: 2026-10-31
 
 # The sector pipeline (runbook)
 
@@ -55,3 +55,23 @@ Business rules live in `docs/business/icp.md`. This file only gives the order.
 - `company_sheet_export` writes `var/analysis/companies-<date>.csv` (gitignored): ICP accepted companies by tier, then
   layer, with observations and blank tracking columns. The owner imports it into the Google Sheet. All outreach is
   manual.
+
+## RIA sectors: the light pipeline (Stage 5.8)
+
+RIA sectors (`playbook: ria`) do not use steps 3–4 above. Code does everything structured; AI is used only for
+two single-call reads per firm. Deep research is opt-in for a named list only.
+
+| Order | Step | Tool | What it does |
+|---|---|---|---|
+| 1 | Firm data | `ria_step_run {step: "firm_data"}` | SEC/IAPD per firm: officers, custodians, disclosure flags, the firm's own website (social URLs dropped) |
+| 2 | Brochure | `ria_step_run {step: "brochure"}` | Latest Part 2A brochure (pdfjs), stored split by Item 4/5/9/12/15; not downloadable → gap |
+| 3 | Fee terms | `ria_step_run {step: "fees"}` | One AI call on Item 5 (+4): fee terms, each with a verbatim quote found in the stored text |
+| 4 | Contacts | `ria_step_run {step: "contacts"}` | Team/about page found in code, one AI call: people with titles, merged with SEC officers |
+| 5 | Signals | `ria_step_run {step: "signals"}` | Code-only signals, ICP verdict and layer (`docs/sectors/ria/icp.md` section 4) |
+| — | Coverage | `ria_status` | Per step: done / gap / failed / pending over eligible firms |
+| — | Deep research (opt-in) | `ria_deep_research {companyIds}` | Named firms only (max 50): reads stored step data first; deals, ops job posts, recent news only |
+
+Rules: `ria_step_pause {paused}` pauses step runs; AI steps stop at the 90% weekly quota reading; a missing
+brochure, website or page is a gap, never a failed firm; steps skip firms already done and can be re-run by
+naming them. The sheet is `company_sheet_export` as in step 4 (RIA rows add AUM, staff, growth, fee summary,
+custodians, brochure date). Business rules: `docs/sectors/ria/icp.md`.
