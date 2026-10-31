@@ -157,7 +157,6 @@ export async function importOneFile(
 
   const skippedEntries = [...parsed.skipped];
   const affectedDomains = new Set<string>();
-  const ensuredKeys = new Set<string>();
   let created = 0;
   let linked = 0;
   let updated = 0;
