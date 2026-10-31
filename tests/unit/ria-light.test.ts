@@ -36,6 +36,25 @@ describe("splitBrochureItems / brochureDate (B4)", () => {
 });
 
 
+describe("ops schema and grounding normalisation", () => {
+  it("schema requires ops fields and quotes", () => {
+    const schema = JSON.parse(OPS_SCHEMA) as { required: string[] };
+    expect(schema.required).toContain("custodians_named");
+    expect(schema.required).toContain("quotes");
+  });
+  it("normalises ligatures, curly quotes and hyphenation", () => {
+    expect(normalizeForGrounding("Fees are \u201cnegotia-\nble\u201d and \ufb01xed.")).toBe(normalizeForGrounding('fees are "negotiable" and fixed.'));
+  });
+  it("ops prompt stays under the 40K-token cap", () => {
+    const prompt = opsPrompt([
+      { item: "5", text: "x".repeat(60_000) },
+      { item: "4", text: "y".repeat(50_000) },
+      { item: "12", text: "z".repeat(50_000) },
+    ]);
+    expect(prompt.length).toBeLessThan(125_000);
+  });
+});
+
 describe("opsPrompt (B5)", () => {
   it("carries the Item 5 text and the verbatim-quote rule", () => {
     const prompt = opsPrompt([{ item: "5", text: "Fees are tiered and negotiable." }]);
