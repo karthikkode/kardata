@@ -52,6 +52,8 @@ import {
 } from "../domain/quota/breaker.js";
 import { ADAPTERS } from "../collect/adapters.js";
 import { riaStatus } from "../domain/ria-steps/status.js";
+import { runRiaStep, setRiaStepPaused } from "../domain/ria-steps/runner.js";
+import { RIA_STEP_HANDLERS } from "../domain/ria-steps/steps.js";
 import { quotaSnapshotGet } from "../runs/quota-monitor.js";
 import { researchStart } from "../runs/agent.js";
 import {
@@ -1474,6 +1476,37 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         const view = await riaStatus(db, sectorId);
         const parts = Object.entries(view.steps).map(([k, v]) => `${k} ${v.done}/${v.gap}/${v.failed}/${v.pending}`).join("; ");
         return { summary: `eligible ${view.eligible}: ${parts}`, data: view };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "ria_step_run",
+    {
+      description: "Operator: run one RIA pipeline step (firm_data, brochure, fees, contacts, signals) over eligible firms or a list. Skips firms already done; honours pause and the 90% quota stop for AI steps.",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+        step: z.enum(["firm_data", "brochure", "fees", "contacts", "signals"]).describe("Step name"),
+        companyIds: z.array(z.string()).optional().describe("Exactly these firms (re-runs even when done)"),
+        limit: z.number().int().optional().describe("Cap firms in this call"),
+      },
+    },
+    async ({ sectorId, step, companyIds, limit }) =>
+      wrap(async () => {
+        const result = await runRiaStep(db, { sectorId, step: step as never, companyIds: companyIds ?? undefined, limit: limit ?? undefined }, RIA_STEP_HANDLERS);
+        return { summary: `${step}: done ${result.done}, gap ${result.gap}, failed ${result.failed}, skipped ${result.skippedDone}${result.stopped ? `, stopped (${result.stopped})` : ""}, tokens ${result.tokensUsed}`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "ria_step_pause",
+    {
+      description: "Operator: pause or resume RIA step runs.",
+      inputSchema: { paused: z.boolean().describe("true pauses, false resumes") },
+    },
+    async ({ paused }) =>
+      wrap(async () => {
+        await setRiaStepPaused(db, paused);
+        return { summary: `ria steps ${paused ? "paused" : "resumed"}`, data: { paused } };
       }),
   );
 

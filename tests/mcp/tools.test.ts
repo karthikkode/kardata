@@ -101,6 +101,8 @@ const EXPECTED_TOOLS = [
   "company_job_cancel",
   "company_jobs_cancel",
   "ria_status",
+  "ria_step_run",
+  "ria_step_pause",
   "company_job_retry",
   "company_jobs_supersede",
   "company_concurrency_get",
