@@ -60,7 +60,7 @@ export async function eligibleCompanyIds(db: Db, sectorId: string): Promise<stri
 export interface RiaStatusView {
   sectorId: string;
   eligible: number;
-  steps: Record<RiaStep, { done: number; gap: number; failed: number; pending: number; gapReasons: Record<string, number> }>;
+  steps: Record<RiaStep, { done: number; gap: number; failed: number; pending: number; gapReasons: Record<string, number>; failedReasons: Record<string, number> }>;
   latestImport: { filename: string; createdAt: string; rowsRead: number } | null;
   preflight: { eligible: number; ineligible: number; pending: number };
 }
@@ -73,10 +73,15 @@ export async function riaStatus(db: Db, sectorId: string): Promise<RiaStatusView
   for (const step of RIA_STEPS) {
     const mine = rows.filter((r) => r.step === step && eligibleSet.has(r.companyId));
     const gapReasons: Record<string, number> = {};
+    const failedReasons: Record<string, number> = {};
     for (const r of mine) {
       if (r.status === "gap") {
         const key = (r.reason ?? "gap").slice(0, 80);
         gapReasons[key] = (gapReasons[key] ?? 0) + 1;
+      }
+      if (r.status === "failed") {
+        const key = (r.reason ?? "failed").slice(0, 80);
+        failedReasons[key] = (failedReasons[key] ?? 0) + 1;
       }
     }
     steps[step] = {
@@ -85,6 +90,7 @@ export async function riaStatus(db: Db, sectorId: string): Promise<RiaStatusView
       failed: mine.filter((r) => r.status === "failed").length,
       pending: eligibleIds.length - mine.length,
       gapReasons,
+      failedReasons,
     };
   }
   const [latestImport] = await db
