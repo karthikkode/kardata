@@ -69,7 +69,7 @@ export async function runRiaStep(
     tokensUsed: 0,
   };
   const queue = [...ids];
-  const workers = Array.from({ length: Math.max(1, Math.min(input.concurrency ?? 4, 8)) }, async () => {
+  const workers = Array.from({ length: Math.max(1, Math.min(input.concurrency ?? 4, 16)) }, async () => {
     for (;;) {
       if (outcome.stopped) return;
       const companyId = queue.shift();
