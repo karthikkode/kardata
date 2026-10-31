@@ -67,7 +67,7 @@ describe("run_cancel stops extraction (B1)", () => {
     const { cancelRun } = await import("../../src/runs/queue.js");
     const [company] = await handle.db.insert(companies).values({ id: randomUUID(), source: "sec", secCrd: "999001", name: "Cancel Test LLC", country: "United States" }).returning();
     if (!company) throw new Error("no company");
-    const [run] = await handle.db.insert(researchRuns).values({ id: randomUUID(), companyId: company.id, kind: "agent", status: "succeeded", stage: "research", promptVersion: "ria-v1" }).returning();
+    const [run] = await handle.db.insert(researchRuns).values({ id: randomUUID(), companyId: company.id, kind: "agent", status: "running", stage: "research", promptVersion: "ria-v1" }).returning();
     if (!run) throw new Error("no run");
     const sha = await storeBlob(handle.db, "text/plain", Buffer.from("Fees are tiered.", "utf8"));
     const [source] = await handle.db.insert(sources).values({ id: randomUUID(), companyId: company.id, runId: run.id, url: "https://fake.example/x", finalUrl: "https://fake.example/x", collector: "sec_firm", status: "ok", blobSha256: sha }).returning({ id: sources.id });
