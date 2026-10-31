@@ -213,7 +213,10 @@ export const siteCollector: Collector = {
       // A bot wall is not fatal: the site exists, so Apollo facts still land
       // and the research agent gets its chance with the browser fallback.
       // Dead, erroring and robots-forbidden homepages still stop the run.
+      // RIA exception (follow-up): SEC data is the primary source, so a
+      // failed homepage is recorded as blocked/not_found and the job goes on.
       if (homeRes.source.status === "blocked") return { outcomes };
+      if ((ctx.shared as Record<string, unknown>)["riaPlaybook"] === true) return { outcomes };
       return {
         fatal: `homepage fetch failed: ${homeRes.source.url} ${message}`,
         outcomes,

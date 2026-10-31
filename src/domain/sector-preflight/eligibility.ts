@@ -193,7 +193,7 @@ const RIA_FACT_KEYS = [
 
 export async function loadRiaFacts(db: Db, companyId: string): Promise<{ facts: RiaFacts; hasFacts: boolean }> {
   const [company] = await db
-    .select({ country: companies.country, employees: companies.employees })
+    .select({ country: companies.country, state: companies.state, employees: companies.employees })
     .from(companies)
     .where(eq(companies.id, companyId));
   const rows = await db
@@ -221,6 +221,7 @@ export async function loadRiaFacts(db: Db, companyId: string): Promise<{ facts: 
       firmType: text("firm.firm_type"),
       registrationStatus: text("firm.registration_status"),
       country: company?.country ?? null,
+      state: company?.state ?? null,
     },
   };
 }

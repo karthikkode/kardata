@@ -18,7 +18,7 @@ import {
   type CompanyJobDescription,
   type CompanyStage,
 } from "../domain/company-jobs/status.js";
-import { checkPreflightGate, getPreflightSummary } from "../domain/company-jobs/preflight.js";
+import { checkPreflightGate, getPreflightSummary, riaPreflightReport, savePreflightReport } from "../domain/company-jobs/preflight.js";
 import { logJobEvent } from "../domain/company-jobs/events.js";
 import {
   QUOTA_EARLY_TRIP_RATIO,
@@ -115,7 +115,15 @@ export async function startCompanyJob(db: Db, input: StartCompanyJobInput): Prom
       throw new DomainError("invalid_input", `company is in ${memberships.length} sectors; pass sectorId`);
     }
   }
-  const { maxTokens, maxHours } = checkBudget(input.budget);
+  const budgetCheck = checkBudget(input.budget);
+  let maxTokens = budgetCheck.maxTokens;
+  const maxHours = budgetCheck.maxHours;
+  // RIA token cap (Stage 5.7 follow-up): research ran ~25M input tokens per
+  // firm; ria jobs default to a 6M cap unless the caller sets a budget.
+  if (maxTokens === null && sectorId) {
+    const profile = await getProfileOrNull(db, sectorId);
+    if (profile?.playbook === "ria") maxTokens = 6_000_000;
+  }
   const jobId = randomUUID();
   try {
     await db.insert(companyJobs).values({
@@ -1174,6 +1182,29 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
         missing: gate.report.adaptersMissing.map((m) => m.suggestedId),
         directives: gate.report.collectDirectives,
       });
+    }
+    if (target === "preflight" && current.sectorId) {
+      const profile = await getProfileOrNull(db, current.sectorId);
+      if (profile?.playbook === "ria") {
+        // Fixed RIA plan, no LLM (Stage 5.7 follow-up): file the plan and
+        // a succeeded preflight subjob; collect starts on the next tick.
+        const runId = randomUUID();
+        const now = new Date(clock());
+        await db.insert(researchRuns).values({
+          id: runId,
+          companyId: current.companyId,
+          companyJobId: current.id,
+          kind: "agent",
+          status: "succeeded",
+          stage: "preflight",
+          promptVersion: "ria-v1",
+          startedAt: now,
+          finishedAt: now,
+        });
+        await savePreflightReport(db, { jobId: current.id, companyId: current.companyId, report: riaPreflightReport() });
+        await logJobEvent(db, current.id, "stage_started", "preflight", { runId });
+        return;
+      }
     }
     const outcome = await beginStage(current, target);
     if ("busy" in outcome) return;
