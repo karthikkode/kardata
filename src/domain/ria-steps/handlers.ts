@@ -33,7 +33,7 @@ export function pickFirmWebsite(website: string | null): string | null {
 async function newRun(db: Db, companyId: string, stage: string): Promise<string> {
   const [row] = await db
     .insert(researchRuns)
-    .values({ id: randomUUID(), companyId, kind: "collect", status: "running", stage: stage as never, promptVersion: "ria-light-v1", startedAt: new Date() })
+    .values({ id: randomUUID(), companyId, kind: "manual", status: "running", stage: stage as never, promptVersion: "ria-light-v1", startedAt: new Date() })
     .returning({ id: researchRuns.id });
   if (!row) throw new Error("run insert returned no row");
   return row.id;
