@@ -35,6 +35,8 @@ export const CLASSIFY_MUSE_ARGS = [
   "--no-foreign-personal-context",
   "--max-model-steps",
   "3",
+  // Muse refuses to run in an untrusted workspace (see extract.ts).
+  "--trust-workspace",
 ];
 
 /**

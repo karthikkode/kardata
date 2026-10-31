@@ -152,3 +152,12 @@ describe("docker harness", () => {
     expect(checkAppMuseVersion("1.4.11-R6667.1", "garbage\n").ok).toBe(false);
   });
 });
+
+describe("single-shot muse args workspace trust", () => {
+  it("extraction and classification also trust the empty container workspace", async () => {
+    const { EXTRACT_MUSE_ARGS } = await import("../../src/harness/extract.js");
+    const { CLASSIFY_MUSE_ARGS } = await import("../../src/harness/classify.js");
+    expect(EXTRACT_MUSE_ARGS).toContain("--trust-workspace");
+    expect(CLASSIFY_MUSE_ARGS).toContain("--trust-workspace");
+  });
+});
