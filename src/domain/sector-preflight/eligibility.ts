@@ -235,6 +235,18 @@ export async function deriveRiaCompany(
 ): Promise<DerivedTriple> {
   const thresholds = profile.ria;
   if (!thresholds) throw new DomainError("invalid_input", "ria sector has no ria thresholds");
+  // Absent from the latest SEC file: no longer current (Stage 5.8 B1).
+  const [membershipRow] = await db
+    .select({ lastImportId: sectorCompanies.lastImportId })
+    .from(sectorCompanies)
+    .where(and(eq(sectorCompanies.sectorId, sectorId), eq(sectorCompanies.companyId, companyId)));
+  const { latestImportId } = await import("../ria-steps/status.js");
+  const latestId = await latestImportId(db, sectorId);
+  if (membershipRow?.lastImportId && latestId && membershipRow.lastImportId !== latestId) {
+    const tripleNc: DerivedTriple = { eligibility: "ineligible", source: "rule", reason: "not_current" };
+    await storeTriple(db, sectorId, companyId, tripleNc);
+    return tripleNc;
+  }
   const { facts, hasFacts } = await loadRiaFacts(db, companyId);
   if (!hasFacts) {
     const triple: DerivedTriple = { eligibility: "pending", source: null, reason: null };

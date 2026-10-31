@@ -603,6 +603,27 @@ export async function maybeQuotaEarlyTrip(db: Db): Promise<{ tripped: boolean }>
 
 export type BeginStageOutcome = { runId: string } | { busy: true };
 
+/** Bulk-cancel company jobs in one sector by status (Stage 5.8 B1, O1). */
+export async function companyJobsCancelBulk(
+  db: Db,
+  input: { sectorId: string; statuses: string[] },
+): Promise<{ cancelled: number }> {
+  const jobs = await db
+    .select({ id: companyJobs.id })
+    .from(companyJobs)
+    .where(and(eq(companyJobs.sectorId, input.sectorId), inArray(companyJobs.status, input.statuses as never)));
+  let cancelled = 0;
+  for (const job of jobs) {
+    try {
+      await companyJobCancel(db, job.id);
+      cancelled += 1;
+    } catch {
+      // Completed/terminated between listing and cancelling; skip.
+    }
+  }
+  return { cancelled };
+}
+
 /**
  * Create the subjob row for a stage. preflight/collect/research rows are
  * executed by the existing engines; extraction rows are worker-driven.

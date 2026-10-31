@@ -51,10 +51,15 @@ import {
   windowBurn,
 } from "../domain/quota/breaker.js";
 import { ADAPTERS } from "../collect/adapters.js";
+import { riaStatus } from "../domain/ria-steps/status.js";
+import { runRiaStep, setRiaStepPaused } from "../domain/ria-steps/runner.js";
+import { RIA_STEP_HANDLERS } from "../domain/ria-steps/steps.js";
+import { queueRiaDeepResearch } from "../domain/ria-steps/deep-research.js";
 import { quotaSnapshotGet } from "../runs/quota-monitor.js";
 import { researchStart } from "../runs/agent.js";
 import {
   companyJobCancel,
+  companyJobsCancelBulk,
   companyJobList,
   companyJobPause,
   companyJobsPauseAll,
@@ -1441,6 +1446,84 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       wrap(async () => {
         await companyJobCancel(db, id, { stopRunning: stopRunning ?? undefined });
         return { summary: `job ${id} cancelled`, data: { jobId: id } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_jobs_cancel",
+    {
+      description: "Operator: bulk-cancel company jobs in a sector by status (e.g. paused, failed), with their active subjobs stopped.",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+        statuses: z.array(z.string()).min(1).describe("Job statuses to cancel"),
+        reason: z.string().optional().describe("Recorded in the summary only"),
+      },
+    },
+    async ({ sectorId, statuses }) =>
+      wrap(async () => {
+        const result = await companyJobsCancelBulk(db, { sectorId, statuses });
+        return { summary: `${result.cancelled} jobs cancelled`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "ria_status",
+    {
+      description: "Operator: RIA step coverage for a sector: per step done/gap/failed/pending over eligible firms, plus latest import and preflight counts.",
+      inputSchema: { sectorId: z.string().describe("Sector UUID") },
+    },
+    async ({ sectorId }) =>
+      wrap(async () => {
+        const view = await riaStatus(db, sectorId);
+        const parts = Object.entries(view.steps).map(([k, v]) => `${k} ${v.done}/${v.gap}/${v.failed}/${v.pending}`).join("; ");
+        return { summary: `eligible ${view.eligible}: ${parts}`, data: view };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "ria_step_run",
+    {
+      description: "Operator: run one RIA pipeline step (firm_data, brochure, fees, contacts, signals) over eligible firms or a list. Skips firms already done; honours pause and the 90% quota stop for AI steps.",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+        step: z.enum(["firm_data", "brochure", "fees", "contacts", "signals"]).describe("Step name"),
+        companyIds: z.array(z.string()).optional().describe("Exactly these firms (re-runs even when done)"),
+        limit: z.number().int().optional().describe("Cap firms in this call"),
+      },
+    },
+    async ({ sectorId, step, companyIds, limit }) =>
+      wrap(async () => {
+        const result = await runRiaStep(db, { sectorId, step: step as never, companyIds: companyIds ?? undefined, limit: limit ?? undefined }, RIA_STEP_HANDLERS);
+        return { summary: `${step}: done ${result.done}, gap ${result.gap}, failed ${result.failed}, skipped ${result.skippedDone}${result.stopped ? `, stopped (${result.stopped})` : ""}, tokens ${result.tokensUsed}`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "ria_step_pause",
+    {
+      description: "Operator: pause or resume RIA step runs.",
+      inputSchema: { paused: z.boolean().describe("true pauses, false resumes") },
+    },
+    async ({ paused }) =>
+      wrap(async () => {
+        await setRiaStepPaused(db, paused);
+        return { summary: `ria steps ${paused ? "paused" : "resumed"}`, data: { paused } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "ria_deep_research",
+    {
+      description: "Operator: queue deep research for a NAMED list of eligible RIA firms only (opt-in; the light steps are the default). The run reads stored step data first and researches only deals, ops job posts and recent news.",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+        companyIds: z.array(z.string()).min(1).describe("Named firms to research (max 50)"),
+      },
+    },
+    async ({ sectorId, companyIds }) =>
+      wrap(async () => {
+        const result = await queueRiaDeepResearch(db, { sectorId, companyIds: companyIds ?? [] });
+        return { summary: `deep research queued ${result.queued.length}, rejected ${result.rejected.length}`, data: result };
       }),
   );
 

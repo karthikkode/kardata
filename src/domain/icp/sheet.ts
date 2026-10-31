@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
-import { companies, records, type CompanyIcpCheck } from "../../db/schema.js";
+import { companies, documents, facts, factsCurrent, records, type CompanyIcpCheck } from "../../db/schema.js";
 import { sectorSheetRows, type SheetRow } from "../tiering.js";
 import type { EvidenceItem } from "./evidence.js";
 import type { BucketResult } from "./judge.js";
@@ -187,6 +187,12 @@ export interface RiaSheetRow {
   contactTitle: string;
   phone: string;
   website: string;
+  aum: string;
+  staff: string;
+  growth: string;
+  feeSummary: string;
+  custodians: string;
+  brochureDate: string;
 }
 
 export const RIA_HEADER = [
@@ -201,6 +207,12 @@ export const RIA_HEADER = [
   "Contact title",
   "Main phone",
   "Website",
+  "AUM",
+  "Staff",
+  "Growth",
+  "Fee summary",
+  "Custodians",
+  "Brochure date",
   "Company ID",
   ...TRACKING_COLUMNS,
 ];
@@ -238,6 +250,35 @@ export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRo
       .map((d) => ({ name: String(d["name"]), title: String(d["title"] ?? d["role"] ?? "") }));
     const check = await latestIcpCheck(db, row.companyId, sectorId);
     const contact = pickContact(leaders, row.tier);
+    const factRows = await db.select().from(factsCurrent).where(eq(factsCurrent.companyId, row.companyId));
+    const byKey = new Map(factRows.map((f) => [f.key, f]));
+    const numOf = (key: string): number | null => {
+      const v = byKey.get(key)?.valueNum;
+      return v === null || v === undefined ? null : Number(v);
+    };
+    const textOf = (key: string): string => {
+      const v = byKey.get(key)?.valueText;
+      return typeof v === "string" ? v : "";
+    };
+    const history = await db.select().from(facts).where(eq(facts.companyId, row.companyId));
+    let growth = "";
+    for (const key of ["firm.regulatory_aum", "financials.employees"] as const) {
+      const pts = history
+        .filter((f) => f.key === key && f.valueNum !== null && f.asOf)
+        .map((f) => ({ n: Number(f.valueNum), d: String(f.asOf).slice(0, 10) }))
+        .filter((x) => Number.isFinite(x.n))
+        .sort((a, b) => a.d.localeCompare(b.d));
+      const first = pts[0];
+      const last = pts[pts.length - 1];
+      if (!first || !last || first === last || first.n <= 0) continue;
+      const days = (new Date(last.d).getTime() - new Date(first.d).getTime()) / 86_400_000;
+      if (days >= 180) growth = `${Math.round(((last.n - first.n) / first.n) * 100)}%`;
+    }
+    const brochureDocs = await db
+      .select({ title: documents.title })
+      .from(documents)
+      .where(and(eq(documents.companyId, row.companyId), eq(documents.path, "financials/brochure-item-5.md")));
+    const brochureDate = /\((\d{4}-\d{2}-\d{2})\)/.exec(brochureDocs[brochureDocs.length - 1]?.title ?? "")?.[1] ?? "";
     rows.push({
       companyId: row.companyId,
       firm: row.company,
@@ -251,6 +292,12 @@ export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRo
       contactTitle: contact?.title ?? "",
       phone: company?.phone ?? "",
       website: company?.website ?? "",
+      aum: numOf("firm.regulatory_aum") !== null ? String(Math.round(numOf("firm.regulatory_aum") as number)) : "",
+      staff: numOf("financials.employees") !== null ? String(Math.round(numOf("financials.employees") as number)) : "",
+      growth,
+      feeSummary: textOf("firm.fee_schedule").slice(0, 120),
+      custodians: textOf("firm.custodians").slice(0, 120),
+      brochureDate,
     });
   }
   rows.sort((a, b) => (a.group === b.group ? a.layer - b.layer || b.score - a.score : a.group.localeCompare(b.group)));
@@ -273,6 +320,12 @@ export function riaCsv(rows: RiaSheetRow[]): string {
         cell(r.contactTitle),
         cell(r.phone),
         cell(r.website),
+        r.aum,
+        r.staff,
+        r.growth,
+        cell(r.feeSummary),
+        cell(r.custodians),
+        r.brochureDate,
         r.companyId,
         ...TRACKING_COLUMNS.map(() => ""),
       ].join(","),

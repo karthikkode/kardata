@@ -607,10 +607,10 @@ export interface ExtractorCallResult {
 }
 
 /** One tool-less schema call; injectable for tests. */
-export type ExtractorCall = (input: { runId: string; area: string; prompt: string }) => Promise<ExtractorCallResult>;
+export type ExtractorCall = (input: { runId: string; area: string; prompt: string; schema?: string }) => Promise<ExtractorCallResult>;
 
-export const dockerExtractorCall: ExtractorCall = async ({ runId, area, prompt }) => {
-  const input = await prepareExtractInput(prompt, extractSchema());
+export const dockerExtractorCall: ExtractorCall = async ({ runId, area, prompt, schema }) => {
+  const input = await prepareExtractInput(prompt, schema ?? extractSchema());
   try {
     const child = spawn("docker", extractRunArgs({ runId, area, inputDir: input.dir }), {
       stdio: ["ignore", "pipe", "pipe"],
@@ -772,6 +772,12 @@ export async function runExtraction(
   const allAreas = [...(variant === "ria" ? RIA_EXTRACT_AREAS : EXTRACT_AREAS), SYNTHESIS_AREA];
   for (let seq = 0; seq < allAreas.length; seq += 1) {
     const area = allAreas[seq] as string;
+    // run_cancel stops a running extraction between areas (Stage 5.8 B1).
+    const [fresh] = await db.select({ status: researchRuns.status }).from(researchRuns).where(eq(researchRuns.id, run.id));
+    if (fresh?.status === "cancelled") {
+      areas.push({ area, writtenFacts: 0, writtenRecords: 0, writtenFindings: 0, rejected: 0, rejections: [], droppedOutOfList: 0, droppedInvalid: 0, usage: undefined, error: "extraction cancelled" });
+      continue;
+    }
     const outcome = await extractOneArea(db, run, area, call, seq, variant);
     areas.push(outcome);
     usage = addUsage(usage, outcome.usage);

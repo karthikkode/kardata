@@ -59,9 +59,12 @@ complete only when all of them are complete.
 - **5.6 — Sector-agnostic server (done).** No sector-specific content in code, prompts or
   shared docs; each sector's settings live in `docs/sectors/<slug>/profile.json`.
   See `stage-5.6-sector-agnostic.md`.
-- **5.7 — RIA sector (current).** The first non-D2C sector: a sector playbook (d2c or ria), the SEC adviser
+- **5.7 — RIA sector (done).** The first non-D2C sector: a sector playbook (d2c or ria), the SEC adviser
   file as an import source, a rule-based preflight on filed data, an SEC collector, and RIA research, extraction
   and ICP prompts. See `stage-5.7-ria-sector.md`.
+- **5.8 — Clean RIA pipeline (current).** RIA firms get their own step pipeline: code collects and computes
+  the structured SEC data, one model call each for fee terms and contacts, deep research only for named lists.
+  See `stage-5.8-ria-pipeline.md`.
 
 **The order of operations for a sector is in `pipeline.md`** (every step is an MCP tool).
 

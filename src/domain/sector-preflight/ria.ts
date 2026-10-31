@@ -5,7 +5,7 @@ import type { RiaThresholds } from "./profile.js";
  * imported SEC facts per docs/sectors/ria/icp.md sections 1-2.
  */
 
-export type RiaReason = "large" | "not_wealth" | "no_staff" | "exempt_or_inactive" | "not_us";
+export type RiaReason = "large" | "not_wealth" | "no_staff" | "exempt_or_inactive" | "not_us" | "not_current";
 export type RiaGroup = "P" | "R";
 
 export interface RiaFacts {
