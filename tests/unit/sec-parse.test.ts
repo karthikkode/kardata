@@ -58,3 +58,22 @@ describe("parseSecCsv main-office fallback", () => {
     expect(b).toMatchObject({ city: "Chevy Chase", state: "MD", country: "United States" });
   });
 });
+
+describe("parseSecCsv Part 1 measures", () => {
+  it("reads offices, private fund count, pension and trust clients", () => {
+    const header = [
+      "Organization CRD#", "Primary Business Name",
+      "Number of Other Offices", "Count of Private Funds - 7B(1)",
+      "5D(f)(1)", "5D(g)(1)", "5D(a)(1)",
+    ];
+    const text = [header.join(","), ["800001", "Measures LLC", "3", "7", "40", "25", "100"].join(",")].join("\n");
+    const { rows } = parseSecCsv(text);
+    expect(rows[0]).toMatchObject({ offices: 4, privateFundCount: 7, pensionClients: 40, trustClients: 25 });
+  });
+
+  it("leaves the new measures null when the columns are absent", () => {
+    const text = ["Organization CRD#,Primary Business Name", "800002,Plain LLC"].join("\n");
+    const { rows } = parseSecCsv(text);
+    expect(rows[0]).toMatchObject({ offices: null, privateFundCount: null, pensionClients: null, trustClients: null });
+  });
+});

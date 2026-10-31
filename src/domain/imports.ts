@@ -306,6 +306,10 @@ const SEC_FACT_TYPES: Record<string, string> = {
   "firm.client_individuals": "number",
   "firm.client_hnw": "number",
   "firm.client_total": "number",
+  "firm.client_pension": "number",
+  "firm.client_trusts": "number",
+  "firm.offices": "number",
+  "firm.private_fund_count": "number",
   "firm.compensation_types": "text_list",
   "firm.registration_status": "text",
   "firm.firm_type": "text",
@@ -390,6 +394,10 @@ function secFacts(row: SecCompany, sourceId: string, fileDate: string | null): A
   push("firm.sec_number", row.secNumber);
   push("firm.filing_date", row.filingDate);
   push("financials.employees", row.employees);
+  push("firm.client_pension", row.pensionClients);
+  push("firm.client_trusts", row.trustClients);
+  push("firm.offices", row.offices);
+  push("firm.private_fund_count", row.privateFundCount);
   return items;
 }
 

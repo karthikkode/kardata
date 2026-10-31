@@ -40,6 +40,10 @@ export interface SecCompany {
   individuals: number | null;
   hnw: number | null;
   totalClients: number | null;
+  offices: number | null;
+  privateFundCount: number | null;
+  pensionClients: number | null;
+  trustClients: number | null;
   compensationTypes: string[];
   registrationStatus: string | null;
   filingDate: string | null;
@@ -145,6 +149,18 @@ export function parseSecCsv(text: string): SecParseResult {
     }
     const individuals = counts.get("a") ?? null;
     const hnw = counts.get("b") ?? null;
+    const pensionClients = counts.get("f") ?? null;
+    const trustClients = counts.get("g") ?? null;
+    const firstCount = (names: string[]): number | null => {
+      for (const n of names) {
+        const v = parseCountField(get(n));
+        if (v !== null) return v;
+      }
+      return null;
+    };
+    const otherOffices = firstCount(["Number of Other Offices", "1F(1)", "1F", "Other Offices"]);
+    const offices = otherOffices === null ? null : otherOffices + 1;
+    const privateFundCount = firstCount(["Count of Private Funds - 7B(1)", "7B(1)", "Number of Private Funds", "7B"]);
     const wealthShare =
       seenClients && totalClients > 0 ? ((individuals ?? 0) + (hnw ?? 0)) / totalClients : null;
     const compensationTypes = COMPENSATION.filter(([h]) => (get(h) ?? "").trim().toUpperCase() === "Y").map(
@@ -196,6 +212,10 @@ export function parseSecCsv(text: string): SecParseResult {
       individuals,
       hnw,
       totalClients: seenClients ? totalClients : null,
+      offices,
+      privateFundCount,
+      pensionClients,
+      trustClients,
       compensationTypes,
       registrationStatus: clean(get("SEC Current Status")),
       filingDate: parseSecDate(get("Latest ADV Filing Date")),
