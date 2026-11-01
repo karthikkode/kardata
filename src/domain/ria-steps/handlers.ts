@@ -788,7 +788,9 @@ export const signalsStep: StepHandler = async (db, sectorId, companyId) => {
   // Item 9, or a stored fee-problem fact. A plain disclosure flag or the
   // ordinary Item 5 refund-of-prepaid-fees sentence does not count.
   const FEE_TERM = /fee|billing|overcharg|refund/i;
-  const ACTION_TERM = /order|sanction|fine|penalt|consent|willful|deficien|censure|suspend|revok|cease.and.desist|settlement|charged/i;
+  // Strong regulator-action terms only: "charged" (billed), "consent" or
+  // "settlement" alone are ordinary brochure words and do not count.
+  const ACTION_TERM = /order|sanction|fine|penalt|censure|suspend|revok|cease.and.desist|willful|deficien|consent order|settlement with|settled with|enforcement/i;
   let feeProblemExcerpt = "";
   if (item9) {
     const sentence = item9.text
