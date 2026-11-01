@@ -62,6 +62,11 @@ ops_read 99/4, contacts 91/12, signals 103, 0 failed; fee schedule on
 about 97% of stated fields correct (15 firms). Signal spread is wide
 (Complex fees 86%); see docs/reviews/stage-5.8-review.md.
 Next-200 R-group run done (2026-10-31): ops_read 197/200, contacts
-25/200 (Schedule A officer capture in firm_data is the blocker; see
-review), signals 200, quota 88%. The remaining firms await the
-owner's go.
+25/200 at the time, signals 200, quota 88%.
+Schedule A batch (2026-11-01): officers stored for 98% of the 303
+(gate + next 200); contacts on the 303 now 295/8 (about 77 named,
+220 officer fallback). Complex fees recalibrated to 22% of the 303;
+custodian counting fixed (49%); fee_problem tightened (12% of 303,
+2% of random 200) but its samples are still mostly disclosure text.
+Lead signal on the 303 is Outside managers at 62%. The remaining
+firms await the owner's go.

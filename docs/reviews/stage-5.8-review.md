@@ -177,3 +177,86 @@ so Items 8/14 are split for these firms.
 
 Stopped here per owner instruction. The remaining ~8,100 eligible
 firms have not been run.
+
+## Schedule A + signal recalibration batch (2026-11-01)
+
+One code batch (PR #137), then two verification follow-ups found by
+measuring the batch itself (steps paused in between): PR #138
+(custodian counting, fee_problem sentence rule, fee_complexity
+calibration) and PR #139 (fee_problem strong action terms). Each
+merged on green CI and deployed with drain. Re-runs covered the 303
+only (gate 103 + next 200), plus signals on a random 200 eligible
+firms (seed 42, excluding the 303).
+
+Schedule A officers (item 1):
+- firm_data now parses Schedule A from the Form ADV Part 1 PDF as a
+  table via pdfjs text positions (name, title/status, date acquired),
+  old line regex as fallback; three synthetic-layout fixture tests.
+- Officers stored for 297 of 303 firms (98%, target 90%+). Names are
+  stored as filed ("LAST, FIRST MIDDLE"); titles carry some Schedule
+  A column debris ("I"/"DE" ownership prefixes) — matching still
+  works. The date-acquired column did not match real layouts
+  (titleSince empty in production); name+title was the operational
+  need and is met.
+- Contacts on the 303: 295 done / 8 gap (was 116/187 before the
+  batch). Split by record timestamps: about 77 named from team pages,
+  about 220 via the Schedule A officer fallback, 8 with no contact.
+  Firms with stored team-page people no longer trigger a fetch or AI
+  call.
+
+Signals (item 2), final rules and measured spread:
+- Complex fees: all three structural traits (family grouping, 2+ fee
+  types, advance billing with proration or refunds); negotiable never
+  counts. 22% of the 303 (was 84-86%; target under 40%).
+- Multiple custodians: counts list-stored names only (a prose filing
+  snippet had fired it on 100% of firms). 49% of the 303.
+- Fee problem: fee term + strong regulator-action term in the same
+  Item 9 sentence, or a stored fee-problem fact. Down from 39% to
+  12% of the 303 and 2% of the random 200, but the samples below are
+  still mostly disclosure text, not proven overbilling or regulator
+  orders — treat this signal as unproven until a Part 1 DRP-based
+  check exists. Five firms it fires on (ids and stored quotes):
+  - 6cc31dbf-d91f-44a6-84ee-30c5812abc85 — "They may involve costs
+    and limitations, including surrender charges, withdrawal
+    restrictions, market value adjustments, mortality and expense
+    charges, administrative charges, rider c…"
+  - ca6c3129-9cac-4c71-b7c0-1b4b54ac505f — "Form ADV Part 2A –
+    04012026 V44 Page 3 of 36 Item 3 – Table of Contents … Item 9 –
+    Disciplinary Information …" (table-of-contents slice)
+  - d896ed2b-77cd-4073-9742-5b11461c1b3e — "transactions for a client
+    that has directed that the Adviser use a particular custodian,
+    broker or dealer or follow his/her fee and price restrictions
+    cannot be comming…" ("orders" matched the action list)
+  - ba51c08a-dfea-4a20-997a-d31c1d096987 — "Item 12: Brokerage
+    Practices Best Execution … execute orders in client accounts…"
+  - ff581029-38ce-42af-97c5-52efcb05ffab — "These payments are
+    intended to offset certain transition and business expenses …
+    legacy provider termination fees…"
+- Heavy book: verified it already computes over the whole eligible
+  P/R group (not the run set); 29% of the random 200 (two quartile
+  ratios unioned). Growing fast: 25% of the random 200.
+- Spread on the 303 (signal-rich selection): Outside managers 71%,
+  Heavy book 69%, Growing fast 65%, Many services 65%, Alternatives
+  53%, Custody work 52%, Multiple custodians 49%, Tool sprawl 35%,
+  Complex fees 22%, Fee problem 12%.
+- Lead signal: on the 303, Outside managers leads 62% (above the
+  ~35% guideline); on the random 200 no signal leads more than 29%.
+  The fixed priority follows the owner's list; enforcing the cap
+  would mean leading with each firm's rarest counted signal instead
+  — owner's call.
+
+Five sample rows (ids only; officer titles as stored):
+- 123173cb-ba0d-42f3-a687-2876c23a440b — 12 officers (Limited
+  Partner; Limited Partner and Chief Compliance Officer)
+- f5da1102-02fb-4d51-b394-d2c101f5cd81 — 40 officers (Manager;
+  Chief Administrative Officer)
+- 72b2bbb1-f589-4c08-a5af-43124bb92001 — 14 officers (Client
+  Service Advisor)
+- 4cdd1906-8c49-43ad-8347-ef5f4aa1c30f — 40 officers (Owner,
+  Principal, Director)
+- c74c9334-2b3e-49d2-90d5-19d53c285754 — 9 officers (Managing
+  Member; Founder & CEO / Chief Compliance Officer)
+
+Quota: weekly 88% after all re-runs (resets Mon 2026-11-02 00:00
+UTC); the 90% stop was never hit. Stopped here; the remaining
+eligible firms were not run.
