@@ -473,3 +473,31 @@ describe("context and dossier sizes", () => {
     expect((all.findings as unknown[])).toHaveLength(1);
   });
 });
+
+
+describe("PDF source reads", () => {
+  it("returns extracted PDF text through fetch and stored source reads", async () => {
+    const companyId = await makeCompany("PDF Reader");
+    const stream = "BT /F1 11 Tf 72 720 Td (Fees and Compensation) Tj 0 -16 Td (Fees are billed quarterly in arrears.) Tj ET";
+    const pdf = ["%PDF-1.4", "1 0 obj <</Type/Catalog/Pages 2 0 R>> endobj",
+      "2 0 obj <</Type/Pages/Kids[3 0 R]/Count 1>> endobj",
+      "3 0 obj <</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>> endobj",
+      `4 0 obj <</Length ${Buffer.byteLength(stream)}>> stream\n${stream}\nendstream endobj`,
+      "5 0 obj <</Type/Font/Subtype/Type1/BaseFont/Helvetica>> endobj", "trailer<</Root 1 0 R>>", "%%EOF"].join("\n");
+    site.routes.set("/filing.pdf", (_req, res) => { res.writeHead(200, { "content-type": "application/pdf" }); res.end(pdf); });
+    const fetched = dataOf(await call("source_fetch", { companyId, url: `${site.baseUrl}/filing.pdf` }));
+    expect(fetched.text).toContain("Fees are billed quarterly in arrears.");
+    expect(fetched.text).not.toContain("%PDF");
+    const stored = dataOf(await call("source_get", { sourceId: fetched.sourceId }));
+    expect(stored.text).toBe(fetched.text);
+  });
+});
+
+describe("scoped RIA status", () => {
+  it("accepts an empty named batch without falling back to the entire sector", async () => {
+    const sector = dataOf(await call("sector_create", { name: "Scoped status" }));
+    const view = dataOf(await call("ria_status", { sectorId: (sector.sector as { id: string }).id, companyIds: [] }));
+    expect(view.eligible).toBe(0);
+    expect(view.details).toEqual([]);
+  });
+});

@@ -38,20 +38,23 @@ export function brochureMarks(text: string): Mark[] {
       /^[A-Z][^\n]{0,70}[-–—]\s*(?:ITEM|Item)\s+(4|5|8|9|12|14|15)\b/.exec(trimmed);
     if (m?.[1]) strong.push({ item: m[1], start: offsets[i] ?? 0, contentStart: (offsets[i] ?? 0) + line.length });
   });
-  if (new Set(strong.map((m) => m.item)).size >= 2) return chooseBodyMarks(strong, text);
-  // No usable Item numbers: fall back to the standard Part 2A section
-  // titles (skipping table-of-contents lines, which carry dot leaders).
+  // PDF text often puts "5." and "Fees and Compensation" on separate
+  // lines, or omits "Item" entirely. Include these headings even when
+  // other sections use explicit Item numbers; mixed layouts are common.
   const byTitle: Mark[] = [];
   lines.forEach((line, i) => {
     const trimmed = line.trim();
-    if (trimmed.length > 80 || LEADERS.test(trimmed)) return;
+    if (trimmed.length > 120 || LEADERS.test(trimmed)) return;
+    const heading = trimmed.replace(/^\d{1,2}\s*[.):\-–—]\s*/, "");
     for (const [item, title] of Object.entries(ITEM_TITLES)) {
-      if (trimmed.toLowerCase().startsWith(title.toLowerCase()) && !byTitle.some((m) => m.item === item)) {
+      if (heading.toLowerCase().startsWith(title.toLowerCase())) {
         byTitle.push({ item, start: offsets[i] ?? 0, contentStart: (offsets[i] ?? 0) + line.length });
       }
     }
   });
-  return byTitle.length >= 2 ? chooseBodyMarks(byTitle, text) : strong;
+  const titledItems = new Set(byTitle.map((m) => m.item));
+  const candidates = [...strong.filter((m) => !titledItems.has(m.item)), ...byTitle].sort((a, b) => a.start - b.start);
+  return chooseBodyMarks(candidates, text);
 }
 
 /**
@@ -65,7 +68,10 @@ export function chooseBodyMarks(candidates: Mark[], text: string): Mark[] {
   for (const item of items) {
     const mine = candidates.filter((m) => m.item === item);
     const body = mine.find((m) => {
-      const window = text.slice(m.contentStart, m.contentStart + 500);
+      const next = candidates.find((n) => n.start >= m.contentStart && n.item !== m.item);
+      const segment = text.slice(m.contentStart, next?.start);
+      if (segment.trim().length < 80) return false;
+      const window = segment.slice(0, 500);
       const itemMentions = window.match(/\bItem\s+\d+/g)?.length ?? 0;
       return itemMentions < 2 && !/\.{4,}/.test(window.slice(0, 200));
     });
