@@ -1,12 +1,13 @@
 import { and, eq } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
-import { companies, documents, facts, factsCurrent, records, type CompanyIcpCheck } from "../../db/schema.js";
+import { companies, documents, facts, factsCurrent, records, riaStepRuns, RIA_STEPS, type CompanyIcpCheck } from "../../db/schema.js";
 import { sectorSheetRows, type SheetRow } from "../tiering.js";
 import type { EvidenceItem } from "./evidence.js";
 import type { BucketResult } from "./judge.js";
 import { hasTechTeam, latestIcpCheck, sectorIcpCompanies, signalsMet, type SectorIcpCompanyRow } from "./reads.js";
 import { RIA_LEAD_PRIORITY, RIA_SIGNAL_RULES } from "./ria-rules.js";
 import { SIGNAL_RULES } from "./rules.js";
+import { custodianCountNames } from "../ria-steps/custodians.js";
 
 const ALL_SIGNAL_RULES = [...SIGNAL_RULES, ...RIA_SIGNAL_RULES];
 
@@ -196,6 +197,8 @@ export interface RiaSheetRow {
   feeSummary: string;
   custodians: string;
   brochureDate: string;
+  researchStatus: string;
+  researchGaps: string;
 }
 
 export const RIA_HEADER = [
@@ -218,6 +221,8 @@ export const RIA_HEADER = [
   "Custodians",
   "Brochure date",
   "Company ID",
+  "Research status",
+  "Research gaps",
   ...TRACKING_COLUMNS,
 ];
 
@@ -299,7 +304,8 @@ export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRo
       return v === null || v === undefined ? null : Number(v);
     };
     const textOf = (key: string): string => {
-      const v = byKey.get(key)?.valueText;
+      const fact = byKey.get(key);
+      const v = fact?.valueText ?? fact?.valueJson;
       return typeof v === "string" ? v : "";
     };
     const history = await db.select().from(facts).where(eq(facts.companyId, row.companyId));
@@ -321,6 +327,19 @@ export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRo
       .from(documents)
       .where(and(eq(documents.companyId, row.companyId), eq(documents.path, "financials/brochure-item-5.md")));
     const brochureDate = /\((\d{4}-\d{2}-\d{2})[),]/.exec(brochureDocs[brochureDocs.length - 1]?.title ?? "")?.[1] ?? "";
+    const feeSummary = (textOf("ria.fee_schedule").trim() || textOf("firm.fee_schedule").trim()).slice(0, 120);
+    const steps = await db.select().from(riaStepRuns).where(and(eq(riaStepRuns.sectorId, sectorId), eq(riaStepRuns.companyId, row.companyId)));
+    const gaps = steps.filter((s) => s.status !== "done").map((s) => `${s.step}: ${s.reason || s.status}`);
+    const pending = RIA_STEPS.filter((step) => !steps.some((s) => s.step === step));
+    if (pending.length) gaps.push(`Pending: ${pending.join(", ")}`);
+    if (!feeSummary) {
+      const ops = steps.find((s) => s.step === "ops_read");
+      gaps.push(ops?.status === "done"
+        ? "Fee summary unavailable: no grounded fee schedule stored after completed operations read"
+        : `Fee summary unavailable: ${ops?.reason || (ops ? `operations read ${ops.status}` : "operations read pending")}`);
+    }
+    const researchStatus = steps.some((s) => s.status === "failed") ? "Failed"
+      : pending.length ? "Pending" : gaps.length ? "Complete with gaps" : "Complete";
     rows.push({
       companyId: row.companyId,
       firm: row.company,
@@ -338,8 +357,10 @@ export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRo
       aum: numOf("firm.regulatory_aum") !== null ? String(Math.round(numOf("firm.regulatory_aum") as number)) : "",
       staff: numOf("financials.employees") !== null ? String(Math.round(numOf("financials.employees") as number)) : "",
       growth,
-      feeSummary: (textOf("ria.fee_schedule") || textOf("firm.fee_schedule")).slice(0, 120),
-      custodians: textOf("firm.custodians").slice(0, 120),
+      feeSummary,
+      custodians: custodianCountNames(byKey.get("firm.custodians"), custodianCountNames(byKey.get("ria.custodians_named"), [])).join("; "),
+      researchStatus,
+      researchGaps: gaps.join(" | "),
       brochureDate,
     });
   }
@@ -371,6 +392,8 @@ export function riaCsv(rows: RiaSheetRow[]): string {
         cell(r.custodians),
         r.brochureDate,
         r.companyId,
+        cell(r.researchStatus),
+        cell(r.researchGaps),
         ...TRACKING_COLUMNS.map(() => ""),
       ].join(","),
     );

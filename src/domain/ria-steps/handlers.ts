@@ -14,6 +14,7 @@ import { saveDocument } from "../research/documents.js";
 import { extractText } from "../research/reads.js";
 import { upsertRecords } from "../research/records.js";
 import { recordVerdicts } from "../tiering.js";
+import { custodianCountNames } from "./custodians.js";
 import { splitBrochureItems } from "./brochure.js";
 import type { StepHandler, StepResult } from "./runner.js";
 import { dockerExtractorCall, type ExtractorCall } from "../../runs/extract.js";
@@ -629,28 +630,7 @@ export function computeSignals(input: {
  * JSON list, or a JSON custodian fact). A prose filing snippet split on
  * commas invents custodians, so prose never counts here.
  */
-export function custodianCountNames(raw: { valueText: string | null; valueJson: unknown } | undefined | null, extra: string[]): string[] {
-  const names: string[] = [...extra];
-  if (raw) {
-    if (Array.isArray(raw.valueJson)) names.push(...raw.valueJson.filter((x): x is string => typeof x === "string"));
-    const text = typeof raw.valueText === "string" ? raw.valueText.trim() : "";
-    if (text.startsWith("[")) {
-      try {
-        const parsed: unknown = JSON.parse(text.replace(/'/g, '"'));
-        if (Array.isArray(parsed)) names.push(...parsed.filter((x): x is string => typeof x === "string"));
-      } catch {
-        // Not a JSON list: prose, not counted.
-      }
-    }
-  }
-  const seen = new Map<string, string>();
-  for (const n of names) {
-    const clean = n.replace(/^["'\[]+|["'\]]+$/g, "").trim();
-    if (clean.length < 2) continue;
-    seen.set(clean.toLowerCase(), clean);
-  }
-  return [...seen.values()];
-}
+export { custodianCountNames } from "./custodians.js";
 
 /** Parse a stored custodian value (JSON list, JSON text, or prose) into names. */
 export function custodianNames(raw: { valueText: string | null; valueJson: unknown } | undefined | null, extra: string[]): string[] {
