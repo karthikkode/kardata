@@ -57,6 +57,20 @@ describe("splitBrochureItems / brochureDate (B4)", () => {
     expect(items["5"]).not.toContain("Custody");
   });
 
+  it("repairs small-cap word fragments and headings spread over lines", () => {
+    const body = "This section contains substantive advisory details and enough prose to distinguish it from a contents entry.";
+    const feeBody = "We charge one percent annually and bill quarterly in arrears, with family accounts grouped for billing.";
+    const text = ["I", "TEM", "4.", "A", "DVISORY", "B", "USINESS", "................. 4",
+      "I", "TEM", "5.", "F", "EES AND", "C", "OMPENSATION", "................. 7",
+      "I", "TEM", "4.", "A", "DVISORY", "B", "USINESS", body,
+      "I", "TEM", "5.", "F", "EES AND", "C", "OMPENSATION", feeBody,
+      "I", "TEM", "15.", "C", "USTODY", body].join("\n");
+    const items = splitBrochureItems(text);
+    expect(items["5"]).toContain(feeBody);
+    expect(items["5"]).not.toContain("........");
+    expect(items["4"]).not.toContain(feeBody);
+  });
+
   it("reads the brochure date", () => {
     expect(brochureDate(text)).toBe("2025-03-15");
     expect(brochureDate("no date here")).toBeNull();
@@ -255,6 +269,7 @@ describe("pickScheduleAContact", () => {
     expect(pickScheduleAContact(leaders.slice(0, 2))?.name).toBe("B Compliance");
     expect(pickScheduleAContact(leaders.slice(0, 1))?.name).toBe("A Boss");
     expect(pickScheduleAContact([{ name: "E Dual", title: "Chief Operating Financial Officer" }])?.name).toBe("E Dual");
+    expect(pickScheduleAContact([{ name: "G Owner", title: "Sole Owner" }])?.name).toBe("G Owner");
     expect(pickScheduleAContact([{ name: "F Compliance", title: "MANAGER COMPLIANCE OFFICER" }])?.name).toBe("F Compliance");
     expect(pickScheduleAContact([{ name: "D Adviser", title: "Financial Advisor" }])).toBeNull();
   });
