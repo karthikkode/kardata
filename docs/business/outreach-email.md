@@ -1,152 +1,122 @@
 # Cold email
 
-Status: locked (D2C examples are a draft) · Last updated: 2026-10-26 · Source: kardata_old/campaign/email-framework.md
-v2, pitch-skeleton.md v4, followups.md v5
+Status: locked · Last updated: 2026-11-02 · Source: owner sessions 2026-10-29/30 (D-70). Replaces the 2026-10-26
+version (the story told as a chain of questions); see "Retired" at the end.
 
-Each email is a short story told as a chain of questions. The founder is the main character, with their company, their
-hours and their data. We're the guide who noticed something. **Governing rule: every sentence must earn the next
-one.** Cut whole sentences. Never squeeze words into fragments.
+The first email is short and direct. The owner's way of writing: don't beat around the bush. The reader has no time
+for sugar coating and is smarter than us, so don't try to look clever. Be genuine and get to the point.
 
-## The reading order (fixed)
+## Who does what
 
-The reader is always asking something. Each line answers their current question or plants the next one, and every
-planted question is answered inside the email.
+- **Claude (or an agent) drafts,** using only facts from our research.
+- **The owner** reads it, changes it in their own words, decides, and sends it by hand. Nothing is sent by a tool.
+- **Every draft ends with "Check before sending" notes:** each fact with its source and date, and which lines are
+  guesses.
 
-| # | Their question | What answers it |
-|---|---|---|
-| Q0 | Is this spam? | The subject is **their** fact, never our ask |
-| Q1 | Who are you, and why me? | "This is Karthik from kardata." + what I came across + the broad work line |
-| Q2 | What did you notice? | ONE observation (at most two facts paired), framed as one of many, plus a curiosity line |
-| Q3 | Why does it matter? | If-then reasoning in full sentences: make it normal ("That part is normal"), then the stakes |
-| Q4 | What do I gain? | One concrete upside in their words |
-| Q5 | Is that all you saw? | "This is just one pattern, seen from the outside. Your own data usually holds more of them." |
-| Q6 | What do you actually do? | The principle line + the audit paragraph (word for word) |
-| Q7 | What are you asking? | One soft ask: a 30-minute call (D-60) |
+## The sequence (one package per company)
 
-## Voice (write like Karthik)
+1. **First email,** Tuesday.
+2. **Follow-up 1,** Friday, same thread: one new idea.
+3. **Closing email,** the next Tuesday, same thread: the last email, with easy one-word replies.
+4. **One phone call,** that Thursday (`outreach-calls.md`).
 
-1. Talk **to** the reader. Answer what's in their head ("Wondering why?").
-2. Show the reasoning in full sentences. A conclusion without the thinking reads as AI.
-3. Make it normal before the uncomfortable sentence.
-4. Hedge honestly: probably, usually, good chance. Never be certain about things they haven't told you.
-5. One sentence, one idea. The reader finishes each sentence in one breath.
-6. **Stalker test.** Describe your general practice ("different companies"). Never sound like you've been digging
-   through their life. Say the homework plainly in its own sentence: "I looked at your reviews too."
-7. **Concrete stakes,** answering "what exactly?" in their units: "restock before the best seller runs out", "one
-   number every Monday".
-8. Read it aloud. Rewrite anything you wouldn't say out loud.
+- Every email goes out at 9am in the reader's time zone. Follow-up 1 says "a few days ago", not "last week". The
+  closing email says the call comes "in the next few days".
+- Each email must make sense on its own, even if the earlier ones were never read.
+- No price in any email. Price comes only on a call.
+- Stop the rest of the sequence the moment any reply arrives.
 
-## Banned
+## First email (about 120–210 words)
 
-- **Writing tics:** sentence fragments; groups of three; em dashes; exclamation marks.
-- **Hype:** unlock, streamline, game-changer, supercharge, "quick question", "I'd love to".
-- **Claims about yourself:** logos, percentages, "we save X". Vague returns like "a lot more".
-- **Certainty about their numbers,** or claims about anything behind a login or about how their product feels.
-- **In the first email:** links, attachments, images, Calendly, prices. This includes the signature.
-- **Fear, doom or fake urgency.** Opportunity only.
-- **In follow-ups:** "Thoughts?", "following up", "just checking in", "bumping this", "did you see my last email?",
-  case-study or ROI drops.
+1. **Subject:** `cold email: can I help <Company>?` (lowercase). Only the company name changes. Follow-ups reply in the
+   same thread, so they are "Re: …".
+2. **"Hi <first name>,"**
+3. **Who I am and what I do, one or two lines:** "I'm Karthik from Kardata. I help <companies like theirs> find the
+   work their team does by hand that could be done faster, or done by software." Never "optimise" or "automate your
+   processes".
+4. **"Why I'm writing to <Company> (I could be wrong, I only know what's public):"**
+5. **Three numbered reasons, one line each.** Each is a specific, current, checked fact about them, not something true
+   of every company. Use real names and numbers, and their own words where possible. Never pass judgement on them
+   (not "you're a lean team").
+6. **One short line on why they matter:** "Each of these adds work for your team." No list after it.
+7. **How I do it, one line, no price.** Name the company's actual places and documents. D2C wording: "How I do it: I
+   go through your numbers from your <their places>, your store reports and your spreadsheets, find the work that
+   repeats by hand, and show you what it costs and the two things I'd fix first. Then, if you want, I will build the
+   fixes." Never "every place you sell" or "important information".
+8. **What it takes from their team:** "What it takes from your team: one 30-minute call, read-only access to your
+   reports, and one person I can ask questions. I don't change any of your tools, and nothing changes in how your
+   team works unless you decide to fix something."
+9. **Previous work, always included, word for word.** The label "What I did before:" on its own line, then:
+   "At an insurance company, I helped bring the time to handle a claim down from 18 hours to 2, and complaints about
+   stuck claims went down by 90%. I won't pretend it will be like that everywhere. I got a bit lucky, because that
+   process had a lot of room to improve. It wasn't <their industry>, but it was the same kind of problem: many steps
+   done by hand."
+   The numbers must match the case study exactly (complaints about stuck claims, not support tickets). Never
+   describe the project any other way.
+10. **The ask, two options:** "I wrote it up as a case study. Do you want me to send it? Or, if you'd rather talk, I'm
+    happy to do a 15-minute call." Never "hop on". Every email ends with a question.
+11. **Sign-off:** none in the body. The mailbox signature closes the email: "Karthik / Kardata · kardata.co", plain
+    text.
 
-## Fixed lines (word for word, never paraphrased)
+## Follow-up 1
 
-- **Work line:** "I spend most of my days going through different companies and analyse the data to find the gaps
-  hiding inside it."
-- **Sample line:** "This is just one pattern, seen from the outside. Your own data usually holds more of them."
-- **Principle:** "These are the patterns worth catching early, before they turn into real leaks. Catching them early is
-  what I generally do."
-- **Audit paragraph:** "I run short audits where I go through your data, orders, channel reports, whatever you have,
-  and find the patterns going unnoticed. You get a short report: what repeats, what it costs each week, and the two
-  fixes I would do first. Fixed fee, and the report is yours to keep."
-- **Signature:** "Karthik / Data Guy, kardata."
-- **P.S.:** "You just share whatever data you have, I do the rest."
+Same thread. It opens with the intro and one line on what the first email was about, so it works for someone who
+never read it. Then one new idea, the insurance story as it relates to that idea, one plain question, the case study
+offer as if they are hearing it for the first time, and "Thanks, Karthik". About 130 words.
 
-**Curiosity lines (rotate them):**
-- "which honestly surprised me a little." → "Wondering why?"
-- "which got me thinking." → "Wondering what about?"
-- "which stood out to me." → "Wondering why it stood out?"
+Skincare's idea: how much money they keep from each product in each place they sell, after the store's part, sending
+stock and stock that doesn't sell. Linked to the insurance story: some policies were losing money and no one had
+noticed. Question: "do you know how much money you keep from each product, in each place you sell?"
 
-**When the observation is a gap,** use a bridge instead: "Could this be a gap worth filling?"
+## Closing email
 
-**Asks (rotate them; never the same wording twice in one thread):**
-1. "Would a 30-minute call be useful to see what might be hiding in your data?"
-2. "Would a 30-minute call be useful to see if there is something worth measuring here?"
-3. "Open to a 30-minute call to see what your data says?"
+Same thread, about 90 words: the intro and one line on what the earlier emails were about; "This is my last email
+about it."; "you don't owe me a reply"; reply "later" if now is not a good time (we write again in a few months, not
+sooner); reply "send it" for the case study; "I may also give you a short call next week…"; "Thanks for reading,
+Karthik".
 
-**Subjects:**
-- their fact, 3–8 words, under 50 characters, sentence case;
-- examples: "<Brand>'s 3 new retail launches", "Amazon plus 12 retailers at <Brand>";
-- follow-ups never change the subject;
-- a fake "Re:" is banned.
+## Other sectors (for example RIAs)
 
-## Their words, not ours
+The structure, the previous-work paragraph and the ask stay the same. Per sector, change only: the "what I do" line's
+"<companies like theirs>", the industry in "It wasn't <their industry>", the "How I do it" line (their documents and
+systems, not D2C stores) and the follow-up's new idea. A sector's problem is one example of the work, never the only
+thing we do. Sector drafts are checked by the owner before the first send.
 
-| Never write | Write instead |
-|---|---|
-| attribution / MTA | knowing which ads actually sold |
-| single source of truth / data layer | one number you can trust every Monday |
-| omnichannel reconciliation | Store, Amazon and retail numbers matching |
-| LTV / cohort analysis | who buys again, and when |
-| churn | customers who stopped buying |
-| sell-through / OOS | how fast it sells in store / running out |
-| ETL / pipeline / warehouse | getting the numbers into one place |
-| automation / AI agent | doing it once instead of by hand every week |
+## Word rules
 
-## Shape and length
+- **Plain, literal words only.** No idioms or catchy phrases ("earning their keep", "moving the needle", "sounds
+  familiar"). Test: would a person say exactly this, and does it mean exactly what its words say?
+- **No jargon:** not "channels", "optimise", "systems", "visibility", "DTC", "SKU", "AOV", "3PL", "omnichannel",
+  "TL;DR". Say the plain thing: "your own website", "the stores", "the warehouse company".
+- **Write the way the owner speaks:** a plain-speaking founder who isn't a native English speaker. It should sound
+  handwritten, not like a marketing email.
+- **Talk to the reader directly only when their question is obvious** ("you might ask how"), once or twice at most.
+- **Avoid cold-email moves:** "Here's one more thing I wanted to ask", "Not X, but Y" setups, "If the answer is 'not
+  really'…", leading questions, hype words, exclamation marks, and any promise that isn't true (like "then I'll
+  stop" when a closing email follows).
+- **Short paragraphs,** so it reads well on a phone. Plain text, no links or attachments in the body.
 
-- **T1:** about 200–260 words.
-- **Plain text,** with no links anywhere.
-- **Send window:** Tue–Thu, 9–11am in the recipient's time zone.
+## Fact rules (check before every draft)
 
-## Follow-ups (same thread, same voice)
+- **Only facts from our research,** each with its source, checked as still current. A job post must be live.
+- **Build on what we can see today** (websites, stores, filings, launches), never on one fact that may be old.
+- **Never use:** old revenue figures; complaints about the product itself; their sales or discounts as a problem;
+  details about the person (like tenure); anything learned from practice calls.
+- **Never tell them their way is wrong,** or that they don't understand their own business. Never give them homework.
+- **Only name a problem we can see signs of** (`evidence-rules.md`).
 
-| Touch | Day | Price? | Job | Length |
-|---|---|---|---|---|
-| T1 | 0 | No | The story: observation → stakes → upside → audit → ask | ~200–260 words |
-| F1 | 4 | No | **A genuinely new** observation + one question about how they handle it today (no call ask) | 55–75 |
-| F2 | 9 | **Yes, once** | The offer for their tier (`offer.md`), with price and credit, plus a fit-check call ask | 65–85 |
-| F3 | 16 | No | A clean close: "I will stop here." Leave the door open and ask who else owns it. Reply-only | 40–60 |
+## Choosing who to email
 
-- **If there's no second fact that passes the evidence rules,** skip F1. Never send a reminder bump instead.
-- **Stop all remaining touches the moment any reply arrives.**
-- **An out-of-office pauses the thread for 2 weeks.** A hard bounce parks the company.
-- **The guarantee is said on the call,** never in email.
+- **One person per company:** the person who runs the business day to day: founder or CEO, otherwise the General
+  Manager or COO. Regional, marketing or social roles are call backups only.
+- **Check names carefully.** Two people with the same first name can hold very different roles.
+- **Don't trust an Apollo title on its own.** Apollo can mix in people from companies with similar names. Pick the
+  person the company's own site or filings name; the owner confirms.
+- **Emails come only from Apollo** (D-67). Spend credits on the main person first; a backup only if needed.
 
-## Before sending (each email)
+## Retired (do not use)
 
-- [ ] Reading order Q0–Q7 is unbroken, and every planted question is answered.
-- [ ] Read aloud. Nothing banned. Stalker test passed. One idea per sentence.
-- [ ] Every fact is quoted and dated, and re-checked this week (`evidence-rules.md`).
-- [ ] The fixed lines are word for word.
-- [ ] One observation, framed as one of many. Unknowns hedged. Upside, not threat.
-- [ ] Plain text, no links, one ask, no price in T1.
-- [ ] The F1 fact is banked with its quote and date, or the draft is marked `f1_weak`.
-- [ ] Checked the tracker for an earlier reply from this person or company.
-
-## Example (invented brand, structure only)
-
-> Subject: Amazon plus 12 retailers at Fernway
->
-> Hi Sam,
->
-> This is Karthik from kardata. I came across Fernway's new retail launches. I spend most of my days going through
-> different companies and analyse the data to find the gaps hiding inside it. One thing I noticed here: you now sell
-> on your own site, on Amazon and through twelve retailers, which got me thinking. Wondering what about?
->
-> Each of those channels reports sales its own way and on its own schedule. That part is normal at this stage. But it
-> usually means the real weekly number gets put together by hand, and it lands days late. One number you can trust
-> every Monday usually means restocking the best sellers before they run out, not after. This is just one pattern,
-> seen from the outside. Your own data usually holds more of them.
->
-> These are the patterns worth catching early, before they turn into real leaks. Catching them early is what I
-> generally do.
->
-> I run short audits where I go through your data, orders, channel reports, whatever you have, and find the patterns
-> going unnoticed. You get a short report: what repeats, what it costs each week, and the two fixes I would do first.
-> Fixed fee, and the report is yours to keep.
->
-> Would a 30-minute call be useful to see if there is something worth measuring here?
->
-> Karthik
-> Data Guy, kardata.
->
-> P.S. You just share whatever data you have, I do the rest.
+The 2026-10-26 version: the "reading order" Q0–Q7, curiosity lines ("Wondering why?"), the "work line", "sample
+line" and "principle" fixed lines, the fixed-fee audit paragraph, the "Data Guy, kardata." signature, the P.S., the
+ban on mentioning our own results, and the long version of 2026-10-29. Use them only if the owner asks to test them
+again.

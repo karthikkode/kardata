@@ -16,7 +16,7 @@ and never change them.
 | [icp.md](icp.md) | Who we sell to: filters, exclusions, tiers (revenue → offer), layers (score → priority), buyers |
 | [problem-bar.md](problem-bar.md) | When a problem is worth pitching: the 5 tests, the 8 dimensions, the value estimate |
 | [evidence-rules.md](evidence-rules.md) | What counts as evidence in an email, on a call or in content, and what never does |
-| [outreach-email.md](outreach-email.md) | Cold email: the reading order, voice, bans, fixed lines, follow-ups |
+| [outreach-email.md](outreach-email.md) | Cold email: the sequence, the first email line by line (with our previous work), follow-ups, word and fact rules |
 | [outreach-calls.md](outreach-calls.md) | Cold calls: call map, discovery, exit signals, close, pre-call research |
 | [outreach-sequence.md](outreach-sequence.md) | How LinkedIn, calls and email work together; who to contact inside a company; manual only |
 | [deliverability.md](deliverability.md) | Sending setup that must be ready before any email goes out |

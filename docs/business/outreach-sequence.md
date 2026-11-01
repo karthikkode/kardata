@@ -1,15 +1,15 @@
 # Outreach sequence and channels
 
-Status: draft · Last updated: 2026-10-27 · Source: owner sessions 2026-10-26/27
+Status: draft · Last updated: 2026-11-02 · Source: owner sessions 2026-10-26/27, 2026-10-29 (D-70)
 
 How the three outbound channels work together for one company, and who to contact inside it. Calls are in
 `outreach-calls.md`, email in `outreach-email.md`.
 
 ## Manual only
 
-**Every outbound touch is done by hand, by the owner.** No automated sending, no AI-written outreach, no LinkedIn
-automation tools (LinkedIn bans them). Each deal is make-or-break. Research and prep can use Kardata and AI; the owner
-decides what to say and writes every word.
+**Every outbound touch is sent by hand, by the owner.** No automated sending and no LinkedIn automation tools
+(LinkedIn bans them). Each deal is make-or-break. Claude may draft emails from our research (D-70); the owner reads,
+rewrites in their own words, decides and sends. Calls are the owner's own words.
 
 ## Channels
 
@@ -26,13 +26,10 @@ decides what to say and writes every word.
 1. **Profile ready first.** A plain headline, a 3–4 line About section, and ideally 1–2 posts. An empty or vague
    profile hurts more than not connecting.
 2. **The week before (optional): LinkedIn connection,** no note or one neutral line, no pitch. It costs no momentum.
-3. **One compressed week, every channel (D-63).** Interest fades over weeks, so the whole push and the booking happen
-   inside one week:
-   - **Day 1:** email (`outreach-email.md`). Only public facts. Never use anything from a practice call.
-   - **Day 2–3:** call, with the after-email opener (`outreach-calls.md`). Book on the call.
-   - **Day 4–5:** a second call attempt, or a short LinkedIn message if they accepted.
-   - **The meeting lands the same week or the next.** Send the calendar invite during the call.
-4. **One last note about a week later,** with one useful insight and no ask. Then stop.
+3. **The email package, then the call (D-70; replaces the compressed week of D-63):** first email Tuesday,
+   follow-up Friday, closing email the next Tuesday, one call that Thursday. Details and wording in
+   `outreach-email.md`. Only public facts; never anything from a practice call.
+4. **Book on the call.** Send the calendar invite during the call. Then stop, unless they asked for more.
 
 **Timing:** skip the buyer's peak season. Run the week when they have time to talk now, not to book far ahead.
 

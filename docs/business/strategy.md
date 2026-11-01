@@ -20,7 +20,7 @@ Status: locked (sector order is open, see decisions.md) · Last updated: 2026-10
     brands".
   - Never assume the problem, for example "nobody trusts your numbers". Most teams trust their numbers until
     something breaks.
-- **Email signature:** "Karthik / Data Guy, kardata." No slogans.
+- **Email signature:** "Karthik / Kardata · kardata.co", plain text (D-70). No slogans.
 
 ## The goal
 
