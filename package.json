@@ -21,7 +21,8 @@
     "smoke:real": "tsx scripts/smoke-real.ts",
     "smoke:collect": "tsx scripts/smoke-collect.ts",
     "harness:setup": "tsx scripts/harness-setup.ts",
-    "eval:research": "tsx scripts/eval-research.ts"
+    "eval:research": "tsx scripts/eval-research.ts",
+    "harness:prune": "tsx scripts/harness-prune.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.18.0",

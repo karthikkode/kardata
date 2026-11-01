@@ -25,6 +25,7 @@ import {
 import { getProfile, profileHash } from "../domain/sector-preflight/profile.js";
 import { toEffectiveCompany } from "../domain/companies.js";
 import { classifyRunArgs, prepareClassifyInput } from "../harness/classify.js";
+import { cleanupRunSessions } from "../harness/session-cleanup.js";
 import { MuseHandle } from "../harness/muse.js";
 import type { HarnessUsage } from "../harness/types.js";
 
@@ -72,6 +73,7 @@ export type ClassifierCall = (input: {
 
 export const dockerClassifierCall: ClassifierCall = async ({ runId, prompt, schema, web, stallMs, callKey }) => {
   const input = await prepareClassifyInput(prompt, schema);
+  let sessionId: string | undefined;
   try {
     const child = spawn("docker", classifyRunArgs({ runId, inputDir: input.dir, web, callKey }), {
       stdio: ["ignore", "pipe", "pipe"],
@@ -84,6 +86,7 @@ export const dockerClassifierCall: ClassifierCall = async ({ runId, prompt, sche
     let stall: string | null = null;
     const consume = (async () => {
       for await (const event of handle.events) {
+        if (event.type === "started" && event.sessionId) sessionId = event.sessionId;
         if (event.type === "error" && event.message.includes("(stall)")) stall = event.message;
       }
     })();
@@ -103,6 +106,7 @@ export const dockerClassifierCall: ClassifierCall = async ({ runId, prompt, sche
     return { json, usage: result.usage, raw: result.finalMessage };
   } finally {
     await input.cleanup();
+    void cleanupRunSessions([sessionId]).catch(() => undefined);
   }
 };
 

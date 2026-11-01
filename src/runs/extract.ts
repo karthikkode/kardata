@@ -28,6 +28,7 @@ import { upsertRecords } from "../domain/research/records.js";
 import { MuseHandle } from "../harness/muse.js";
 import type { HarnessUsage } from "../harness/types.js";
 import { extractRunArgs, prepareExtractInput } from "../harness/extract.js";
+import { cleanupRunSessions } from "../harness/session-cleanup.js";
 import { PROMPT_AREAS } from "./prompt.js";
 
 export const EXTRACT_AREAS = [...PROMPT_AREAS];
@@ -611,6 +612,7 @@ export type ExtractorCall = (input: { runId: string; area: string; prompt: strin
 
 export const dockerExtractorCall: ExtractorCall = async ({ runId, area, prompt, schema }) => {
   const input = await prepareExtractInput(prompt, schema ?? extractSchema());
+  let sessionId: string | undefined;
   try {
     const child = spawn("docker", extractRunArgs({ runId, area, inputDir: input.dir }), {
       stdio: ["ignore", "pipe", "pipe"],
@@ -622,7 +624,7 @@ export const dockerExtractorCall: ExtractorCall = async ({ runId, area, prompt, 
     const handle = new MuseHandle(child, EXTRACT_STALL_MS);
     const consume = (async () => {
       for await (const event of handle.events) {
-        void event;
+        if (event.type === "started" && event.sessionId) sessionId = event.sessionId;
       }
     })();
     const result = await handle.wait();
@@ -640,6 +642,8 @@ export const dockerExtractorCall: ExtractorCall = async ({ runId, area, prompt, 
     return { json, usage: result.usage, raw: result.finalMessage };
   } finally {
     await input.cleanup();
+    // The run is over and nothing reads its session log: free the volume.
+    void cleanupRunSessions([sessionId]).catch(() => undefined);
   }
 };
 

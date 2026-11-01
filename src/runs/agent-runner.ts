@@ -37,6 +37,7 @@ import { effectiveCollectLimit, effectiveMaxAgents, systemMemAvailableMB } from 
 import { redactRunDocs } from "../domain/research/pii.js";
 import { issueRunToken, revokeRunToken } from "./tokens.js";
 import { ingestRunSession, rollupUsage, type SessionIngestSummary, type UsageRollup } from "./usage.js";
+import { cleanupRunSessions } from "../harness/session-cleanup.js";
 import { attachDispatchSession, logDispatchPrompt } from "../domain/logging/provider-calls.js";
 
 /**
@@ -538,6 +539,10 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
       } catch (err) {
         console.error(`session ingest failed for ${runId}: ${err instanceof Error ? err.message : err}`);
       }
+      // Usage and per-call ingest have read the session logs; free them.
+      void cleanupRunSessions([outcome.sessionId, ...(outcome.rollup?.children.map((c) => c.sessionId) ?? [])]).catch(
+        () => undefined,
+      );
 
       const stopped = entry?.stopReason ?? null;
       const current = await loadRun(db, runId);
