@@ -587,12 +587,14 @@ export function computeSignals(input: {
   disclosureFee: boolean;
   systemCount: number;
 }): RiaSignals {
-  const feeSignals = [
-    input.familyGrouping,
-    input.negotiable,
-    input.feeTypeCount >= 2,
-    (input.billing === "advance" || input.billing === "both") && (input.proration || input.refunds),
-  ].filter(Boolean).length;
+  // All three structural traits: family grouping, two or more fee types,
+  // and advance billing with proration or refunds. "Negotiable" wording
+  // is brochure boilerplate and never counts toward complexity.
+  const feeComplexity =
+    input.familyGrouping &&
+    input.feeTypeCount >= 2 &&
+    (input.billing === "advance" || input.billing === "both") &&
+    (input.proration || input.refunds);
   const signals: Omit<RiaSignals, "score"> = {
     heavy_book: input.heavyBook,
     multi_custodian: input.custodianCount >= 2,
@@ -603,13 +605,41 @@ export function computeSignals(input: {
     outside_managers: input.outsideManagers,
     alternatives: input.alternatives,
     custody_work: input.custodyWork,
-    fee_complexity: feeSignals >= 3,
+    fee_complexity: feeComplexity,
     fee_problem: input.disclosureFee,
     tool_sprawl: input.systemCount >= 2,
     recent_deal: false,
     ops_hiring: false,
   };
   return { ...signals, score: Object.values(signals).filter(Boolean).length };
+}
+
+/**
+ * Custodian names for counting: only list-stored values (the ops read's
+ * JSON list, or a JSON custodian fact). A prose filing snippet split on
+ * commas invents custodians, so prose never counts here.
+ */
+export function custodianCountNames(raw: { valueText: string | null; valueJson: unknown } | undefined | null, extra: string[]): string[] {
+  const names: string[] = [...extra];
+  if (raw) {
+    if (Array.isArray(raw.valueJson)) names.push(...raw.valueJson.filter((x): x is string => typeof x === "string"));
+    const text = typeof raw.valueText === "string" ? raw.valueText.trim() : "";
+    if (text.startsWith("[")) {
+      try {
+        const parsed: unknown = JSON.parse(text.replace(/'/g, '"'));
+        if (Array.isArray(parsed)) names.push(...parsed.filter((x): x is string => typeof x === "string"));
+      } catch {
+        // Not a JSON list: prose, not counted.
+      }
+    }
+  }
+  const seen = new Map<string, string>();
+  for (const n of names) {
+    const clean = n.replace(/^["'\[]+|["'\]]+$/g, "").trim();
+    if (clean.length < 2) continue;
+    seen.set(clean.toLowerCase(), clean);
+  }
+  return [...seen.values()];
 }
 
 /** Parse a stored custodian value (JSON list, JSON text, or prose) into names. */
@@ -700,10 +730,13 @@ export const signalsStep: StepHandler = async (db, sectorId, companyId) => {
   const types = byKey.get("ria.fee_types")?.valueJson;
   const feeTypeCount = Array.isArray(types) ? types.length : 0;
 
-  // Custodians: the stored JSON fact (ria.custodians_named / firm.custodians).
-  const custodians = custodianNames(byKey.get("firm.custodians") ?? null, listOf("ria.custodians_named"));
+  // Custodians counted from list-stored names only; the prose filing
+  // snippet (custodianNames) is still used to keep custodians out of
+  // tool_sprawl, but never to count custodians.
+  const custodians = custodianCountNames(byKey.get("firm.custodians") ?? null, listOf("ria.custodians_named"));
+  const proseCustodians = custodianNames(byKey.get("firm.custodians") ?? null, listOf("ria.custodians_named"));
   // Systems: distinct named software, custodians excluded.
-  const custodianNorm = custodians.map((c) => c.toLowerCase());
+  const custodianNorm = proseCustodians.map((c) => c.toLowerCase());
   const systemNames = new Map<string, string>();
   for (const name of listOf("ria.systems_named")) systemNames.set(name.toLowerCase(), name);
   for (const r of rows) {
@@ -754,19 +787,17 @@ export const signalsStep: StepHandler = async (db, sectorId, companyId) => {
   // Real issues only: a fee/billing matter tied to a regulator action in
   // Item 9, or a stored fee-problem fact. A plain disclosure flag or the
   // ordinary Item 5 refund-of-prepaid-fees sentence does not count.
-  const item9FeeAction =
-    item9 !== null &&
-    /fee|billing|overcharg|refund/i.test(item9.text) &&
-    /order|sanction|fine|penalt|consent|willful|violat|deficien|regulator|commission|censure|suspend/i.test(item9.text);
-  const disclosureFee = boolOf("firm.fee_problem") || item9FeeAction;
+  const FEE_TERM = /fee|billing|overcharg|refund/i;
+  const ACTION_TERM = /order|sanction|fine|penalt|consent|willful|deficien|censure|suspend|revok|cease.and.desist|settlement|charged/i;
   let feeProblemExcerpt = "";
-  if (item9FeeAction && item9) {
+  if (item9) {
     const sentence = item9.text
       .replace(/\s+/g, " ")
       .split(/(?<=[.!?])\s+/)
-      .find((s) => /fee|billing|overcharg|refund/i.test(s) && /order|sanction|fine|penalt|consent|willful|violat|deficien|regulator|commission|censure|suspend/i.test(s));
+      .find((s) => FEE_TERM.test(s) && ACTION_TERM.test(s));
     feeProblemExcerpt = sentence ? sentence.slice(0, 220) : "";
   }
+  const disclosureFee = boolOf("firm.fee_problem") || feeProblemExcerpt !== "";
   const signals = computeSignals({
     familyGrouping: boolOf("ria.fee_family_grouping"),
     negotiable: boolOf("ria.fee_negotiable"),

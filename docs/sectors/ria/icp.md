@@ -32,7 +32,7 @@ Revenue, if needed, is estimated as AUM × 0.8% and always labelled an estimate.
 | `outside_managers` | Outside managers, sub-advisers, wrap programs, model or TAMP providers | Brochure Items 4/8 |
 | `alternatives` | Private funds or alternatives advised | Brochure, Part 1 Schedule D count |
 | `custody_work` | Standing letters of authorization, third-party money movement, or surprise custody exams | Brochure Item 15 |
-| `fee_complexity` | At least three of: family grouping, negotiable fees, two or more fee types, advance billing with proration or refunds (negotiable or prorated wording alone is boilerplate and never enough) | Brochure Item 5 |
+| `fee_complexity` | All three structural traits: family grouping, two or more fee types, and advance billing with proration or refunds. Negotiable wording is boilerplate and never counts | Brochure Item 5 |
 | `fee_problem` | A real fee issue only: a fee-related Part 1 disclosure, or Item 9 text tying fees/billing/overcharging/refunds to a regulator action (order, fine, sanction, consent, deficiency). An ordinary Item 5 refund-of-prepaid-fees sentence does not count | Part 1 disclosures, brochure Item 9, SEC orders |
 | `tool_sprawl` | Two or more distinct named software systems (portfolio, billing, CRM, planning, trading); custodians do not count | Brochure, website |
 | `recent_deal` | Bought, merged with or was bought by another firm in the last 18 months; clients moved over | Deep research only |
