@@ -1,4 +1,5 @@
 import { gunzipSync } from "node:zlib";
+import { pdfText } from "../../lib/sec/pdf-text.js";
 import { load } from "cheerio";
 import { and, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
@@ -798,8 +799,12 @@ export async function documentSearch(
 export async function blobText(db: Db, sha256: string): Promise<{ text: string; contentType: string } | null> {
   const [blob] = await db.select().from(blobs).where(eq(blobs.sha256, sha256));
   if (!blob) return null;
-  const raw = gunzipSync(blob.gzip).toString("utf8");
+  const body = gunzipSync(blob.gzip);
   const contentType = blob.contentType ?? "";
+  if (contentType.toLowerCase().includes("application/pdf")) {
+    return { text: await pdfText(body), contentType };
+  }
+  const raw = body.toString("utf8");
   return {
     text: contentType.includes("html") ? extractText(raw) : raw,
     contentType,

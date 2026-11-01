@@ -29,6 +29,34 @@ describe("splitBrochureItems / brochureDate (B4)", () => {
     expect(items["5"]).toContain("tiered");
   });
 
+  it("reads mixed numbered and bare headings without swallowing the brochure", () => {
+    const body = "This section contains substantive client service details and enough prose to distinguish it from a contents entry.";
+    const items = splitBrochureItems([
+      "4.", "Advisory Business .......... 4", "5.", "Fees and Compensation .......... 5",
+      "Item 12 changed to reflect a new rule.",
+      "4.", "Advisory Business", body,
+      "5. Fees and Compensation", "Annual fees are one percent of managed assets, billed quarterly in arrears with family accounts grouped together.",
+      "Item 12 Brokerage Practices", body,
+      "15.", "Custody", body,
+    ].join("\n"));
+    expect(Object.keys(items).sort()).toEqual(["12", "15", "4", "5"]);
+    expect(items["5"]).toContain("Annual fees");
+    expect(items["4"]).not.toContain("Annual fees");
+    expect(items["12"]).not.toContain("Advisory Business");
+  });
+
+  it("uses body titles after a contents table without dotted leaders", () => {
+    const text = [
+      "Advisory Business", "4", "Fees and Compensation", "5", "Custody", "15",
+      "Advisory Business", "Our advisory services include financial planning and discretionary investment management for individual clients.",
+      "Fees and Compensation", "We charge an annual asset based fee and bill quarterly in arrears. Clients may negotiate the written fee schedule.",
+      "Custody", "Client assets remain with an independent qualified custodian and statements are provided directly to each client.",
+    ].join("\n");
+    const items = splitBrochureItems(text);
+    expect(items["5"]).toContain("We charge");
+    expect(items["5"]).not.toContain("Custody");
+  });
+
   it("reads the brochure date", () => {
     expect(brochureDate(text)).toBe("2025-03-15");
     expect(brochureDate("no date here")).toBeNull();
@@ -65,6 +93,12 @@ describe("opsPrompt (B5)", () => {
 
 
 describe("teamLinks (B6)", () => {
+  it("prefers real team pages after generic about links, including nested anchor labels", () => {
+    const html = '<a href="/about">About</a><a href="/who-we-are">Who we are</a><a href="/our-firm">Our firm</a><a href="/team"><span>Our Team</span></a><a href="/team/management"><b>Leadership</b></a><a href="https://elsewhere.example/team">Team</a>';
+    expect(teamLinks(html, "https://x.example/")).toEqual([
+      "https://x.example/team/management", "https://x.example/team", "https://x.example/about",
+    ]);
+  });
   it("finds team/about links only", () => {
     const html = `<a href="/team">Our Team</a><a href="/careers">Careers</a><a href="https://x.example/about-us">About</a>`;
     expect(teamLinks(html, "https://x.example/")).toEqual(["https://x.example/team", "https://x.example/about-us"]);
@@ -221,6 +255,7 @@ describe("pickScheduleAContact", () => {
     expect(pickScheduleAContact(leaders.slice(0, 2))?.name).toBe("B Compliance");
     expect(pickScheduleAContact(leaders.slice(0, 1))?.name).toBe("A Boss");
     expect(pickScheduleAContact([{ name: "E Dual", title: "Chief Operating Financial Officer" }])?.name).toBe("E Dual");
+    expect(pickScheduleAContact([{ name: "F Compliance", title: "MANAGER COMPLIANCE OFFICER" }])?.name).toBe("F Compliance");
     expect(pickScheduleAContact([{ name: "D Adviser", title: "Financial Advisor" }])).toBeNull();
   });
 });

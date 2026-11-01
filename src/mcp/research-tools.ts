@@ -1471,12 +1471,15 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   registerTool(server, db, auth,
     "ria_status",
     {
-      description: "Operator: RIA step coverage for a sector: per step done/gap/failed/pending over eligible firms, plus latest import and preflight counts.",
-      inputSchema: { sectorId: z.string().describe("Sector UUID") },
+      description: "Operator: RIA step coverage over eligible firms. Optional companyIds scopes coverage and returns each stored step status, reason, tokens and update time. Import and preflight counts remain sector-wide.",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+        companyIds: z.array(z.string().uuid()).max(5000).optional().describe("Scope coverage and return step details for these eligible firms"),
+      },
     },
-    async ({ sectorId }) =>
+    async ({ sectorId, companyIds }) =>
       wrap(async () => {
-        const view = await riaStatus(db, sectorId);
+        const view = await riaStatus(db, sectorId, companyIds);
         const parts = Object.entries(view.steps).map(([k, v]) => `${k} ${v.done}/${v.gap}/${v.failed}/${v.pending}`).join("; ");
         return { summary: `eligible ${view.eligible}: ${parts}`, data: view };
       }),
