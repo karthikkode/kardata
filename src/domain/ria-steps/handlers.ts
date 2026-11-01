@@ -15,6 +15,8 @@ import { extractText } from "../research/reads.js";
 import { upsertRecords } from "../research/records.js";
 import { recordVerdicts } from "../tiering.js";
 import { custodianCountNames } from "./custodians.js";
+import { storedOrFetch } from "./stored-source.js";
+import { stepState } from "./status.js";
 import { splitBrochureItems } from "./brochure.js";
 import type { StepHandler, StepResult } from "./runner.js";
 import { dockerExtractorCall, type ExtractorCall } from "../../runs/extract.js";
@@ -51,7 +53,7 @@ async function finishRun(db: Db, runId: string, ok: boolean): Promise<void> {
 
 // ---- B3: firm data, code only ----
 
-export function createFirmDataStep(endpoints = DEFAULT_ENDPOINTS): StepHandler {
+export function createFirmDataStep(endpoints = DEFAULT_ENDPOINTS, preferStoredSources = false): StepHandler {
   return async (db, _sectorId, companyId) => {
   const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
   if (!company) return { status: "failed", reason: "company gone" };
@@ -76,6 +78,7 @@ export function createFirmDataStep(endpoints = DEFAULT_ENDPOINTS): StepHandler {
       endpoints,
       privateHostAllowlist: privateHosts,
       shared: {},
+      fetch: preferStoredSources ? storedOrFetch : undefined,
     });
     const done = result.outcomes.some((o) => o.status === "done");
     await finishRun(db, runId, true);
@@ -128,7 +131,9 @@ export function parseBrochureChoice(iacontent: unknown): { exempt: boolean; choi
   return { exempt: false, choice };
 }
 
-export const brochureStep: StepHandler = async (db, _sectorId, companyId) => {
+export function createBrochureStep(preferStoredSources = false): StepHandler {
+ const fetchSource = preferStoredSources ? storedOrFetch : fetchUrl;
+ return async (db, _sectorId, companyId) => {
   const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
   if (!company?.secCrd) return { status: "gap", reason: "no SEC CRD" };
   const crd = company.secCrd;
@@ -141,7 +146,7 @@ export const brochureStep: StepHandler = async (db, _sectorId, companyId) => {
     // 1. The IAPD firm record lists filed brochures (the reports.* PDF
     // URLs are not public; the files.* aspx endpoint is).
     const lookupUrl = `${iapdApiBase}/search/firm/${encodeURIComponent(crd)}?hl=true&nrows=12&query=${encodeURIComponent(crd)}&r=25&sort=score%2Bdesc&wt=json`;
-    const lookup = await fetchUrl(db, {
+    const lookup = await fetchSource(db, {
       companyId,
       runId,
       collector: "ria_brochure",
@@ -191,7 +196,7 @@ export const brochureStep: StepHandler = async (db, _sectorId, companyId) => {
 
     // 2. The public brochure PDF endpoint, keyed by brochure version id.
     const pdfUrl = `${iapdFilesBase}/IAPD/Content/Common/crd_iapd_Brochure.aspx?BRCHR_VRSN_ID=${choice.versionId}`;
-    const res = await fetchUrl(db, {
+    const res = await fetchSource(db, {
       companyId,
       runId,
       collector: "ria_brochure",
@@ -233,6 +238,9 @@ export const brochureStep: StepHandler = async (db, _sectorId, companyId) => {
     throw err;
   }
 };
+
+}
+export const brochureStep = createBrochureStep();
 
 // ---- B5 (revised): ops read, one AI call over the brochure ----
 
@@ -303,7 +311,7 @@ export function opsPrompt(items: { item: string; text: string }[]): string {
   return parts.join("\n");
 }
 
-async function brochureItemText(db: Db, companyId: string, item: string): Promise<{ text: string; sourceIds: string[] } | null> {
+async function brochureItemText(db: Db, companyId: string, item: string): Promise<{ text: string; sourceIds: string[]; createdAt: Date } | null> {
   // Documents are versioned rows; only the current version is the brochure
   // text. An unordered pick can return a superseded slice (the O5-era
   // table-of-contents Item 5), which starves the grounding check.
@@ -318,21 +326,27 @@ async function brochureItemText(db: Db, companyId: string, item: string): Promis
       ),
     );
   if (!latest) return null;
-  return { text: latest.contentMd ?? "", sourceIds: latest.sourceIds ?? [] };
+  return { text: latest.contentMd ?? "", sourceIds: latest.sourceIds ?? [], createdAt: latest.createdAt };
 }
 
 export function createOpsReadStep(call: ExtractorCall = dockerExtractorCall): StepHandler {
-  return async (db, _sectorId, companyId) => {
+  return async (db, sectorId, companyId) => {
     const item5 = await brochureItemText(db, companyId, "5");
     if (!item5 || item5.text.trim().length < 40) return { status: "gap", reason: "no brochure Item 5 stored" };
-    const loaded: { item: string; text: string; sourceIds: string[] }[] = [{ item: "5", ...item5 }];
+    const loaded: { item: string; text: string; sourceIds: string[]; createdAt: Date }[] = [{ item: "5", ...item5 }];
     for (const item of ["4", "12", "15", "8", "14"]) {
       const got = await brochureItemText(db, companyId, item);
       if (got && got.text.trim().length >= 40) loaded.push({ item, ...got });
     }
+    const prompt = opsPrompt(loaded);
+    const inputHash = createHash("sha256").update(prompt).update(OPS_SCHEMA).digest("hex").slice(0, 16);
+    const existing = await stepState(db, sectorId, companyId, "ops_read");
+    const legacyHash = createHash("sha256").update(item5.text.slice(0, 5000)).digest("hex").slice(0, 16);
+    const legacyUnchanged = existing?.inputHash === legacyHash && loaded.every((item) => item.createdAt <= existing.updatedAt);
+    if (existing?.status === "done" && (existing.inputHash === inputHash || legacyUnchanged)) return { status: "done", cached: true, inputHash: existing.inputHash };
     const runId = await newRun(db, companyId, "extraction");
     try {
-      const result = await call({ runId, area: "ops_read", prompt: opsPrompt(loaded), schema: OPS_SCHEMA });
+      const result = await call({ runId, area: "ops_read", prompt, schema: OPS_SCHEMA });
       const json = result.json as Record<string, unknown>;
       const quoteList = Array.isArray(json["quotes"]) ? (json["quotes"] as { field?: string; quote?: string }[]) : [];
       const quotes: Record<string, string> = {};
@@ -409,7 +423,7 @@ export function createOpsReadStep(call: ExtractorCall = dockerExtractorCall): St
       if (bad && !bad.ok) throw new Error(`ops fact write failed: ${bad.error}`);
       await finishRun(db, runId, true);
       const tokens = result.usage?.inputTokens ?? null;
-      return { status: "done", tokensUsed: tokens, inputHash: createHash("sha256").update(item5.text.slice(0, 5000)).digest("hex").slice(0, 16) };
+      return { status: "done", tokensUsed: tokens, inputHash };
     } catch (err) {
       await finishRun(db, runId, false);
       throw err;
@@ -484,14 +498,18 @@ async function scheduleAContact(db: Db, companyId: string): Promise<{ name: stri
 }
 
 export function createContactsStep(call: ExtractorCall = dockerExtractorCall): StepHandler {
-  return async (db, _sectorId, companyId) => {
+  return async (db, sectorId, companyId) => {
     const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
+    const previous = await stepState(db, sectorId, companyId, "contacts");
+    if (previous?.status === "done" && previous.inputHash === (company?.website ?? null)) {
+      return { status: "done", cached: true, inputHash: previous.inputHash };
+    }
     // Team-page people already stored: no new fetch or AI call.
     const stored = await db
       .select({ id: records.id })
       .from(records)
       .where(and(eq(records.companyId, companyId), eq(records.type, "leader"), eq(records.createdBy, "extractor:ria_contacts")));
-    if (stored.length > 0) {
+    if (stored.length > 0 && (!previous || previous.inputHash === (company?.website ?? null))) {
       return { status: "done", reason: `${stored.length} people from team page (stored)`, inputHash: company?.website ?? null };
     }
     if (!company?.website) {

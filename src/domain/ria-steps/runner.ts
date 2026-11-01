@@ -1,7 +1,8 @@
 import { eq } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
 import { harnessSettings, type RiaStep } from "../../db/schema.js";
-import { quotaEarlyTripRatioGet, quotaSnapshotWeeklyPct } from "../quota/breaker.js";
+import { quotaEarlyTripRatioGet, quotaSnapshotWeeklyPct, quotaBreakerGet, quotaBreakerSet, parseQuotaExhaustion } from "../quota/breaker.js";
+import { MAX_RIA_AI, riaAiSlots } from "./slots.js";
 import { eligibleCompanyIds, recordStep, stepState, type StepOutcome } from "./status.js";
 
 /**
@@ -15,6 +16,7 @@ export interface StepResult {
   reason?: string | null;
   inputHash?: string | null;
   tokensUsed?: number | null;
+  cached?: boolean;
 }
 
 export type StepHandler = (db: Db, sectorId: string, companyId: string) => Promise<StepResult>;
@@ -44,19 +46,22 @@ export interface RunStepOutcome {
   gap: number;
   failed: number;
   skippedDone: number;
+  skippedInFlight: number;
   stopped: "pause" | "quota" | null;
   tokensUsed: number;
 }
 
+const inFlight = new WeakMap<Db, Map<string, Promise<void>>>();
+
 export async function runRiaStep(
   db: Db,
-  input: { sectorId: string; step: RiaStep; companyIds?: string[]; limit?: number; concurrency?: number },
+  input: { sectorId: string; step: RiaStep; companyIds?: string[]; limit?: number; concurrency?: number; skipDone?: boolean },
   handlers: StepHandlers,
 ): Promise<RunStepOutcome> {
   const handler = handlers[input.step];
   if (!handler) throw new Error(`no handler for ria step ${input.step}`);
   const explicit = input.companyIds !== undefined;
-  let ids: string[] = explicit ? [...(input.companyIds ?? [])] : await eligibleCompanyIds(db, input.sectorId);
+  let ids: string[] = explicit ? [...new Set(input.companyIds ?? [])] : await eligibleCompanyIds(db, input.sectorId);
   if (input.limit !== undefined) ids = ids.slice(0, input.limit);
   const outcome: RunStepOutcome = {
     step: input.step,
@@ -65,65 +70,61 @@ export async function runRiaStep(
     gap: 0,
     failed: 0,
     skippedDone: 0,
+    skippedInFlight: 0,
     stopped: null,
     tokensUsed: 0,
   };
   const queue = [...ids];
-  const workers = Array.from({ length: Math.max(1, Math.min(input.concurrency ?? 4, 16)) }, async () => {
+  let running = inFlight.get(db);
+  if (!running) { running = new Map(); inFlight.set(db, running); }
+  const workers = Array.from({ length: Math.max(1, Math.min(input.concurrency ?? 4, MAX_RIA_AI)) }, async () => {
     for (;;) {
       if (outcome.stopped) return;
       const companyId = queue.shift();
       if (companyId === undefined) return;
-      if (await riaStepPaused(db)) {
-        outcome.stopped = "pause";
-        return;
-      }
-      if (AI_STEPS.has(input.step)) {
-        const snap = await quotaSnapshotWeeklyPct(db);
-        const { ratio } = await quotaEarlyTripRatioGet(db);
-        if (snap.weeklyPct !== null && snap.weeklyPct >= ratio * 100) {
-          outcome.stopped = "quota";
-          return;
-        }
-      }
-      if (!explicit) {
+      if (input.skipDone ?? !explicit) {
         const existing = await stepState(db, input.sectorId, companyId, input.step);
-        if (existing?.status === "done") {
-          outcome.skippedDone += 1;
-          continue;
-        }
+        if (existing?.status === "done") { outcome.skippedDone += 1; continue; }
       }
-      try {
-        const result = await handler(db, input.sectorId, companyId);
-        await recordStep(db, {
-          sectorId: input.sectorId,
-          companyId,
-          step: input.step,
-          status: result.status,
-          reason: result.reason ?? null,
-          inputHash: result.inputHash ?? null,
-          tokensUsed: result.tokensUsed ?? null,
-        });
-        outcome[result.status] += 1;
-        outcome.tokensUsed += result.tokensUsed ?? 0;
-      } catch (err) {
-        // The deepest cause names the actual failure (e.g. the Postgres
-        // constraint); the wrapper message is a truncated query dump.
-        let deepest = "step error";
-        let cur: unknown = err;
-        for (let i = 0; i < 5 && cur instanceof Error; i++) {
-          deepest = cur.message;
-          cur = (cur as { cause?: unknown }).cause;
-        }
-        await recordStep(db, {
-          sectorId: input.sectorId,
-          companyId,
-          step: input.step,
-          status: "failed",
-          reason: deepest.slice(0, 300),
-        });
-        outcome.failed += 1;
+      const key = `${input.sectorId}:${companyId}:${input.step}`;
+      const current = running.get(key);
+      if (current) {
+        await current; outcome.skippedInFlight += 1;
+        const shared = await stepState(db, input.sectorId, companyId, input.step);
+        if (shared?.status === "failed") outcome.failed += 1;
+        if (await riaStepPaused(db)) outcome.stopped = "pause";
+        else if (AI_STEPS.has(input.step) && (await quotaBreakerGet(db)).tripped) outcome.stopped = "quota";
+        continue;
       }
+      const execute = async () => {
+        // Recheck after waiting for a shared slot: quota/pause may have changed.
+        if (await riaStepPaused(db)) { outcome.stopped = "pause"; return; }
+        if (AI_STEPS.has(input.step)) {
+          const [snap, setting, trip] = await Promise.all([quotaSnapshotWeeklyPct(db), quotaEarlyTripRatioGet(db), quotaBreakerGet(db)]);
+          if (trip.tripped || (snap.weeklyPct !== null && snap.weeklyPct >= setting.ratio * 100)) { outcome.stopped = "quota"; return; }
+        }
+        try {
+          const result = await handler(db, input.sectorId, companyId);
+          if (result.cached) { outcome.skippedDone += 1; return; }
+          await recordStep(db, { sectorId: input.sectorId, companyId, step: input.step, ...result });
+          outcome[result.status] += 1;
+          outcome.tokensUsed += result.tokensUsed ?? 0;
+        } catch (err) {
+          let deepest = "step error";
+          let cur: unknown = err;
+          for (let i = 0; i < 5 && cur instanceof Error; i++) { deepest = cur.message; cur = (cur as { cause?: unknown }).cause; }
+          const quota = parseQuotaExhaustion(deepest);
+          if (quota.exhausted) {
+            outcome.stopped = "quota";
+            await quotaBreakerSet(db, { trippedAt: new Date().toISOString(), resumeAt: quota.resumeAt?.toISOString() ?? null, estimated: false, jobIds: [], error: deepest.slice(0, 600) });
+          }
+          await recordStep(db, { sectorId: input.sectorId, companyId, step: input.step, status: "failed", reason: deepest.slice(0, 300) });
+          outcome.failed += 1;
+        }
+      };
+      const work = Promise.resolve().then(() => AI_STEPS.has(input.step) ? riaAiSlots.run(execute) : execute());
+      running.set(key, work);
+      try { await work; } finally { running.delete(key); }
     }
   });
   await Promise.all(workers);

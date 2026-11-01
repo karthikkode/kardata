@@ -39,12 +39,12 @@ export async function stepState(
   sectorId: string,
   companyId: string,
   step: RiaStep,
-): Promise<{ status: StepOutcome; inputHash: string | null } | null> {
+): Promise<{ status: StepOutcome; inputHash: string | null; updatedAt: Date } | null> {
   const [row] = await db
-    .select({ status: riaStepRuns.status, inputHash: riaStepRuns.inputHash })
+    .select({ status: riaStepRuns.status, inputHash: riaStepRuns.inputHash, updatedAt: riaStepRuns.updatedAt })
     .from(riaStepRuns)
     .where(and(eq(riaStepRuns.sectorId, sectorId), eq(riaStepRuns.companyId, companyId), eq(riaStepRuns.step, step)));
-  return row ? { status: row.status as StepOutcome, inputHash: row.inputHash } : null;
+  return row ? { status: row.status as StepOutcome, inputHash: row.inputHash, updatedAt: row.updatedAt } : null;
 }
 
 /** Eligible ria members (removed excluded), id-ordered. */
