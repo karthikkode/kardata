@@ -63,7 +63,7 @@ export interface RiaStatusView {
   steps: Record<RiaStep, { done: number; gap: number; failed: number; pending: number; gapReasons: Record<string, number>; failedReasons: Record<string, number> }>;
   latestImport: { filename: string; createdAt: string; rowsRead: number } | null;
   preflight: { eligible: number; ineligible: number; pending: number };
-  details?: { companyId: string; step: RiaStep; status: string; reason: string | null; tokensUsed: number | null; updatedAt: Date }[];
+  details?: { companyId: string; step: RiaStep; status: string; reason: string | null; inputHash: string | null; tokensUsed: number | null; updatedAt: Date }[];
 }
 
 export async function riaStatus(db: Db, sectorId: string, companyIds?: string[]): Promise<RiaStatusView> {
@@ -114,7 +114,7 @@ export async function riaStatus(db: Db, sectorId: string, companyIds?: string[])
     eligible: eligibleIds.length,
     steps,
     ...(requested ? { details: rows.filter((r) => eligibleSet.has(r.companyId)).map((r) => ({
-      companyId: r.companyId, step: r.step, status: r.status, reason: r.reason,
+      companyId: r.companyId, step: r.step, status: r.status, reason: r.reason, inputHash: r.inputHash,
       tokensUsed: r.tokensUsed, updatedAt: r.updatedAt,
     })) } : {}),
     latestImport: latestImport
