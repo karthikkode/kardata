@@ -56,6 +56,7 @@ import { runRiaStep, setRiaStepPaused } from "../domain/ria-steps/runner.js";
 import { RIA_STEP_HANDLERS } from "../domain/ria-steps/steps.js";
 import { queueRiaDeepResearch } from "../domain/ria-steps/deep-research.js";
 import { quotaSnapshotGet } from "../runs/quota-monitor.js";
+import { probeMuseVolumeBytes } from "../harness/session-cleanup.js";
 import { researchStart } from "../runs/agent.js";
 import {
   companyJobCancel,
@@ -1142,9 +1143,10 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       wrap(async () => {
         const settings = await harnessSettingsGet(db);
         const earlyTrip = await quotaEarlyTripRatioGet(db);
+        const volumeUsedBytes = probeMuseVolumeBytes();
         return {
-          summary: `maxConcurrentAgents=${settings.maxConcurrentAgents} (${settings.source}); quotaEarlyTripRatio=${earlyTrip.ratio} (${earlyTrip.source})`,
-          data: { ...settings, quotaEarlyTripRatio: earlyTrip.ratio, quotaEarlyTripSource: earlyTrip.source },
+          summary: `maxConcurrentAgents=${settings.maxConcurrentAgents} (${settings.source}); quotaEarlyTripRatio=${earlyTrip.ratio} (${earlyTrip.source}); kardata_muse volume ${volumeUsedBytes === null ? "size unknown" : `${(volumeUsedBytes / 1_000_000).toFixed(1)} MB used`}`,
+          data: { ...settings, quotaEarlyTripRatio: earlyTrip.ratio, quotaEarlyTripSource: earlyTrip.source, museVolumeUsedBytes: volumeUsedBytes },
         };
       }),
   );

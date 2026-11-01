@@ -12,6 +12,7 @@ import {
   checkAppMuseVersion,
   probeInstalledMuseVersion,
 } from "./harness/setup.js";
+import { probeMuseVolumeBytes } from "./harness/session-cleanup.js";
 import { loadAppEnv, requireEnv } from "./lib/env.js";
 import { OPERATOR_AUTH, type AuthContext } from "./mcp/auth.js";
 import { createMcpServer } from "./mcp/server.js";
@@ -212,6 +213,10 @@ async function main(): Promise<void> {
         `run npm run harness:setup`,
     );
   }
+  const volumeBytes = probeMuseVolumeBytes();
+  console.log(
+    `kardata_muse volume: ${volumeBytes === null ? "size unknown" : `${(volumeBytes / 1_000_000).toFixed(1)} MB used`}`,
+  );
   const { db, close: closeDb } = createDb(requireEnv("DATABASE_URL"));
   const runner = createRunner(db);
   const handle = await startServer({
