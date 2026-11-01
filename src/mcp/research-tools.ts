@@ -51,6 +51,7 @@ import {
   windowBurn,
 } from "../domain/quota/breaker.js";
 import { ADAPTERS } from "../collect/adapters.js";
+import { cleanStoredOfficerTitles } from "../domain/ria-steps/officers.js";
 import { riaStatus } from "../domain/ria-steps/status.js";
 import { runRiaStep, setRiaStepPaused } from "../domain/ria-steps/runner.js";
 import { RIA_STEP_HANDLERS } from "../domain/ria-steps/steps.js";
@@ -1483,6 +1484,22 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         const parts = Object.entries(view.steps).map(([k, v]) => `${k} ${v.done}/${v.gap}/${v.failed}/${v.pending}`).join("; ");
         return { summary: `eligible ${view.eligible}: ${parts}`, data: view };
       }),
+  );
+
+  registerTool(server, db, auth,
+    "ria_officer_titles_clean",
+    {
+      description: "Operator: clean ownership-column debris from stored SEC officer titles for a named eligible RIA batch. Code only; no re-fetch or AI. Preserves citations, quotes and record identity. Dry run by default.",
+      inputSchema: {
+        sectorId: z.string().uuid(),
+        companyIds: z.array(z.string().uuid()).max(5000),
+        dryRun: z.boolean().optional(),
+      },
+    },
+    async (input) => wrap(async () => {
+      const result = await cleanStoredOfficerTitles(db, input);
+      return { summary: `${result.matched} officer titles need cleanup; ${result.updated} updated${result.dryRun ? " (dry run)" : ""}`, data: result };
+    }),
   );
 
   registerTool(server, db, auth,

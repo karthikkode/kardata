@@ -501,3 +501,14 @@ describe("scoped RIA status", () => {
     expect(view.details).toEqual([]);
   });
 });
+
+
+describe("stored RIA officer cleanup", () => {
+  it("handles an empty named batch as a dry run and validates company ids", async () => {
+    const sector = dataOf(await call("sector_create", { name: "Officer cleanup" }));
+    const sectorId = (sector.sector as { id: string }).id;
+    expect(dataOf(await call("ria_officer_titles_clean", { sectorId, companyIds: [] })))
+      .toEqual({ considered: 0, matched: 0, updated: 0, dryRun: true });
+    expect((await call("ria_officer_titles_clean", { sectorId, companyIds: ["invalid"] })).isError).toBe(true);
+  });
+});
