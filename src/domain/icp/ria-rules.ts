@@ -25,17 +25,17 @@ export const RIA_SIGNAL_KEYS = [
 /** Sheet order for the top-3 display and the lead (call-opener) signal. */
 export const RIA_LEAD_PRIORITY = [
   "fee_problem",
-  "heavy_book",
+  "recent_deal",
   "outside_managers",
   "alternatives",
-  "custody_work",
   "multi_custodian",
-  "many_services",
-  "fee_complexity",
-  "growth",
-  "tool_sprawl",
-  "recent_deal",
+  "custody_work",
   "ops_hiring",
+  "many_services",
+  "tool_sprawl",
+  "heavy_book",
+  "growth",
+  "fee_complexity",
 ] as const;
 export type RiaSignalKey = (typeof RIA_SIGNAL_KEYS)[number];
 

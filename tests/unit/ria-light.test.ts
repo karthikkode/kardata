@@ -93,10 +93,13 @@ describe("computeSignals (B7)", () => {
     systemCount: 0,
   };
 
-  it("fee_complexity needs at least two of the four fee traits", () => {
+  it("fee_complexity needs at least three of the four fee traits", () => {
     expect(computeSignals({ ...base, negotiable: true }).fee_complexity).toBe(false);
-    expect(computeSignals({ ...base, negotiable: true, familyGrouping: true }).fee_complexity).toBe(true);
-    expect(computeSignals({ ...base, billing: "advance", proration: true, feeTypeCount: 2 }).fee_complexity).toBe(true);
+    expect(computeSignals({ ...base, negotiable: true, familyGrouping: true }).fee_complexity).toBe(false);
+    expect(computeSignals({ ...base, negotiable: true, billing: "advance", proration: true }).fee_complexity).toBe(false);
+    expect(computeSignals({ ...base, negotiable: true, familyGrouping: true, billing: "advance", proration: true }).fee_complexity).toBe(true);
+    expect(computeSignals({ ...base, billing: "advance", proration: true, feeTypeCount: 2 }).fee_complexity).toBe(false);
+    expect(computeSignals({ ...base, billing: "advance", proration: true, feeTypeCount: 2, negotiable: true }).fee_complexity).toBe(true);
   });
 
   it("growth: AUM +30%+ or staff +20%+ with at least +2 people", () => {

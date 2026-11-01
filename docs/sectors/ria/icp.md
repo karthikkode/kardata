@@ -32,15 +32,16 @@ Revenue, if needed, is estimated as AUM × 0.8% and always labelled an estimate.
 | `outside_managers` | Outside managers, sub-advisers, wrap programs, model or TAMP providers | Brochure Items 4/8 |
 | `alternatives` | Private funds or alternatives advised | Brochure, Part 1 Schedule D count |
 | `custody_work` | Standing letters of authorization, third-party money movement, or surprise custody exams | Brochure Item 15 |
-| `fee_complexity` | At least two of: family grouping, negotiable fees, two or more fee types, advance billing with proration or refunds | Brochure Item 5 |
-| `fee_problem` | A fee or billing disclosure, refund or SEC deficiency on fees | Part 1 disclosures, brochure Item 9, SEC orders |
+| `fee_complexity` | At least three of: family grouping, negotiable fees, two or more fee types, advance billing with proration or refunds (negotiable or prorated wording alone is boilerplate and never enough) | Brochure Item 5 |
+| `fee_problem` | A real fee issue only: a fee-related Part 1 disclosure, or Item 9 text tying fees/billing/overcharging/refunds to a regulator action (order, fine, sanction, consent, deficiency). An ordinary Item 5 refund-of-prepaid-fees sentence does not count | Part 1 disclosures, brochure Item 9, SEC orders |
 | `tool_sprawl` | Two or more distinct named software systems (portfolio, billing, CRM, planning, trading); custodians do not count | Brochure, website |
 | `recent_deal` | Bought, merged with or was bought by another firm in the last 18 months; clients moved over | Deep research only |
 | `ops_hiring` | Job post in the last 6 months for operations, billing, client service or onboarding staff | Deep research only |
 Score = number of signals found. Layer = priority inside the size group: higher score is called first.
 Score 0 is still called (owner calls every company), last. The sheet shows each firm's top 3 signals
-(by lead priority: fee_problem, heavy_book, outside_managers, alternatives, custody_work,
-multi_custodian, many_services, fee_complexity, growth, tool_sprawl, recent_deal, ops_hiring) with
+(by lead priority: fee_problem, recent_deal, outside_managers, alternatives,
+multi_custodian, custody_work, ops_hiring, many_services, tool_sprawl, heavy_book, growth,
+fee_complexity — rarer, firm-specific signals lead; boilerplate-driven ones last) with
 quotes, plus a "Lead signal" column naming the strongest one for the call opener.
 
 **Light path (Stage 5.8).** The light steps (firm data → brochure → ops read → contacts → signals)
