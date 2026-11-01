@@ -20,7 +20,10 @@ describe("quota early trip ratio (follow-up)", () => {
     expect(await quotaEarlyTripRatioGet(handle.db)).toEqual({ ratio: 0.9, source: "default", dbValue: null });
     await quotaEarlyTripRatioSet(handle.db, 0.85);
     expect(await quotaEarlyTripRatioGet(handle.db)).toEqual({ ratio: 0.85, source: "db", dbValue: 0.85 });
-    await expect(quotaEarlyTripRatioSet(handle.db, 1)).rejects.toThrowError(/between 0 and 1/);
+    await quotaEarlyTripRatioSet(handle.db, 1);
+    expect((await quotaEarlyTripRatioGet(handle.db)).ratio).toBe(1);
+    await expect(quotaEarlyTripRatioSet(handle.db, 1.01)).rejects.toThrowError(/at most 1/);
+    await expect(quotaEarlyTripRatioSet(handle.db, 0)).rejects.toThrowError(/greater than 0/);
   });
 
   it("trips on the live weekly reading when uncalibrated", () => {

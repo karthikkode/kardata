@@ -18,13 +18,13 @@ export const QUOTA_EARLY_TRIP_KEY = "quota_early_trip_ratio";
 export async function quotaEarlyTripRatioGet(db: Db): Promise<{ ratio: number; source: "db" | "default"; dbValue: number | null }> {
   const value = await readKey(db, QUOTA_EARLY_TRIP_KEY);
   const raw = value?.["ratio"];
-  if (typeof raw === "number" && raw > 0 && raw < 1) return { ratio: raw, source: "db", dbValue: raw };
+  if (typeof raw === "number" && raw > 0 && raw <= 1) return { ratio: raw, source: "db", dbValue: raw };
   return { ratio: DEFAULT_QUOTA_EARLY_TRIP_RATIO, source: "default", dbValue: null };
 }
 
 export async function quotaEarlyTripRatioSet(db: Db, ratio: number): Promise<{ ratio: number; source: "db"; dbValue: number }> {
-  if (typeof ratio !== "number" || !(ratio > 0 && ratio < 1)) {
-    throw new Error("quota early trip ratio must be between 0 and 1 (exclusive)");
+  if (typeof ratio !== "number" || !(ratio > 0 && ratio <= 1)) {
+    throw new Error("quota early trip ratio must be greater than 0 and at most 1");
   }
   await writeKey(db, QUOTA_EARLY_TRIP_KEY, { ratio });
   return { ratio, source: "db", dbValue: ratio };
