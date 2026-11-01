@@ -51,7 +51,9 @@ const BROCHURE = [
   "Item 4 Advisory Business",
   "We provide wealth management to individuals and families with discretionary authority over client accounts.",
   "Item 5 Fees and Compensation",
-  "Our fee is tiered from 1.00 percent to 0.50 percent, is negotiable, grouped by family, and billed quarterly in advance with proration and refunds of prepaid fees, deducted from the account.",
+  "Our fee is tiered from 1.00 percent to 0.50 percent, is negotiable,",
+  "grouped by family, and billed quarterly in advance with proration",
+  "and refunds of prepaid fees, deducted from the account.",
   "Item 9 Disciplinary Information",
   "We have no disciplinary events to report for the firm or its management persons at this time.",
 ];

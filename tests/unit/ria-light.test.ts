@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { brochureDate, splitBrochureItems } from "../../src/domain/ria-steps/brochure.js";
-import { pickFirmWebsite, teamLinks, computeSignals, custodianNames, opsPrompt, OPS_SCHEMA, normalizeForGrounding } from "../../src/domain/ria-steps/handlers.js";
+import { pickFirmWebsite, teamLinks, computeSignals, custodianNames, custodianCountNames, opsPrompt, OPS_SCHEMA, normalizeForGrounding } from "../../src/domain/ria-steps/handlers.js";
 
 
 describe("pickFirmWebsite (B3)", () => {
@@ -93,13 +93,12 @@ describe("computeSignals (B7)", () => {
     systemCount: 0,
   };
 
-  it("fee_complexity needs at least three of the four fee traits", () => {
-    expect(computeSignals({ ...base, negotiable: true }).fee_complexity).toBe(false);
-    expect(computeSignals({ ...base, negotiable: true, familyGrouping: true }).fee_complexity).toBe(false);
-    expect(computeSignals({ ...base, negotiable: true, billing: "advance", proration: true }).fee_complexity).toBe(false);
-    expect(computeSignals({ ...base, negotiable: true, familyGrouping: true, billing: "advance", proration: true }).fee_complexity).toBe(true);
-    expect(computeSignals({ ...base, billing: "advance", proration: true, feeTypeCount: 2 }).fee_complexity).toBe(false);
-    expect(computeSignals({ ...base, billing: "advance", proration: true, feeTypeCount: 2, negotiable: true }).fee_complexity).toBe(true);
+  it("fee_complexity needs family grouping, 2+ fee types and advance billing with proration/refunds", () => {
+    expect(computeSignals({ ...base, negotiable: true, billing: "advance", proration: true, feeTypeCount: 2 }).fee_complexity).toBe(false);
+    expect(computeSignals({ ...base, familyGrouping: true, feeTypeCount: 2 }).fee_complexity).toBe(false);
+    expect(computeSignals({ ...base, familyGrouping: true, billing: "advance", proration: true }).fee_complexity).toBe(false);
+    expect(computeSignals({ ...base, familyGrouping: true, feeTypeCount: 2, billing: "advance", proration: true }).fee_complexity).toBe(true);
+    expect(computeSignals({ ...base, familyGrouping: true, feeTypeCount: 2, billing: "both", refunds: true }).fee_complexity).toBe(true);
   });
 
   it("growth: AUM +30%+ or staff +20%+ with at least +2 people", () => {
@@ -120,6 +119,9 @@ describe("computeSignals (B7)", () => {
     expect(custodianNames({ valueText: null, valueJson: ["Fidelity", "Pershing"] }, [])).toEqual(["Fidelity", "Pershing"]);
     expect(custodianNames({ valueText: "Fidelity and Charles Schwab", valueJson: null }, [])).toEqual(["Fidelity", "Charles Schwab"]);
     expect(custodianNames(null, ["Fidelity"])).toEqual(["Fidelity"]);
+    // Counting never splits prose snippets into invented custodians.
+    expect(custodianCountNames({ valueText: "Custodians: Raymond James & Associates, Inc., Charles Schwab & Co., Inc., after subtracting the amount due", valueJson: null }, [])).toEqual([]);
+    expect(custodianCountNames({ valueText: '["Fidelity", "Pershing"]', valueJson: null }, [])).toEqual(["Fidelity", "Pershing"]);
   });
 });
 
