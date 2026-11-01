@@ -11,6 +11,7 @@ import { pdfText } from "../../lib/sec/pdf-text.js";
 import { toEffectiveCompany } from "../companies.js";
 import { addFacts } from "../research/facts.js";
 import { saveDocument } from "../research/documents.js";
+import { extractText } from "../research/reads.js";
 import { upsertRecords } from "../research/records.js";
 import { recordVerdicts } from "../tiering.js";
 import { splitBrochureItems } from "./brochure.js";
@@ -459,6 +460,7 @@ const SCHEDULE_A_ORDER: { label: string; pattern: RegExp }[] = [
   { label: "COO / head of operations", pattern: /chief operating|operating officer|\bcoo\b|head of operations|director of operations|operations director|(?:vp|vice president)[^.]{0,30}operations|operations manager/i },
   { label: "CCO", pattern: /compliance officer|\bcco\b/i },
   { label: "CEO / president", pattern: /chief executive officer|\bceo\b|president|managing partner|principal/i },
+  { label: "Founder / owner", pattern: /\bfounder\b|\bowner\b/i },
 ];
 
 export function pickScheduleAContact(leaders: { name: string; title: string }[]): { name: string; title: string } | null {
@@ -515,7 +517,7 @@ export function createContactsStep(call: ExtractorCall = dockerExtractorCall): S
       for (const link of links) {
         const page = await fetchUrl(db, { companyId, runId, collector: "ria_contacts", url: link, userAgent: SEC_UA, privateHostAllowlist: privateHosts });
         if (page.source.status === "ok" && page.text && page.text.length > 200) {
-          pageText = page.text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").slice(0, 25_000);
+          pageText = extractText(page.text).replace(/\s+/g, " ").slice(0, 25_000);
           pageSource = page.source.id;
           break;
         }

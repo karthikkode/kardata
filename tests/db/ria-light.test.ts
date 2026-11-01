@@ -297,13 +297,18 @@ describe("contacts step (B6)", () => {
   it("stores leaders from the team page via one call", async () => {
     site.routes.set("/", (_req, res) => sendText(res, `<html><a href="/team">Our Team</a></html>`));
     site.routes.set("/team", (_req, res) =>
-      sendText(res, `<html><body>${"Meet the team. ".repeat(30)} Jane Test is Chief Operating Officer. John Roe is Founder and Managing Partner.</body></html>`),
+      sendText(res, `<html><head><style>${".irrelevant { color: red; }".repeat(2000)}</style><script>${"tracking();".repeat(4000)}</script></head><body>${"Meet the team. ".repeat(30)} Jane Test is Chief Operating Officer. John Roe is Founder and Managing Partner.</body></html>`),
     );
     const companyId = await makeCompany({ website: `${site.baseUrl}/` });
-    const step = createContactsStep(async () => ({
+    const step = createContactsStep(async ({ prompt }) => {
+      expect(prompt).toContain("Jane Test is Chief Operating Officer");
+      expect(prompt).not.toContain("tracking()");
+      expect(prompt).not.toContain(".irrelevant");
+      return {
       json: { people: [{ name: "Jane Test", title: "Chief Operating Officer", quote: "Jane Test is Chief Operating Officer" }] },
       usage: { inputTokens: 500, outputTokens: 0, cachedTokens: 0, reasoningTokens: 0, calls: 1 },
-    }));
+      };
+    });
     const out = await step(handle.db, randomUUID(), companyId);
     expect(out.status).toBe("done");
     const leaders = await handle.db.select().from(records).where(eq(records.companyId, companyId));
