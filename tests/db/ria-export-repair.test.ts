@@ -46,6 +46,8 @@ it("exports custodian lists consistent with signals, without truncation, and fla
   ] });
   expect(written.every((r) => r.ok)).toBe(true);
   for (const step of RIA_STEPS) await recordStep(handle.db, { sectorId: f.sectorId, companyId: f.companyId, step, status: "done" });
+  // The retired fees step survives in live history, but is not part of this pipeline.
+  await recordStep(handle.db, { sectorId: f.sectorId, companyId: f.companyId, step: "fees" as never, status: "gap", reason: "legacy fee gap" });
   await signalsStep(handle.db, f.sectorId, f.companyId);
   const row = (await riaSheetRows(handle.db, f.sectorId)).find((r) => r.companyId === f.companyId);
   expect(row?.signals.join(" ")).toContain("Multiple custodians");
@@ -113,4 +115,23 @@ it("cleans only scoped SEC officer titles in place, preserves provenance, and re
   await upsertRecords(handle.db, input);
   expect(await cleanStoredOfficerTitles(handle.db, { ...scope, dryRun: false })).toMatchObject({ matched: 2, updated: 2 });
   expect(await handle.db.select().from(records).where(eq(records.companyId, f.companyId))).toHaveLength(5);
+});
+
+
+it("keeps equal-priority contact selection stable when title cleanup rewrites rows", async () => {
+  const f = await setup();
+  await upsertRecords(handle.db, { companyId: f.companyId, runId: f.runId, createdBy: "collector:sec_firm", records: [
+    { type: "leader", data: { name: "Earlier Synthetic Officer", title: "I CHIEF OPERATING OFFICER" }, sourceIds: [f.sourceId] },
+  ] });
+  await handle.db.update(records).set({ createdAt: new Date("2000-01-01") }).where(eq(records.companyId, f.companyId));
+  await upsertRecords(handle.db, { companyId: f.companyId, runId: f.runId, createdBy: "extractor:ria_contacts", records: [
+    { type: "leader", data: { name: "Later Synthetic Officer", title: "CHIEF OPERATING OFFICER" }, sourceIds: [f.sourceId] },
+  ] });
+  await signalsStep(handle.db, f.sectorId, f.companyId);
+  const before = (await riaSheetRows(handle.db, f.sectorId)).find((r) => r.companyId === f.companyId);
+  expect(before?.contactName).toBe("Earlier Synthetic Officer");
+  await cleanStoredOfficerTitles(handle.db, { sectorId: f.sectorId, companyIds: [f.companyId], dryRun: false });
+  const after = (await riaSheetRows(handle.db, f.sectorId)).find((r) => r.companyId === f.companyId);
+  expect(after?.contactName).toBe(before?.contactName);
+  expect(after?.contactTitle).toBe("CHIEF OPERATING OFFICER");
 });

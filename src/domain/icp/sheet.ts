@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
 import { companies, documents, facts, factsCurrent, records, riaStepRuns, RIA_STEPS, type CompanyIcpCheck } from "../../db/schema.js";
 import { sectorSheetRows, type SheetRow } from "../tiering.js";
@@ -290,7 +290,8 @@ export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRo
     const leaderRows = await db
       .select({ data: records.data })
       .from(records)
-      .where(and(eq(records.companyId, row.companyId), eq(records.type, "leader")));
+      .where(and(eq(records.companyId, row.companyId), eq(records.type, "leader")))
+      .orderBy(records.createdAt, records.id);
     const leaders = leaderRows
       .map((r) => r.data as Record<string, unknown>)
       .filter((d) => typeof d["name"] === "string")
@@ -328,7 +329,7 @@ export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRo
       .where(and(eq(documents.companyId, row.companyId), eq(documents.path, "financials/brochure-item-5.md")));
     const brochureDate = /\((\d{4}-\d{2}-\d{2})[),]/.exec(brochureDocs[brochureDocs.length - 1]?.title ?? "")?.[1] ?? "";
     const feeSummary = (textOf("ria.fee_schedule").trim() || textOf("firm.fee_schedule").trim()).slice(0, 120);
-    const steps = await db.select().from(riaStepRuns).where(and(eq(riaStepRuns.sectorId, sectorId), eq(riaStepRuns.companyId, row.companyId)));
+    const steps = await db.select().from(riaStepRuns).where(and(eq(riaStepRuns.sectorId, sectorId), eq(riaStepRuns.companyId, row.companyId), inArray(riaStepRuns.step, [...RIA_STEPS])));
     const gaps = steps.filter((s) => s.status !== "done").map((s) => `${s.step}: ${s.reason || s.status}`);
     const pending = RIA_STEPS.filter((step) => !steps.some((s) => s.step === step));
     if (pending.length) gaps.push(`Pending: ${pending.join(", ")}`);
