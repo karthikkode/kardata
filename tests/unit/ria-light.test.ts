@@ -93,6 +93,12 @@ describe("opsPrompt (B5)", () => {
 
 
 describe("teamLinks (B6)", () => {
+  it("prefers real team pages after generic about links, including nested anchor labels", () => {
+    const html = '<a href="/about">About</a><a href="/who-we-are">Who we are</a><a href="/our-firm">Our firm</a><a href="/team"><span>Our Team</span></a><a href="/team/management"><b>Leadership</b></a><a href="https://elsewhere.example/team">Team</a>';
+    expect(teamLinks(html, "https://x.example/")).toEqual([
+      "https://x.example/team/management", "https://x.example/team", "https://x.example/about",
+    ]);
+  });
   it("finds team/about links only", () => {
     const html = `<a href="/team">Our Team</a><a href="/careers">Careers</a><a href="https://x.example/about-us">About</a>`;
     expect(teamLinks(html, "https://x.example/")).toEqual(["https://x.example/team", "https://x.example/about-us"]);

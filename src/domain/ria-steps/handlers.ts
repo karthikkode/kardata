@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { and, asc, eq, inArray } from "drizzle-orm";
+import { load } from "cheerio";
 import type { Db } from "../../db/client.js";
 import { companies, documents, facts, factsCurrent, records, researchRuns, sectorCompanies } from "../../db/schema.js";
 import { DEFAULT_ENDPOINTS } from "../../collect/collectors/types.js";
@@ -416,20 +417,25 @@ export function createOpsReadStep(call: ExtractorCall = dockerExtractorCall): St
 // ---- B6: contacts ----
 
 export function teamLinks(html: string, base: string): string[] {
-  const out: string[] = [];
-  for (const m of html.matchAll(/<a[^>]+href="([^"]+)"[^>]*>([^<]{0,60})<\/a>/gi)) {
-    const href = m[1] ?? "";
-    const label = `${href} ${m[2] ?? ""}`.toLowerCase();
-    if (!/(team|people|about|leadership|our-firm|who-we-are)/.test(label)) continue;
+  const $ = load(html);
+  const candidates = new Map<string, number>();
+  const host = new URL(base).hostname.replace(/^www\./, "");
+  $("a[href]").each((_i, el) => {
+    const href = $(el).attr("href") ?? "";
+    const label = `${href} ${$(el).text()}`.toLowerCase();
+    if (!/(team|people|about|leadership|our-firm|who-we-are)/.test(label)) return;
     try {
-      const url = new URL(href, base).toString();
-      if (!out.includes(url)) out.push(url);
+      const url = new URL(href, base);
+      if (!/^https?:$/.test(url.protocol) || url.hostname.replace(/^www\./, "") !== host) return;
+      url.hash = "";
+      const rank = /leadership|management/.test(label) ? 0 : /team|people/.test(label) ? 1 : 2;
+      const key = url.toString();
+      candidates.set(key, Math.min(candidates.get(key) ?? rank, rank));
     } catch {
       // Bad href: skip.
     }
-    if (out.length >= 3) break;
-  }
-  return out;
+  });
+  return [...candidates].sort((a, b) => a[1] - b[1]).slice(0, 3).map(([url]) => url);
 }
 
 export const PEOPLE_SCHEMA = JSON.stringify({
