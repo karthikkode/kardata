@@ -346,6 +346,7 @@ describe("signals step (B7)", () => {
       facts: [
         { key: "ria.fee_family_grouping", value: true, sourceIds: [sourceId] },
         { key: "ria.fee_negotiable", value: true, sourceIds: [sourceId] },
+        { key: "ria.fee_types", value: ["percentage_of_aum", "flat"], sourceIds: [sourceId] },
         { key: "firm.custodians", value: "Fidelity, Charles Schwab", sourceIds: [sourceId] },
         { key: "firm.regulatory_aum", value: 100_000_000, asOf: "2024-01-01", sourceIds: [sourceId] },
         { key: "firm.regulatory_aum", value: 130_000_000, asOf: "2025-01-01", sourceIds: [sourceId] },

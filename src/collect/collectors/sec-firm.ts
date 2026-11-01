@@ -1,4 +1,6 @@
 import { inflateSync } from "node:zlib";
+import { pdfText, pdfTextItems } from "../../lib/sec/pdf-text.js";
+import { parseScheduleA, type ScheduleAEntry } from "../../lib/sec/schedule-a.js";
 import { addFacts } from "../../domain/research/facts.js";
 import { upsertRecords } from "../../domain/research/records.js";
 import type { Collector, CollectorCtx } from "./types.js";
@@ -143,11 +145,21 @@ export const secFirmCollector: Collector = {
       userAgent: SEC_FIRM_USER_AGENT,
     });
     let filingText = "";
+    let scheduleA: ScheduleAEntry[] = [];
     if (pdf.source.status === "ok" && pdf.body) {
       sourceIds.push(pdf.source.id);
-      filingText = extractPdfText(pdf.body);
+      try {
+        scheduleA = parseScheduleA(await pdfTextItems(pdf.body));
+        filingText = await pdfText(pdf.body);
+      } catch {
+        filingText = extractPdfText(pdf.body);
+      }
+      if (filingText === "") filingText = extractPdfText(pdf.body);
     }
-    const leaders = parseLeaders(filingText);
+    const leaders: { name: string; title: string; titleSince?: string | null }[] =
+      scheduleA.length > 0
+        ? scheduleA.map((e) => ({ name: e.name, title: e.title, titleSince: e.titleSince }))
+        : parseLeaders(filingText);
     const custodians = custodianSnippet(filingText);
     const disclosure = hit.firm_ia_disclosure_fl ?? hit.firm_disclosure_fl ?? null;
     const lines = [
@@ -185,7 +197,7 @@ export const secFirmCollector: Collector = {
         createdBy: `collector:${COLLECTOR}`,
         records: leaders.map((l) => ({
           type: "leader",
-          data: { name: l.name, title: l.title },
+          data: { name: l.name, title: l.title, ...(l.titleSince ? { titleSince: l.titleSince } : {}) },
           sourceIds,
           quote: `${l.name} — ${l.title}`,
           quoteSourceId: sourceIds[0] ?? "",

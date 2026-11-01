@@ -475,6 +475,14 @@ async function scheduleAContact(db: Db, companyId: string): Promise<{ name: stri
 export function createContactsStep(call: ExtractorCall = dockerExtractorCall): StepHandler {
   return async (db, _sectorId, companyId) => {
     const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
+    // Team-page people already stored: no new fetch or AI call.
+    const stored = await db
+      .select({ id: records.id })
+      .from(records)
+      .where(and(eq(records.companyId, companyId), eq(records.type, "leader"), eq(records.createdBy, "extractor:ria_contacts")));
+    if (stored.length > 0) {
+      return { status: "done", reason: `${stored.length} people from team page (stored)`, inputHash: company?.website ?? null };
+    }
     if (!company?.website) {
       const officer = await scheduleAContact(db, companyId);
       return officer
@@ -595,7 +603,7 @@ export function computeSignals(input: {
     outside_managers: input.outsideManagers,
     alternatives: input.alternatives,
     custody_work: input.custodyWork,
-    fee_complexity: feeSignals >= 2,
+    fee_complexity: feeSignals >= 3,
     fee_problem: input.disclosureFee,
     tool_sprawl: input.systemCount >= 2,
     recent_deal: false,
@@ -743,9 +751,22 @@ export const signalsStep: StepHandler = async (db, sectorId, companyId) => {
     (accountsPer !== null && accountsPer >= thresholds.accountsP75) || (clientsPer !== null && clientsPer >= thresholds.clientsP75);
 
   const item9 = await brochureItemText(db, companyId, "9");
-  const disclosureFee =
-    boolOf("firm.fee_problem") ||
-    (textOf("firm.disclosure_flag") === "Y" && item9 !== null && /fee|refund|billing/i.test(item9.text));
+  // Real issues only: a fee/billing matter tied to a regulator action in
+  // Item 9, or a stored fee-problem fact. A plain disclosure flag or the
+  // ordinary Item 5 refund-of-prepaid-fees sentence does not count.
+  const item9FeeAction =
+    item9 !== null &&
+    /fee|billing|overcharg|refund/i.test(item9.text) &&
+    /order|sanction|fine|penalt|consent|willful|violat|deficien|regulator|commission|censure|suspend/i.test(item9.text);
+  const disclosureFee = boolOf("firm.fee_problem") || item9FeeAction;
+  let feeProblemExcerpt = "";
+  if (item9FeeAction && item9) {
+    const sentence = item9.text
+      .replace(/\s+/g, " ")
+      .split(/(?<=[.!?])\s+/)
+      .find((s) => /fee|billing|overcharg|refund/i.test(s) && /order|sanction|fine|penalt|consent|willful|violat|deficien|regulator|commission|censure|suspend/i.test(s));
+    feeProblemExcerpt = sentence ? sentence.slice(0, 220) : "";
+  }
   const signals = computeSignals({
     familyGrouping: boolOf("ria.fee_family_grouping"),
     negotiable: boolOf("ria.fee_negotiable"),
@@ -778,7 +799,7 @@ export const signalsStep: StepHandler = async (db, sectorId, companyId) => {
     alternatives: (numOf("firm.private_fund_count") ?? 0) > 0 ? `${numOf("firm.private_fund_count")} private funds (Schedule D)` : "private funds / alternatives per brochure",
     custody_work: boolOf("ria.custody_sloa") ? "standing letters of authorization" : "surprise custody examination",
     fee_complexity: textOf("ria.fee_schedule") ?? "fee terms per brochure Item 5",
-    fee_problem: "fee/billing disclosure in Part 1 Item 9 or brochure Item 9",
+    fee_problem: feeProblemExcerpt !== "" ? `Item 9: ${feeProblemExcerpt}` : "fee/billing problem in Part 1 disclosures",
     tool_sprawl: [...systemNames.values()].join(", "),
     recent_deal: "",
     ops_hiring: "",

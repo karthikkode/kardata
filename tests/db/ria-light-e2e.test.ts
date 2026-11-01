@@ -128,7 +128,7 @@ describe("synthetic RIA sector through the light steps (B9)", () => {
           fee_schedule: "tiered 1.00% to 0.50%",
           family_grouping: true,
           negotiable: true,
-          fee_types: ["percentage_of_aum"],
+          fee_types: ["percentage_of_aum", "flat"],
           minimums: "",
           billing: "advance",
           proration: true,
