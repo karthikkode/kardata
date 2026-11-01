@@ -219,11 +219,16 @@ export const RIA_HEADER = [
   ...TRACKING_COLUMNS,
 ];
 
-export function riaTopSignals(check: CompanyIcpCheck): { top: string[]; lead: string } {
+export function riaTopSignals(check: CompanyIcpCheck, groupFrequency?: Map<string, number>): { top: string[]; lead: string } {
   const results = (check.results as { signals?: BucketResult[] }).signals ?? [];
   const evidence = new Map((check.evidence as EvidenceItem[]).map((e) => [e.ref, e]));
   const counted = results.filter((s) => s.counted);
+  // Lead = the firm's rarest counted signal (frequency over all eligible
+  // firms of its group); the fixed priority only breaks ties.
   counted.sort((a, b) => {
+    const fa = groupFrequency?.get(a.key) ?? 0;
+    const fb = groupFrequency?.get(b.key) ?? 0;
+    if (fa !== fb) return fa - fb;
     const ia = (RIA_LEAD_PRIORITY as readonly string[]).indexOf(a.key);
     const ib = (RIA_LEAD_PRIORITY as readonly string[]).indexOf(b.key);
     return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
@@ -242,12 +247,33 @@ export function riaTopSignals(check: CompanyIcpCheck): { top: string[]; lead: st
   };
 }
 
-function signalsWithQuotes(check: CompanyIcpCheck): string[] {
-  return riaTopSignals(check).top;
-}
-
 export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRow[]> {
   const base = await sectorSheetRows(db, sectorId);
+  // Group signal frequencies (over checked firms of each group) for the
+  // rarest-signal lead.
+  const checks = new Map<string, CompanyIcpCheck | null>();
+  for (const row of base) checks.set(row.companyId, await latestIcpCheck(db, row.companyId, sectorId));
+  const freqByGroup = new Map<string, Map<string, number>>();
+  for (const row of base) {
+    const check = checks.get(row.companyId);
+    if (!check) continue;
+    const denom = (freqByGroup.get(row.tier)?.get("__n") ?? 0) + 1;
+    const map = freqByGroup.get(row.tier) ?? new Map<string, number>();
+    map.set("__n", denom);
+    for (const s of ((check.results as { signals?: BucketResult[] }).signals ?? [])) {
+      if (s.counted) map.set(s.key, (map.get(s.key) ?? 0) + 1);
+    }
+    freqByGroup.set(row.tier, map);
+  }
+  const groupFrequency = (tier: string): Map<string, number> => {
+    const map = freqByGroup.get(tier);
+    const out = new Map<string, number>();
+    if (!map) return out;
+    const n = map.get("__n") ?? 0;
+    if (n <= 0) return out;
+    for (const [k, v] of map) if (k !== "__n") out.set(k, v / n);
+    return out;
+  };
   const rows: RiaSheetRow[] = [];
   for (const row of base) {
     const [company] = await db
@@ -262,7 +288,7 @@ export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRo
       .map((r) => r.data as Record<string, unknown>)
       .filter((d) => typeof d["name"] === "string")
       .map((d) => ({ name: String(d["name"]), title: String(d["title"] ?? d["role"] ?? "") }));
-    const check = await latestIcpCheck(db, row.companyId, sectorId);
+    const check = checks.get(row.companyId) ?? null;
     const contact = pickContact(leaders, row.tier);
     const factRows = await db.select().from(factsCurrent).where(eq(factsCurrent.companyId, row.companyId));
     const byKey = new Map(factRows.map((f) => [f.key, f]));
@@ -301,8 +327,8 @@ export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRo
       group: row.tier,
       layer: row.layer,
       score: row.score,
-      signals: check ? signalsWithQuotes(check) : [],
-      leadSignal: check ? riaTopSignals(check).lead : "",
+      signals: check ? riaTopSignals(check, groupFrequency(row.tier)).top : [],
+      leadSignal: check ? riaTopSignals(check, groupFrequency(row.tier)).lead : "",
       contactName: contact?.name ?? "",
       contactTitle: contact?.title ?? "",
       phone: company?.phone ?? "",

@@ -24,6 +24,7 @@ export const RIA_SIGNAL_KEYS = [
 
 /** Sheet order for the top-3 display and the lead (call-opener) signal. */
 export const RIA_LEAD_PRIORITY = [
+  "regulatory_disclosure",
   "fee_problem",
   "recent_deal",
   "outside_managers",
@@ -115,6 +116,12 @@ const RIA_RULES_LIST = [
     label: "Custody work",
     question: "Custody work beyond safekeeping: standing letters of authorization, third-party money movement, surprise exams? Quote Item 15.",
     routes: [{ factKeys: ["ria.custody_sloa", "ria.custody_exam"] }],
+  },
+  {
+    key: "regulatory_disclosure",
+    label: "Regulatory disclosure",
+    question: "Does Part 1 Item 11 report any disclosure event (any Item 11 answer Yes)?",
+    routes: [{ factKeys: ["firm.regulatory_disclosure"] }],
   },
   {
     key: "fee_problem",

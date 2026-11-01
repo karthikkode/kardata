@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
 import { harnessSettings, type RiaStep } from "../../db/schema.js";
-import { quotaSnapshotWeeklyPct } from "../quota/breaker.js";
+import { quotaEarlyTripRatioGet, quotaSnapshotWeeklyPct } from "../quota/breaker.js";
 import { eligibleCompanyIds, recordStep, stepState, type StepOutcome } from "./status.js";
 
 /**
@@ -80,7 +80,8 @@ export async function runRiaStep(
       }
       if (AI_STEPS.has(input.step)) {
         const snap = await quotaSnapshotWeeklyPct(db);
-        if (snap.weeklyPct !== null && snap.weeklyPct >= 90) {
+        const { ratio } = await quotaEarlyTripRatioGet(db);
+        if (snap.weeklyPct !== null && snap.weeklyPct >= ratio * 100) {
           outcome.stopped = "quota";
           return;
         }

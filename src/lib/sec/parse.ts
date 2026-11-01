@@ -44,6 +44,7 @@ export interface SecCompany {
   privateFundCount: number | null;
   pensionClients: number | null;
   trustClients: number | null;
+  item11Disclosure: boolean;
   compensationTypes: string[];
   registrationStatus: string | null;
   filingDate: string | null;
@@ -158,6 +159,9 @@ export function parseSecCsv(text: string): SecParseResult {
       }
       return null;
     };
+    const item11Disclosure = Object.keys(raw).some(
+      (h) => (h === "11" || /^11[A-H]/.test(h)) && (raw[h] ?? "").trim().toUpperCase() === "Y",
+    );
     const otherOffices = firstCount(["Number of Other Offices", "1F(1)", "1F", "Other Offices"]);
     const offices = otherOffices === null ? null : otherOffices + 1;
     const privateFundCount = firstCount(["Count of Private Funds - 7B(1)", "7B(1)", "Number of Private Funds", "7B"]);
@@ -216,6 +220,7 @@ export function parseSecCsv(text: string): SecParseResult {
       privateFundCount,
       pensionClients,
       trustClients,
+      item11Disclosure,
       compensationTypes,
       registrationStatus: clean(get("SEC Current Status")),
       filingDate: parseSecDate(get("Latest ADV Filing Date")),

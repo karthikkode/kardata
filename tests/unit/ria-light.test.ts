@@ -89,7 +89,7 @@ describe("computeSignals (B7)", () => {
     outsideManagers: false,
     alternatives: false,
     custodyWork: false,
-    disclosureFee: false,
+    regulatoryDisclosure: false,
     systemCount: 0,
   };
 
@@ -109,8 +109,9 @@ describe("computeSignals (B7)", () => {
   });
 
   it("ops signals and score", () => {
-    const s = computeSignals({ ...base, custodianCount: 2, heavyBook: true, serviceCount: 3, outsideManagers: true, alternatives: true, custodyWork: true, disclosureFee: true, systemCount: 2 });
-    expect(s).toMatchObject({ multi_custodian: true, heavy_book: true, many_services: true, outside_managers: true, alternatives: true, custody_work: true, fee_problem: true, tool_sprawl: true, recent_deal: false, ops_hiring: false });
+    const s = computeSignals({ ...base, custodianCount: 2, heavyBook: true, serviceCount: 3, outsideManagers: true, alternatives: true, custodyWork: true, regulatoryDisclosure: true, systemCount: 2 });
+    expect(s).toMatchObject({ multi_custodian: true, heavy_book: true, many_services: true, outside_managers: true, alternatives: true, custody_work: true, regulatory_disclosure: true, tool_sprawl: true, recent_deal: false, ops_hiring: false });
+    expect("fee_problem" in s).toBe(false);
     expect(s.score).toBe(8);
   });
 
