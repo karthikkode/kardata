@@ -86,7 +86,7 @@ export function splitBrochureItems(text: string): Record<string, string> {
   // Item headings onto one line before locating body sections.
   const normalized = text.replace(/\r/g, "")
     .replace(/\b([A-Z])\s*\n\s*([A-Z]{2,})/g, "$1$2")
-    .replace(/\bITEM\s+(\d{1,2})[.:]?\s*\n\s*/gi, "Item $1 ");
+    .replace(/^[ \t]*ITEM\s+(\d{1,2})[.:]?\s*\n\s*/gim, "Item $1 ");
   const marks = brochureMarks(normalized);
   const out: Record<string, string> = {};
   for (let i = 0; i < marks.length; i++) {
