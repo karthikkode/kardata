@@ -3,7 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import type { DbHandle } from "../../src/db/client.js";
 import { companies, companyJobs } from "../../src/db/schema.js";
-import { quotaBreakerGet } from "../../src/domain/quota/breaker.js";
+import { quotaBreakerGet, quotaEarlyTripRatioSet } from "../../src/domain/quota/breaker.js";
 import { startCompanyJob } from "../../src/runs/company.js";
 import {
   createQuotaMonitor,
@@ -97,6 +97,21 @@ describe("quota monitor", () => {
     expect(trip.resumeAt).toBe("2026-10-26T00:00:00.000Z");
     const [job] = await handle.db.select().from(companyJobs).where(eq(companyJobs.id, jobId));
     expect(job?.status).toBe("paused");
+  });
+
+  it("honours a 100% weekly stop while retaining the five-hour stop", async () => {
+    await quotaEarlyTripRatioSet(handle.db, 1);
+    const monitor = monitorWith(reading({ weeklyPct: 99 }), [reading({ weeklyPct: 100 })]);
+    await monitor.poll();
+    expect((await quotaBreakerGet(handle.db)).tripped).toBe(false);
+    await monitor.poll();
+    expect(await quotaBreakerGet(handle.db)).toMatchObject({ tripped: true, resumeAt: "2026-10-26T00:00:00.000Z" });
+  });
+
+  it("still halts at the five-hour threshold when the weekly stop is 100%", async () => {
+    await quotaEarlyTripRatioSet(handle.db, 1);
+    await monitorWith(reading({ weeklyPct: 96, fivePct: 95 })).poll();
+    expect(await quotaBreakerGet(handle.db)).toMatchObject({ tripped: true, resumeAt: "2026-10-24T00:07:00.000Z" });
   });
 
   it("a null reading changes nothing", async () => {

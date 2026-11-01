@@ -3,7 +3,7 @@ import path from "node:path";
 import { eq, sql } from "drizzle-orm";
 import type { Db } from "../db/client.js";
 import { companyJobs, harnessSettings } from "../db/schema.js";
-import { quotaBreakerGet } from "../domain/quota/breaker.js";
+import { quotaBreakerGet, quotaEarlyTripRatioGet } from "../domain/quota/breaker.js";
 import { tripQuotaBreaker } from "./company.js";
 import { checkpointSet, pipelinePausedGet } from "./settings.js";
 
@@ -163,8 +163,10 @@ export function createQuotaMonitor(db: Db, deps: QuotaMonitorDeps = {}): QuotaMo
     if ((await quotaBreakerGet(db)).tripped) return;
     const { fivePct, fiveResetAt, weeklyPct, weeklyResetAt } = reading;
     const freezeWanted = (fivePct ?? 0) >= QUOTA_FREEZE_PCT || (weeklyPct ?? 0) >= QUOTA_FREEZE_PCT;
+    const { ratio } = await quotaEarlyTripRatioGet(db);
+    const weeklyHaltPct = Math.max(QUOTA_HALT_PCT, Math.round(ratio * 100));
     const haltWindow =
-      (weeklyPct ?? 0) >= QUOTA_HALT_PCT
+      (weeklyPct ?? 0) >= weeklyHaltPct
         ? { name: "weekly", resetAt: weeklyResetAt }
         : (fivePct ?? 0) >= QUOTA_HALT_PCT
           ? { name: "5h", resetAt: fiveResetAt }
