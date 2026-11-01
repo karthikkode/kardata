@@ -94,7 +94,7 @@ Don't tell them it's slow or inefficient. Ask questions until they work the cost
 
 1. **Mirror their exact words** ("Boots sends one format, another retailer sends another…").
 2. "That's exactly what I work on."
-3. **What they get in 30 minutes (D-60).** Promise what they'll get, never proof you don't have ("a real case study").
+3. **What they get in 30 minutes (D-60).** Promise what they'll get. The only proof to mention is the insurance case study, with its exact numbers (`outreach-email.md`); never invent other proof.
 4. **Two specific slots in their time zone**, said plainly ("UK time", "Mountain"). If you don't know the zone, confirm
    it while scheduling.
 5. **Respect their timing.** In peak season or right after a big event, offer slots after it. Don't fight for this
@@ -137,7 +137,7 @@ calls end here, and a polite exit keeps the door open.
   "is this a dashboard thing?"); "How's your day?"; loaded words like "growing aggressively".
 - **Questions:** stacking questions; "Would that help?" questions; reusing a prepared question after a fresh clue;
   asking about their decision-making directly.
-- **Claims:** absolute or invented claims ("20 hours", "70%"); promising a case study you don't have.
+- **Claims:** absolute or invented claims ("20 hours", "70%") about them; any proof other than the insurance case study.
 - **Pitching:** pitching too early after hearing something useful; criticising their hire or agency.
 - **Closing:** a generic close instead of their words; offering slots in their busiest week.
 - **Filler and hedging:** "I can really understand your concern"; "maybe… if possible… does that work?".
