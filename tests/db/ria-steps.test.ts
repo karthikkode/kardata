@@ -32,6 +32,14 @@ describe("RIA step status (B1)", () => {
     expect(view.steps.firm_data).toMatchObject({ done: 1, pending: 1 });
     expect(view.steps.brochure.gap).toBe(1);
     expect(view.steps.brochure.gapReasons).toEqual({ "no brochure": 1 });
+    const subset = await riaStatus(handle.db, sector.id, [p.id, p.id, "00000000-0000-4000-8000-000000000000"]);
+    expect(subset.eligible).toBe(1);
+    expect(subset.steps.firm_data).toMatchObject({ done: 1, pending: 0 });
+    expect(subset.details).toHaveLength(2);
+    expect(subset.details?.find((r) => r.step === "brochure")).toMatchObject({ companyId: p.id, reason: "no brochure" });
+    expect(subset.preflight.eligible).toBe(2);
+    expect((await riaStatus(handle.db, sector.id, [])).details).toEqual([]);
+    expect(view.details).toBeUndefined();
     await recordStep(handle.db, { sectorId: sector.id, companyId: p.id, step: "ops_read", status: "failed", reason: "extractor down" });
     const view2 = await riaStatus(handle.db, sector.id);
     expect(view2.steps.ops_read.failedReasons).toEqual({ "extractor down": 1 });
