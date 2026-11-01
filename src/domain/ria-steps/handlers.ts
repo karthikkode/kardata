@@ -197,10 +197,11 @@ export const brochureStep: StepHandler = async (db, _sectorId, companyId) => {
       url: pdfUrl,
       userAgent: SEC_UA,
       accept: "application/pdf",
+      maxBytes: 25 * 1024 * 1024,
       privateHostAllowlist: privateHosts,
     });
     if (res.source.status !== "ok" || !res.body) {
-      return finish({ status: "gap", reason: `brochure fetch error (HTTP ${res.source.httpStatus ?? res.source.status})`, inputHash: String(choice.versionId) });
+      return finish({ status: "gap", reason: `brochure fetch error (${res.source.error ?? `HTTP ${res.source.httpStatus ?? res.source.status}`})`, inputHash: String(choice.versionId) });
     }
     let text: string;
     try {

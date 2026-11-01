@@ -148,11 +148,11 @@ describe("brochure step (B4)", () => {
   const recent = new Date(Date.now() - 30 * 86_400_000);
   const recentStr = `${recent.getMonth() + 1}/${recent.getDate()}/${recent.getFullYear()}`;
 
-  it("stores Item documents from the IAPD brochure PDF", async () => {
+  it("stores Item documents from a brochure larger than the default fetch limit", async () => {
     site.routes.set("/search/firm/900001", iapd({ part2ExemptFlag: "N", brochuredetails: [detail(424242, "FIRM BROCHURE", recentStr)] }));
     site.routes.set("/IAPD/Content/Common/crd_iapd_Brochure.aspx", (_req, res) => {
       res.writeHead(200, { "content-type": "application/pdf" });
-      res.end(fakePdf(FAKE_PDF_TEXT));
+      res.end(Buffer.concat([fakePdf(FAKE_PDF_TEXT), Buffer.alloc(5 * 1024 * 1024, 0x20)]));
     });
     const companyId = await makeCompany();
     const out = await brochureStep(handle.db, randomUUID(), companyId);
