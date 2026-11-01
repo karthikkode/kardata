@@ -451,11 +451,12 @@ export const PEOPLE_SCHEMA = JSON.stringify({
 
 const SCHEDULE_A_ORDER: { label: string; pattern: RegExp }[] = [
   { label: "COO / head of operations", pattern: /chief operating|operating officer|\bcoo\b|head of operations|director of operations|operations director|(?:vp|vice president)[^.]{0,30}operations|operations manager/i },
-  { label: "CCO", pattern: /chief compliance officer|\bcco\b/i },
+  { label: "CCO", pattern: /compliance officer|\bcco\b/i },
   { label: "CEO / president", pattern: /chief executive officer|\bceo\b|president|managing partner|principal/i },
 ];
 
 export function pickScheduleAContact(leaders: { name: string; title: string }[]): { name: string; title: string } | null {
+  leaders = leaders.filter((l) => l.name.replace(/[^\p{L}]/gu, "").length >= 3);
   for (const { pattern } of SCHEDULE_A_ORDER) {
     const found = leaders.find((l) => pattern.test(l.title));
     if (found) return found;

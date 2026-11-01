@@ -162,10 +162,12 @@ export function timeZoneForState(state: string | null): string {
 }
 
 const OPS_TITLE = /\b(coo|chief operating|director of operations|head of operations|operations)\b/i;
-const CCO_TITLE = /\b(chief compliance|cco)\b/i;
+const CCO_TITLE = /\b(compliance officer|chief compliance|cco)\b/i;
 const FOUNDER_TITLE = /\b(founder|managing partner|president|ceo|owner)\b/i;
 
 export function pickContact(leaders: { name: string; title: string }[], group: string): { name: string; title: string } | null {
+  // A two-letter fragment (e.g. "CO" from "CO-FOUNDER") is not a name.
+  leaders = leaders.filter((l) => l.name.replace(/[^\p{L}]/gu, "").length >= 3);
   const order = group === "R" ? [OPS_TITLE, CCO_TITLE, FOUNDER_TITLE] : [FOUNDER_TITLE, OPS_TITLE];
   for (const pattern of order) {
     const found = leaders.find((l) => pattern.test(l.title));

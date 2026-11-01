@@ -112,6 +112,8 @@ describe("RIA ICP (Stage 5.7 B6)", () => {
       { name: "A Founder", title: "Founder" },
       { name: "B Ops", title: "Director of Operations" },
     ];
+    expect(pickContact([{ name: "CO", title: "FOUNDER" }], "R")).toBeNull();
+    expect(pickContact([{ name: "A Founder", title: "Founder" }, { name: "B Compliance", title: "Manager Compliance Officer" }], "R")?.name).toBe("B Compliance");
     expect(pickContact(leaders, "R")?.name).toBe("B Ops");
     expect(pickContact(leaders, "P")?.name).toBe("A Founder");
   });
