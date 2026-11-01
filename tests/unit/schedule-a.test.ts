@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseScheduleA } from "../../src/lib/sec/schedule-a.js";
+import { cleanScheduleATitle, parseScheduleA } from "../../src/lib/sec/schedule-a.js";
 import type { PdfTextItem } from "../../src/lib/sec/pdf-text.js";
 
 const it_ = (page: number, x: number, y: number, str: string): PdfTextItem => ({ page, x, y, str });
@@ -60,5 +60,18 @@ describe("parseScheduleA layout 3: entity owners mixed with officers", () => {
 
   it("returns nothing without a Schedule A heading", () => {
     expect(parseScheduleA([it_(1, 40, 700, "Item 1 Identifying Information")])).toEqual([]);
+  });
+
+  it("strips ownership-column debris from titles", () => {
+    expect(cleanScheduleATitle("I CHIEF COMPLIANCE OFFICER")).toBe("CHIEF COMPLIANCE OFFICER");
+    expect(cleanScheduleATitle("DE MANAGING MEMBER")).toBe("MANAGING MEMBER");
+    expect(cleanScheduleATitle("I OWNER, PRINCIPAL, DIRECTOR")).toBe("OWNER, PRINCIPAL, DIRECTOR");
+    expect(cleanScheduleATitle("Chief Operating Officer")).toBe("Chief Operating Officer");
+    const items: PdfTextItem[] = [
+      ...heading(),
+      it_(3, 40, 660, "Full Legal Name"), it_(3, 240, 660, "Title or Status"), it_(3, 430, 660, "Date Title Acquired"),
+      it_(3, 40, 630, "Doe, Jane A"), it_(3, 240, 630, "I CHIEF COMPLIANCE OFFICER"), it_(3, 430, 630, "01/15/2019"),
+    ];
+    expect(parseScheduleA(items)[0]?.title).toBe("CHIEF COMPLIANCE OFFICER");
   });
 });

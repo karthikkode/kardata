@@ -33,16 +33,15 @@ Revenue, if needed, is estimated as AUM × 0.8% and always labelled an estimate.
 | `alternatives` | Private funds or alternatives advised | Brochure, Part 1 Schedule D count |
 | `custody_work` | Standing letters of authorization, third-party money movement, or surprise custody exams | Brochure Item 15 |
 | `fee_complexity` | All three structural traits: family grouping, two or more fee types, and advance billing with proration or refunds. Negotiable wording is boilerplate and never counts | Brochure Item 5 |
-| `fee_problem` | A real fee issue only: a fee-related Part 1 disclosure, or Item 9 text tying fees/billing/overcharging/refunds to a regulator action (order, fine, sanction, consent, deficiency). An ordinary Item 5 refund-of-prepaid-fees sentence does not count | Part 1 disclosures, brochure Item 9, SEC orders |
+| `regulatory_disclosure` | Any Part 1 Item 11 disclosure answer is Yes (code only, from the SEC file) | Part 1 Item 11 |
+| `fee_problem` | RETIRED from the light path (never scored, never a lead) until it can be based on Part 1 disclosure answers; deep research only | — |
 | `tool_sprawl` | Two or more distinct named software systems (portfolio, billing, CRM, planning, trading); custodians do not count | Brochure, website |
 | `recent_deal` | Bought, merged with or was bought by another firm in the last 18 months; clients moved over | Deep research only |
 | `ops_hiring` | Job post in the last 6 months for operations, billing, client service or onboarding staff | Deep research only |
 Score = number of signals found. Layer = priority inside the size group: higher score is called first.
 Score 0 is still called (owner calls every company), last. The sheet shows each firm's top 3 signals
-(by lead priority: fee_problem, recent_deal, outside_managers, alternatives,
-multi_custodian, custody_work, ops_hiring, many_services, tool_sprawl, heavy_book, growth,
-fee_complexity — rarer, firm-specific signals lead; boilerplate-driven ones last) with
-quotes, plus a "Lead signal" column naming the strongest one for the call opener.
+ordered by rarity, plus a "Lead signal" column. The lead signal is the firm's rarest
+counted signal (frequency over all eligible firms of its group, P or R), for the call opener.
 
 **Light path (Stage 5.8).** The light steps (firm data → brochure → ops read → contacts → signals)
 compute these signals from stored facts in code, with no research run. The ops read is one model call

@@ -14,6 +14,18 @@ export interface ScheduleAEntry {
 }
 
 const DATE_RE = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
+const OWNERSHIP_CODE = /^(I|DE|D|IE|IO|INDIRECT|DIRECT)\s+(.+)$/;
+
+/** Titles pick up the Schedule A ownership column ("I", "DE", …) as debris. */
+export function cleanScheduleATitle(title: string): string {
+  let out = title.replace(/\s+/g, " ").trim();
+  for (;;) {
+    const m = OWNERSHIP_CODE.exec(out);
+    if (!m || !m[2]) break;
+    out = m[2].trim();
+  }
+  return out;
+}
 const HEADER_WORDS = /full legal name|title or status|date title|name of owner/i;
 
 interface Line {
@@ -91,7 +103,7 @@ export function parseScheduleA(items: PdfTextItem[]): ScheduleAEntry[] {
   const seen = new Set<string>();
   const push = (name: string, title: string, titleSince: string | null) => {
     const cleanName = name.replace(/\s+/g, " ").trim();
-    const cleanTitle = title.replace(/\s+/g, " ").trim();
+    const cleanTitle = cleanScheduleATitle(title);
     if (cleanName.length < 3 || cleanTitle.length < 2) return;
     if (HEADER_WORDS.test(cleanName) || HEADER_WORDS.test(cleanTitle)) return;
     const key = cleanName.toLowerCase();

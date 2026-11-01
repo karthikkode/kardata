@@ -68,7 +68,15 @@ describe("parseSecCsv Part 1 measures", () => {
     ];
     const text = [header.join(","), ["800001", "Measures LLC", "3", "7", "40", "25", "100"].join(",")].join("\n");
     const { rows } = parseSecCsv(text);
-    expect(rows[0]).toMatchObject({ offices: 4, privateFundCount: 7, pensionClients: 40, trustClients: 25 });
+    expect(rows[0]).toMatchObject({ offices: 4, privateFundCount: 7, pensionClients: 40, trustClients: 25, item11Disclosure: false });
+  });
+
+  it("reads Item 11 disclosure answers", () => {
+    const header = ["Organization CRD#", "Primary Business Name", "11", "11A(1)", "11C(3)", "11H(2)"];
+    const yes = [header.join(","), ["800010", "Disc LLC", "Y", "N", "Y", "N"].join(",")].join("\n");
+    expect(parseSecCsv(yes).rows[0]?.item11Disclosure).toBe(true);
+    const no = [header.join(","), ["800011", "Clean LLC", "N", "N", "N", "N"].join(",")].join("\n");
+    expect(parseSecCsv(no).rows[0]?.item11Disclosure).toBe(false);
   });
 
   it("leaves the new measures null when the columns are absent", () => {

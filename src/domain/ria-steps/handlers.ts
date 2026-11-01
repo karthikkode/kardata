@@ -561,7 +561,7 @@ export interface RiaSignals {
   alternatives: boolean;
   custody_work: boolean;
   fee_complexity: boolean;
-  fee_problem: boolean;
+  regulatory_disclosure: boolean;
   tool_sprawl: boolean;
   recent_deal: boolean;
   ops_hiring: boolean;
@@ -584,7 +584,7 @@ export function computeSignals(input: {
   outsideManagers: boolean;
   alternatives: boolean;
   custodyWork: boolean;
-  disclosureFee: boolean;
+  regulatoryDisclosure: boolean;
   systemCount: number;
 }): RiaSignals {
   // All three structural traits: family grouping, two or more fee types,
@@ -606,7 +606,7 @@ export function computeSignals(input: {
     alternatives: input.alternatives,
     custody_work: input.custodyWork,
     fee_complexity: feeComplexity,
-    fee_problem: input.disclosureFee,
+    regulatory_disclosure: input.regulatoryDisclosure,
     tool_sprawl: input.systemCount >= 2,
     recent_deal: false,
     ops_hiring: false,
@@ -783,23 +783,6 @@ export const signalsStep: StepHandler = async (db, sectorId, companyId) => {
   const heavyBook =
     (accountsPer !== null && accountsPer >= thresholds.accountsP75) || (clientsPer !== null && clientsPer >= thresholds.clientsP75);
 
-  const item9 = await brochureItemText(db, companyId, "9");
-  // Real issues only: a fee/billing matter tied to a regulator action in
-  // Item 9, or a stored fee-problem fact. A plain disclosure flag or the
-  // ordinary Item 5 refund-of-prepaid-fees sentence does not count.
-  const FEE_TERM = /fee|billing|overcharg|refund/i;
-  // Strong regulator-action terms only: "charged" (billed), "consent" or
-  // "settlement" alone are ordinary brochure words and do not count.
-  const ACTION_TERM = /order|sanction|fine|penalt|censure|suspend|revok|cease.and.desist|willful|deficien|consent order|settlement with|settled with|enforcement/i;
-  let feeProblemExcerpt = "";
-  if (item9) {
-    const sentence = item9.text
-      .replace(/\s+/g, " ")
-      .split(/(?<=[.!?])\s+/)
-      .find((s) => FEE_TERM.test(s) && ACTION_TERM.test(s));
-    feeProblemExcerpt = sentence ? sentence.slice(0, 220) : "";
-  }
-  const disclosureFee = boolOf("firm.fee_problem") || feeProblemExcerpt !== "";
   const signals = computeSignals({
     familyGrouping: boolOf("ria.fee_family_grouping"),
     negotiable: boolOf("ria.fee_negotiable"),
@@ -817,7 +800,7 @@ export const signalsStep: StepHandler = async (db, sectorId, companyId) => {
       boolOf("ria.outside_managers") || boolOf("ria.sub_advisers") || boolOf("ria.wrap_programs") || listOf("ria.tamp_providers").length > 0,
     alternatives: boolOf("ria.private_funds") || (numOf("firm.private_fund_count") ?? 0) > 0,
     custodyWork: boolOf("ria.custody_sloa") || boolOf("ria.custody_exam"),
-    disclosureFee,
+    regulatoryDisclosure: boolOf("firm.regulatory_disclosure"),
     systemCount: systemNames.size,
   });
   const observations: Record<string, string> = {
@@ -832,7 +815,7 @@ export const signalsStep: StepHandler = async (db, sectorId, companyId) => {
     alternatives: (numOf("firm.private_fund_count") ?? 0) > 0 ? `${numOf("firm.private_fund_count")} private funds (Schedule D)` : "private funds / alternatives per brochure",
     custody_work: boolOf("ria.custody_sloa") ? "standing letters of authorization" : "surprise custody examination",
     fee_complexity: textOf("ria.fee_schedule") ?? "fee terms per brochure Item 5",
-    fee_problem: feeProblemExcerpt !== "" ? `Item 9: ${feeProblemExcerpt}` : "fee/billing problem in Part 1 disclosures",
+    regulatory_disclosure: "Part 1 Item 11 disclosure answer is Yes",
     tool_sprawl: [...systemNames.values()].join(", "),
     recent_deal: "",
     ops_hiring: "",
