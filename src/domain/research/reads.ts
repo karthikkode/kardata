@@ -801,7 +801,7 @@ export async function blobText(db: Db, sha256: string): Promise<{ text: string; 
   if (!blob) return null;
   const body = gunzipSync(blob.gzip);
   const contentType = blob.contentType ?? "";
-  if (contentType.toLowerCase().includes("application/pdf")) {
+  if (contentType.toLowerCase().includes("application/pdf") || body.subarray(0, 5).toString("ascii") === "%PDF-") {
     return { text: await pdfText(body), contentType };
   }
   const raw = body.toString("utf8");
