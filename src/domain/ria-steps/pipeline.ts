@@ -72,6 +72,7 @@ export async function runRiaPipeline(db: Db, input: { sectorId: string; companyI
           outcomes.push(...await Promise.all([step("ops_read", id), step("contacts", id)]));
           if (outcomes.some((r) => r.stopped)) return;
           outcomes.push(await step("signals", id));
+          if (outcomes.some((r) => r.stopped)) return;
           if (outcomes.some((r) => r.failed)) result.failed += 1;
           else result.completed += 1;
         }

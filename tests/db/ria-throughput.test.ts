@@ -134,3 +134,10 @@ it("does not mistake an overlapping failed read for completed work", async () =>
   const second=runRiaStep(handle.db,args,handlers);release.resolve();
   const result=await Promise.all([first,second]);expect(calls).toBe(1);expect(result.map((r)=>r.failed)).toEqual([1,1]);
 });
+
+it("does not count a firm complete when a late pause prevents its signal refresh", async () => {
+  const f=await setup(1);
+  const handlers:StepHandlers={firm_data:async()=>({status:"done"}),brochure:async()=>({status:"done"}),ops_read:async()=>({status:"done"}),contacts:async()=>{await setRiaStepPaused(handle.db,true);return{status:"done"};},signals:async()=>({status:"done"})};
+  const result=await runRiaPipeline(handle.db,{sectorId:f.sectorId,companyIds:f.ids},handlers);
+  expect(result).toMatchObject({completed:0,failed:0,stopped:"pause"});expect(result.steps.signals?.done).toBe(0);
+});
