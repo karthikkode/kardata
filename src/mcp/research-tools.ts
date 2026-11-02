@@ -416,19 +416,21 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   registerTool(server, db, auth, 
     "source_get",
     {
-      description: "Source metadata plus a paged excerpt of stored text, without fetching again. Returns offset and totalChars.",
+      description: "Source metadata plus a paged excerpt of stored text, without fetching again. Optional pdfPage reads a physical PDF page beyond the default bounded text extraction; offset/totalChars then refer to that page. Without pdfPage, totalChars describes the bounded extracted text, not necessarily the entire PDF.",
       inputSchema: {
         sourceId: z.string().describe("Source UUID"),
         maxChars: z.number().int().optional().describe("1..5000, default 5000"),
         offset: z.number().int().optional().describe("Stored-text character offset, default 0"),
+        pdfPage: z.number().int().min(1).optional().describe("Optional physical PDF page, 1-based; returns pageNumber and totalPages"),
       },
     },
-    async ({ sourceId, maxChars, offset }) =>
+    async ({ sourceId, maxChars, offset, pdfPage }) =>
       wrap(async () => {
         const source = await getSourceExcerpt(db, {
           sourceId,
           maxChars: maxChars ?? undefined,
           offset: offset ?? undefined,
+          pdfPage: pdfPage ?? undefined,
           companyScope: auth.kind === "run" ? auth.companyId : undefined,
         });
         return { summary: `${source.url} (${source.status})`, data: source };
