@@ -41,6 +41,13 @@ w = u.get('window')
 k = u.get('weekly')
 out = {'fivePct': pct(w), 'fiveResetAt': reset(w), 'weeklyPct': pct(k), 'weeklyResetAt': reset(k)}
 if out['fivePct'] is None and out['weeklyPct'] is None:
+    # Types and numeric error codes only: never print keys, messages or tokens.
+    e = d.get('error')
+    code = e.get('code') if isinstance(e, dict) else None
+    code = code if isinstance(code, int) and not isinstance(code, bool) else None
+    def kind(v):
+        return type(v).__name__
+    print('quota-read: missing usage; response=' + kind(d) + '; usage=' + kind(d.get('subs_usage')) + '; window=' + kind(w) + '; weekly=' + kind(k) + '; window_pct=' + kind((w or {}).get('used_percent') if isinstance(w, dict) else None) + '; weekly_pct=' + kind((k or {}).get('used_percent') if isinstance(k, dict) else None) + '; error=' + kind(e) + '; error_code=' + str(code), file=sys.stderr)
     sys.exit(4)
 print(json.dumps(out))
 " || {
