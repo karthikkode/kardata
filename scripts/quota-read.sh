@@ -17,40 +17,7 @@ fi
 curl --fail-with-body -sS -m 20 -X POST https://api.meta.ai/muse-code/key \
   -H "Authorization: Bearer ${TOKEN}" \
   -H 'Content-Type: application/json' \
-  -d '{}' | python3 -c "
-import datetime, json, sys
-try:
-    d = json.load(sys.stdin)
-except Exception:
-    sys.exit(2)
-u = d.get('subs_usage') or {}
-if not isinstance(u, dict):
-    sys.exit(3)
-def pct(w):
-    v = (w or {}).get('used_percent')
-    return v if isinstance(v, int) and 0 <= v <= 100 else None
-def reset(w):
-    v = (w or {}).get('resets_at')
-    if isinstance(v, int) and v > 0:
-        try:
-            return datetime.datetime.fromtimestamp(v, datetime.timezone.utc).isoformat()
-        except Exception:
-            return None
-    return None
-w = u.get('window')
-k = u.get('weekly')
-out = {'fivePct': pct(w), 'fiveResetAt': reset(w), 'weeklyPct': pct(k), 'weeklyResetAt': reset(k)}
-if out['fivePct'] is None and out['weeklyPct'] is None:
-    # Types and numeric error codes only: never print keys, messages or tokens.
-    e = d.get('error')
-    code = e.get('code') if isinstance(e, dict) else None
-    code = code if isinstance(code, int) and not isinstance(code, bool) else None
-    def kind(v):
-        return type(v).__name__
-    print('quota-read: missing usage; response=' + kind(d) + '; usage=' + kind(d.get('subs_usage')) + '; window=' + kind(w) + '; weekly=' + kind(k) + '; window_pct=' + kind((w or {}).get('used_percent') if isinstance(w, dict) else None) + '; weekly_pct=' + kind((k or {}).get('used_percent') if isinstance(k, dict) else None) + '; error=' + kind(e) + '; error_code=' + str(code), file=sys.stderr)
-    sys.exit(4)
-print(json.dumps(out))
-" || {
+  -d '{}' | python3 "$(dirname "$0")/quota-response.py" || {
   echo "quota-read: bad or empty quota response" >&2
   exit 1
 }
