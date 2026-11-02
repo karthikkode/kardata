@@ -6,6 +6,7 @@ import { companyJobs, harnessSettings } from "../db/schema.js";
 import { quotaBreakerGet, quotaEarlyTripRatioGet } from "../domain/quota/breaker.js";
 import { tripQuotaBreaker } from "./company.js";
 import { checkpointSet, pipelinePausedGet } from "./settings.js";
+import { readMuseCliUsage } from "./cli-quota.js";
 
 /**
  * Live quota monitor (Stage 5.2): polls the app account's real 5h/weekly
@@ -102,9 +103,9 @@ async function freezeFlagClear(db: Db): Promise<void> {
 }
 
 /** Production reader: runs scripts/quota-read.sh (usage fields only). */
-export function readQuotaLive(): Promise<QuotaReading | null> {
+export async function readQuotaLive(): Promise<QuotaReading | null> {
   const script = path.join(process.cwd(), "scripts", "quota-read.sh");
-  return new Promise((resolve) => {
+  const reading = await new Promise<QuotaReading | null>((resolve) => {
     execFile(script, { timeout: 60000, maxBuffer: 4096 }, (err, stdout) => {
       if (err) {
         console.error(`quota monitor read failed: ${err.message}`);
@@ -119,6 +120,7 @@ export function readQuotaLive(): Promise<QuotaReading | null> {
       }
     });
   });
+  return reading ?? (await readMuseCliUsage()).reading;
 }
 
 /** Inspect only non-secret account flags; absent usage never becomes zero usage. */
