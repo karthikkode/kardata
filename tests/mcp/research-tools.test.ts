@@ -219,6 +219,12 @@ describe("ingest and document tools", () => {
     const excerpt = dataOf(await call("source_get", { sourceId, maxChars: 100 }));
     expect(excerpt.url).toBe(`${site.baseUrl}/`);
     expect(excerpt.text).toContain("Visible words");
+    const page = dataOf(await call("source_get", { sourceId, offset: 8, maxChars: 5 }));
+    expect(page.text).toBe(String(excerpt.text).slice(8, 13));
+    expect(page.offset).toBe(8);
+    expect(page.totalChars).toBeGreaterThanOrEqual(String(excerpt.text).length);
+    const invalidPage = await call("source_get", { sourceId, offset: -1 });
+    expect(errorOf(invalidPage).code).toBe("invalid_input");
 
     const captured = dataOf(
       await call("source_capture", {

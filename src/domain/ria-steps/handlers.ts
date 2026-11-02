@@ -507,11 +507,16 @@ export function createContactsStep(call: ExtractorCall = dockerExtractorCall): S
     }
     // Team-page people already stored: no new fetch or AI call.
     const stored = await db
-      .select({ id: records.id })
+      .select({ id: records.id, data: records.data })
       .from(records)
       .where(and(eq(records.companyId, companyId), eq(records.type, "leader"), eq(records.createdBy, "extractor:ria_contacts")));
     if (stored.length > 0 && (!previous || previous.inputHash === (company?.website ?? null))) {
-      return { status: "done", reason: `${stored.length} people from team page (stored)`, inputHash: company?.website ?? null };
+      const named = stored.filter((r) => typeof r.data["name"] === "string" && isContactName(r.data["name"]));
+      if (named.length > 0) return { status: "done", reason: `${named.length} people from team page (stored)`, inputHash: company?.website ?? null };
+      const officer = await scheduleAContact(db, companyId);
+      return officer
+        ? { status: "done", reason: `contact from Schedule A officers: ${officer.name} (${officer.title}) - stored team read had no full person name`, inputHash: company?.website ?? null }
+        : { status: "gap", reason: "stored team read has no full person name and no suitable Schedule A officer; original records retained", inputHash: company?.website ?? null };
     }
     if (!company?.website) {
       const officer = await scheduleAContact(db, companyId);
@@ -554,6 +559,7 @@ export function createContactsStep(call: ExtractorCall = dockerExtractorCall): S
       const result = await call({ runId, area: "people_and_ops", prompt, schema: PEOPLE_SCHEMA });
       const json = result.json as { people?: { name?: string; title?: string; quote?: string }[] };
       const people = (json.people ?? []).filter((p) => typeof p.name === "string" && p.name.trim() !== "");
+      const named = people.filter((p) => isContactName(String(p.name)));
       if (people.length > 0) {
         await upsertRecords(db, {
           companyId,
@@ -565,14 +571,15 @@ export function createContactsStep(call: ExtractorCall = dockerExtractorCall): S
             sourceIds: [pageSource as string],
             quote: typeof p.quote === "string" ? p.quote : null,
             quoteSourceId: pageSource,
+            tags: isContactName(String(p.name)) ? [] : ["contact:identity-unresolved"],
           })),
         });
       }
-      if (people.length === 0) {
-        return fallback("team page named no people", result.usage?.inputTokens ?? null);
+      if (named.length === 0) {
+        return fallback("team page provided no full person name; original records retained", result.usage?.inputTokens ?? null);
       }
       await finishRun(db, runId, true);
-      return { status: "done", reason: `${people.length} people from team page`, tokensUsed: result.usage?.inputTokens ?? null, inputHash: company.website };
+      return { status: "done", reason: `${named.length} people from team page`, tokensUsed: result.usage?.inputTokens ?? null, inputHash: company.website };
     } catch (err) {
       await finishRun(db, runId, false);
       throw err;

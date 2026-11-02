@@ -297,7 +297,7 @@ describe("contacts step (B6)", () => {
   it("stores leaders from the team page via one call", async () => {
     site.routes.set("/", (_req, res) => sendText(res, `<html><a href="/team">Our Team</a></html>`));
     site.routes.set("/team", (_req, res) =>
-      sendText(res, `<html><head><style>${".irrelevant { color: red; }".repeat(2000)}</style><script>${"tracking();".repeat(4000)}</script></head><body>${"Meet the team. ".repeat(30)} Jane Test is Chief Operating Officer. John Roe is Founder and Managing Partner.</body></html>`),
+      sendText(res, `<html><head><style>${".irrelevant { color: red; }".repeat(2000)}</style><script>${"tracking();".repeat(4000)}</script></head><body>${"Meet the team. ".repeat(30)} Jane Test is Chief Operating Officer. John Roe is Founder and Managing Partner. Example National Bank owns the firm.</body></html>`),
     );
     const companyId = await makeCompany({ website: `${site.baseUrl}/` });
     const step = createContactsStep(async ({ prompt }) => {
@@ -305,15 +305,36 @@ describe("contacts step (B6)", () => {
       expect(prompt).not.toContain("tracking()");
       expect(prompt).not.toContain(".irrelevant");
       return {
-      json: { people: [{ name: "Jane Test", title: "Chief Operating Officer", quote: "Jane Test is Chief Operating Officer" }] },
+      json: { people: [{ name: "Jane Test", title: "Chief Operating Officer", quote: "Jane Test is Chief Operating Officer" }, { name: "Example National Bank", title: "Owner", quote: "Example National Bank owns the firm" }] },
       usage: { inputTokens: 500, outputTokens: 0, cachedTokens: 0, reasoningTokens: 0, calls: 1 },
       };
     });
     const out = await step(handle.db, randomUUID(), companyId);
     expect(out.status).toBe("done");
     const leaders = await handle.db.select().from(records).where(eq(records.companyId, companyId));
-    expect(leaders).toHaveLength(1);
-    expect(leaders[0]?.data).toMatchObject({ name: "Jane Test" });
+    expect(leaders).toHaveLength(2);
+    expect(leaders.some((r) => r.data["name"] === "Jane Test")).toBe(true);
+    expect(leaders.find((r) => r.data["name"] === "Example National Bank")?.tags).toContain("contact:identity-unresolved");
+  });
+
+  it("keeps partial contact evidence but reports a gap and reuses it without another call", async () => {
+    site.routes.set("/", (_req, res) => sendText(res, `<html><a href="/team">Our Team</a></html>`));
+    site.routes.set("/team", (_req, res) => sendText(res, `<html>${"Meet the team. ".repeat(30)} Sam is Founder.</html>`));
+    const companyId = await makeCompany({ website: `${site.baseUrl}/` });
+    let calls = 0;
+    const step = createContactsStep(async () => {
+      calls += 1;
+      return { json: { people: [{ name: "Sam", title: "Founder", quote: "Sam is Founder" }] }, usage: undefined };
+    });
+    const sectorId = randomUUID();
+    expect((await step(handle.db, sectorId, companyId)).status).toBe("gap");
+    expect((await step(handle.db, sectorId, companyId)).status).toBe("gap");
+    expect(calls).toBe(1);
+    const stored = await handle.db.select().from(records).where(eq(records.companyId, companyId));
+    expect(stored).toHaveLength(1);
+    expect(stored[0]?.data["name"]).toBe("Sam");
+    expect(stored[0]?.sourceIds).toHaveLength(1);
+    expect(stored[0]?.tags).toContain("contact:identity-unresolved");
   });
 
   it("gaps when the firm has no website and no Schedule A officer", async () => {

@@ -334,6 +334,9 @@ export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRo
     const gaps = steps.filter((s) => s.status !== "done").map((s) => `${s.step}: ${s.reason || s.status}`);
     const pending = RIA_STEPS.filter((step) => !steps.some((s) => s.step === step));
     if (pending.length) gaps.push(`Pending: ${pending.join(", ")}`);
+    if (!contact && steps.some((s) => s.step === "contacts" && s.status === "done")) {
+      gaps.push("Named contact unavailable: stored contact records contain no suitable person");
+    }
     if (!feeSummary) {
       const ops = steps.find((s) => s.step === "ops_read");
       gaps.push(ops?.status === "done"
