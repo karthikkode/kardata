@@ -409,7 +409,7 @@ describe("verifyRunExtraction", () => {
   it("saves cited operator-reviewed contact details unverified and preserves existing contact values", async () => {
     const { companyId, runId } = await setup();
     const sourceId = await captured(companyId, runId, "Ada Wells, Founder. Email ada@x.example; office +1 555 0100.");
-    const input = { companyId, runId, createdBy: "owner", records: [{ type: "test_leader", data: { name: "Ada Wells", role: "Founder", email: "ada@x.example", phone: "+1 555 0100" }, sourceIds: [sourceId], tags: ["contact:email-unverified", "contact:phone-unverified"] }] };
+    const input = { companyId, runId, createdBy: "owner", records: [{ type: "test_leader", naturalKey: ["name", "role"], data: { name: "Ada Wells", role: "Founder", email: "ada@x.example", phone: "+1 555 0100" }, sourceIds: [sourceId], tags: ["contact:email-unverified", "contact:phone-unverified"] }] };
     expect((await upsertRecords(handle.db, input))[0]).toMatchObject({ ok: true });
     const [first] = await handle.db.select().from(records).where(eq(records.companyId, companyId));
     expect(first?.data).toMatchObject({ email: "ada@x.example", phone: "+1 555 0100" });
