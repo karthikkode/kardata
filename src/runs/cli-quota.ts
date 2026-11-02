@@ -7,12 +7,13 @@ type Runner = (args: string[]) => Promise<string>;
 const execute = promisify(execFile);
 const runDocker: Runner = async (args) => (await execute("docker", args, { timeout: 30000, maxBuffer: 16384 })).stdout;
 
-/** MSP SubscriptionUsage shape, documented by the provider SDK. Reject cached observations. */
+/** CLI schemaVersion1 allowance and MSP SubscriptionUsage. Reject stale observations. */
 export function parseCliQuota(text: string, now = Date.now()): QuotaReading | null {
   try {
     const root = JSON.parse(text) as Record<string, unknown>;
-    const usage = (root["usage"] ?? root) as Record<string, unknown>;
-    const observed = usage["observedAtMs"];
+    const allowance = root["schemaVersion"] === 1 ? root["allowance"] : undefined;
+    const usage = (allowance ?? root["usage"] ?? root) as Record<string, unknown>;
+    const observed = usage["observedAtMs"] ?? usage["asOfMs"];
     if (typeof observed !== "number" || observed < now - 60000 || observed > now + 30000) return null;
     const window = usage["window"] as Record<string, unknown> | undefined;
     const weekly = usage["weekly"] as Record<string, unknown> | undefined;

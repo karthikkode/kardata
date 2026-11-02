@@ -7,6 +7,10 @@ it("accepts fresh provider usage including zero, rejects absent or old usage and
   expect(parseCliQuota(JSON.stringify({ usage }), now)).toMatchObject({ fivePct: 0, weeklyPct: 30 });
   expect(parseCliQuota(JSON.stringify({ usage: { ...usage, observedAtMs: now - 60001 } }), now)).toBeNull();
   expect(parseCliQuota("{}", now)).toBeNull();
+  const allowance = { window: usage.window, weekly: usage.weekly, asOfMs: now };
+  expect(parseCliQuota(JSON.stringify({ schemaVersion: 1, allowance }), now)).toMatchObject({ fivePct: 0, weeklyPct: 30 });
+  expect(parseCliQuota(JSON.stringify({ schemaVersion: 1, allowance: null }), now)).toBeNull();
+  expect(parseCliQuota(JSON.stringify({ schemaVersion: 2, allowance }), now)).toBeNull();
   expect(parseCliQuota(JSON.stringify({ ...usage, weekly: { ...usage.weekly, usedPercent: 101 } }), now)?.weeklyPct).toBe(100);
 });
 
