@@ -19,6 +19,11 @@ it("keeps zero usage and never prints provider credentials or error bodies", () 
     expect(failed.stdout).toBe("");
     expect(failed.stderr).toContain("HTTP 401");
     expect(failed.stderr).not.toContain("fixture-secret");
+    writeFileSync(curl, '#!/bin/sh\necho \'{"error":{"code":190,"message":"fixture-secret"}}\'\n', { mode: 0o755 });
+    const auth = spawnSync("bash", ["scripts/quota-read.sh"], { env, encoding: "utf8" });
+    expect(auth.status).not.toBe(0);
+    expect(auth.stderr).toContain("error_code=190");
+    expect(auth.stderr).not.toContain("fixture-secret");
   } finally {
     rmSync(dir, { recursive: true });
   }
