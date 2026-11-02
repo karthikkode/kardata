@@ -24,6 +24,16 @@ it("keeps zero usage and never prints provider credentials or error bodies", () 
     expect(auth.status).not.toBe(0);
     expect(auth.stderr).toContain("error_code=190");
     expect(auth.stderr).not.toContain("fixture-secret");
+    writeFileSync(curl, '#!/bin/sh\necho \'{"data":{"usage":{"five_hour":0}},"access_token":"fixture-secret","detail":"fixture-secret"}\'\n', { mode: 0o755 });
+    const schema = spawnSync("bash", ["scripts/quota-read.sh"], { env, encoding: "utf8" });
+    expect(schema.status).not.toBe(0);
+    expect(schema.stderr).toContain('"five_hour": "int"');
+    expect(schema.stderr).toContain('"access_token": "str"');
+    expect(schema.stderr).not.toContain("fixture-secret");
+    writeFileSync(curl, '#!/bin/sh\necho \'{"detail":"Access token has expired: fixture-secret"}\'\n', { mode: 0o755 });
+    const classified = spawnSync("bash", ["scripts/quota-read.sh"], { env, encoding: "utf8" });
+    expect(classified.stderr).toContain('error classifications=["authentication"]');
+    expect(classified.stderr).not.toContain("fixture-secret");
   } finally {
     rmSync(dir, { recursive: true });
   }
