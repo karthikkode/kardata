@@ -3,9 +3,9 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { eq } from "drizzle-orm";
 import { parse } from "csv-parse/sync";
-import { afterAll, beforeAll, beforeEach, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import type { DbHandle } from "../../src/db/client.js";
-import { companies, facts, records, researchRuns, sources, RIA_STEPS } from "../../src/db/schema.js";
+import { companies, companyVerdicts, facts, records, researchRuns, sectorCompanies, sources, RIA_STEPS } from "../../src/db/schema.js";
 import { createSector } from "../../src/domain/sectors.js";
 import { importSec } from "../../src/domain/imports.js";
 import { deriveCompany } from "../../src/domain/sector-preflight/eligibility.js";
@@ -14,6 +14,7 @@ import { upsertRecords } from "../../src/domain/research/records.js";
 import { signalsStep } from "../../src/domain/ria-steps/handlers.js";
 import { cleanStoredOfficerTitles } from "../../src/domain/ria-steps/officers.js";
 import { recordStep } from "../../src/domain/ria-steps/status.js";
+import { companyRevenueTruth, sectorSheetRows } from "../../src/domain/tiering.js";
 import { riaCsv, riaSheetRows } from "../../src/domain/icp/sheet.js";
 import { ensureMigrated, fixtureImportDirs, getTestDb, resetTestDb } from "../db.js";
 
@@ -160,4 +161,43 @@ it("keeps equal-priority contact selection stable when title cleanup rewrites ro
   const after = (await riaSheetRows(handle.db, f.sectorId)).find((r) => r.companyId === f.companyId);
   expect(after?.contactName).toBe(before?.contactName);
   expect(after?.contactTitle).toBe("CHIEF OPERATING OFFICER");
+});
+
+
+it("exports more than500 firms with bounded reads while preserving scoped truth, contact order and gaps", async () => {
+  const f = await setup();
+  await signalsStep(handle.db, f.sectorId, f.companyId);
+  const batch = Array.from({ length: 502 }, (_, i) => ({ id: randomUUID(), source: "manual" as const, name: `Synthetic Batch ${i}`, state: "TX", website: `https://batch${i}.example.test` }));
+  await handle.db.insert(companies).values(batch);
+  await handle.db.insert(sectorCompanies).values(batch.map((c, i) => ({ companyId: c.id, sectorId: f.sectorId, addedVia: "manual" as const, eligibility: "eligible" as const, removedAt: i === 501 ? new Date() : null })));
+  await handle.db.insert(companyVerdicts).values(batch.map((c, i) => ({ companyId: c.id, sectorId: f.sectorId, score: i % 7, status: i === 500 ? "icp_rejected" : "icp_accepted", source: "test" })));
+  await handle.db.insert(facts).values(batch.flatMap((c, i) => [
+    { id: randomUUID(), companyId: c.id, key: "firm.regulatory_aum", valueNum: String(i % 2 ? 600000000 : 100000000), sourceIds: [f.sourceId], confidence: "high" as const, createdBy: "test", asOf: "2026-01-01" },
+    { id: randomUUID(), companyId: c.id, key: "financials.employees", valueNum: "12", sourceIds: [f.sourceId], confidence: "high" as const, createdBy: "test", asOf: "2026-01-01" },
+  ]));
+  const last = batch[499]!;
+  const lastRun = randomUUID(), lastSource = randomUUID();
+  await handle.db.insert(researchRuns).values({ id: lastRun, companyId: last.id, kind: "manual", status: "succeeded" });
+  await handle.db.insert(sources).values({ id: lastSource, companyId: last.id, runId: lastRun, url: "https://example.test/batch.pdf", finalUrl: "https://example.test/batch.pdf", collector: "test", status: "ok" });
+  for (const name of ["Earlier Synthetic Officer", "Later Synthetic Officer"]) {
+    const result = await upsertRecords(handle.db, { companyId: last.id, runId: lastRun, createdBy: "owner", records: [
+      { type: "leader", data: { name, title: "Chief Operating Officer" }, sourceIds: [lastSource] },
+    ] });
+    expect(result.every((r) => r.ok)).toBe(true);
+  }
+  const selects = vi.spyOn(handle.db, "select");
+  const rows = await riaSheetRows(handle.db, f.sectorId);
+  const readCount = selects.mock.calls.length;
+  selects.mockRestore();
+  expect(readCount).toBeLessThan(50);
+  expect(new Set(rows.map((r) => r.companyId))).toEqual(new Set([f.companyId, ...batch.slice(0, 500).map((c) => c.id)]));
+  const selected = rows.find((r) => r.companyId === last.id)!;
+  expect(selected.contactName).toBe("Earlier Synthetic Officer");
+  expect(selected.researchStatus).toBe("Pending");
+  expect(selected.researchGaps).toContain("Fee summary unavailable: operations read pending");
+  const bases = new Map((await sectorSheetRows(handle.db, f.sectorId)).map((r) => [r.companyId, r]));
+  for (const id of [f.companyId, batch[0]!.id, batch[1]!.id, batch[499]!.id]) {
+    const truth = await companyRevenueTruth(handle.db, id, f.sectorId);
+    expect(bases.get(id)).toMatchObject({ tier: truth.tier, layer: truth.layer, score: truth.score, staff: truth.staff?.count ?? null, revenueUsed: truth.revenueUsed });
+  }
 });
