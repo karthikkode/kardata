@@ -90,6 +90,11 @@ describe("splitBrochureItems / brochureDate (B4)", () => {
     expect(items["9"]).toContain("advisory business or");
   });
 
+  it("retains explicitly numbered alternative section titles", () => {
+    const body = "We disclose payments and referral arrangements in writing, including applicable conflicts of interest for clients.";
+    expect(splitBrochureItems(["Item 14 Payment for Client Referrals", body].join("\n"))["14"]).toBe(body);
+  });
+
   it("reads the brochure date", () => {
     expect(brochureDate(text)).toBe("2025-03-15");
     expect(brochureDate("no date here")).toBeNull();

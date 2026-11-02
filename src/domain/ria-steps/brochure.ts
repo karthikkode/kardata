@@ -39,8 +39,7 @@ export function brochureMarks(text: string): Mark[] {
     if (m?.[1]) {
       const tail = trimmed.slice(m[0].length).replace(/^[\s.:–—-]+/, "");
       // A material-changes sentence mentioning an Item is not its heading.
-      const title = (ITEM_TITLES[m[1]] ?? "").toLowerCase();
-      if (tail && !tail.toLowerCase().startsWith(title) && !title.startsWith(tail.toLowerCase())) return;
+      if (/^(?:changed|was|were|has|have|is|are|will|would|contains?|discusses?|describes?|provides?|above|below)\b/i.test(tail)) return;
       strong.push({ item: m[1], start: offsets[i] ?? 0, contentStart: (offsets[i] ?? 0) + line.length });
     }
   });
