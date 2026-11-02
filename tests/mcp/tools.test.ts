@@ -108,6 +108,8 @@ const EXPECTED_TOOLS = [
   "ria_step_run",
   "ria_pipeline_run",
   "ria_pipeline_status",
+  "ria_provider_set",
+  "ria_provider_status",
   "ria_step_pause",
   "ria_deep_research",
   "company_job_retry",
