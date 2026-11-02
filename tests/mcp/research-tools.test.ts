@@ -512,6 +512,12 @@ describe("PDF source reads", () => {
 });
 
 describe("scoped RIA status", () => {
+  it("exposes the operator provider choice without enabling a fallback by default", async () => {
+    const before = dataOf(await call("ria_provider_status", {}));
+    expect(before).toMatchObject({ mode: "muse", provider: "muse", codexModel: "gpt-6.1-terra", codexContextWindow: 500000, codexReasoning: "medium", codex: null });
+    const saved = dataOf(await call("ria_provider_set", { mode: "muse" }));
+    expect(saved.mode).toBe("muse");
+  });
   it("accepts an empty named batch without falling back to the entire sector", async () => {
     const sector = dataOf(await call("sector_create", { name: "Scoped status" }));
     const view = dataOf(await call("ria_status", { sectorId: (sector.sector as { id: string }).id, companyIds: [] }));
