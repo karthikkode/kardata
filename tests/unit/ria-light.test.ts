@@ -90,6 +90,46 @@ describe("splitBrochureItems / brochureDate (B4)", () => {
     expect(items["9"]).toContain("advisory business or");
   });
 
+  it("skips material-change summaries and uppercase contents before selecting an ordered body", () => {
+    const body = "This is the actual filed section body with substantive client disclosures and enough prose to identify a real section.";
+    const text = [
+      "Item 2 Material Changes", "Item 4 Advisory Business", "Services changed this year. ".repeat(8), "Item 5 Fees & Compensation", "Fees changed this year. ".repeat(8),
+      "Item 8 Methods of Analysis", "Risk disclosures changed this year. ".repeat(8), "Item 3 Table of Contents",
+      "ITEM 4 Advisory Business", "4", "ITEM 5 Fees & Compensation", "5", "ITEM 8 Methods of Analysis", "8",
+      "ITEM 9 Disciplinary Information", "9", "ITEM 10 Other Activities", "10", "ITEM 11 Code of Ethics", "11",
+      "ITEM 12 Brokerage Practices", "12", "ITEM 14 Client Referrals", "14", "ITEM 15 Custody", "15",
+      "ITEM 16 Investment Discretion", "16", "ITEM 17 Voting", "17", "ITEM 18 Financial Information", "18",
+      "ITEM 4 Advisory Business", body,
+      "ITEM 5 Fees & Compensation", body,
+      "ITEM 8 Methods of Analysis", body,
+      "ITEM 9 Disciplinary Information", body,
+      "Item 12 Brokerage Practices for additional information and", "This is an inline cross-reference to a later section. ".repeat(3),
+      "ITEM 12 Brokerage Practices", body,
+      "ITEM 14 Client Referrals", body,
+      "ITEM 15 Custody", body,
+    ].join("\n");
+    const items = splitBrochureItems(text);
+    for (const item of ["4", "5", "8", "12", "14", "15"]) expect(items[item]).toBe(body);
+    expect(items["9"]).toContain("inline cross-reference");
+  });
+
+  it("does not invent body sections from a contents-only text layer", () => {
+    expect(splitBrochureItems([
+      "TABLE OF CONTENTS", "ITEM 4 Advisory Business", "4", "ITEM 5 Fees and Compensation", "5",
+      "ITEM 8 Methods of Analysis", "8", "ITEM 9 Disciplinary Information", "9",
+      "ITEM 10 Other Activities", "10", "ITEM 11 Code of Ethics", "11", "ITEM 12 Brokerage Practices", "12",
+      "ITEM 14 Client Referrals", "14", "ITEM 15 Custody", "15", "ITEM 16 Investment Discretion", "16", "ITEM 17 Voting", "17", "ITEM 18 Financial Information", "18",
+    ].join("\n"))).toEqual({});
+  });
+
+  it("accepts short real disclosures and ordinary inline references in a body", () => {
+    const advisory = "For details, see Item 5 and Item 12; our advisory services are provided to individual clients under written agreements.";
+    const fees = "We charge no annual advisory fee for these accounts.";
+    const items = splitBrochureItems(["Item 4 Advisory Business", advisory, "Item 5 Fees and Compensation", fees].join("\n"));
+    expect(items["4"]).toBe(advisory);
+    expect(items["5"]).toBe(fees);
+  });
+
   it("retains explicitly numbered alternative section titles", () => {
     const body = "We disclose payments and referral arrangements in writing, including applicable conflicts of interest for clients.";
     expect(splitBrochureItems(["Item 14 Payment for Client Referrals", body].join("\n"))["14"]).toBe(body);

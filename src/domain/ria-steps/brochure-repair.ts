@@ -4,6 +4,7 @@ import { documents, sources, riaStepRuns } from "../../db/schema.js";
 import { DomainError } from "../errors.js";
 import { saveDocument } from "../research/documents.js";
 import { blobText } from "../research/reads.js";
+import { opsPrompt } from "./handlers.js";
 import { BROCHURE_ITEMS, splitBrochureItems } from "./brochure.js";
 import { riaPipelineStatus } from "./pipeline.js";
 import { riaStepPaused } from "./runner.js";
@@ -18,9 +19,12 @@ interface RepairResult {
   reason?: string;
 }
 const itemPath = (item: string) => `financials/brochure-item-${item}.md`;
-const promptItems = new Set(["4", "5", "8", "12", "14", "15"]);
+const promptItems = ["5", "4", "12", "15", "8", "14"];
+function operationsInput(items: Record<string, string>) {
+  return opsPrompt(promptItems.filter((item) => (items[item]?.trim().length ?? 0) >= 40).map((item) => ({ item, text: items[item] as string })));
+}
 
-/** Re-split only the source cited by the current Item 5. No fetch or model. */
+/** Re-split the current cited PDF (prefer Item 5). No fetch or model. */
 export async function repairStoredBrochures(db: Db, input: { sectorId: string; companyIds: string[]; dryRun?: boolean }) {
   if (input.companyIds.length > 200) throw new DomainError("invalid_input", "at most 200 companies per repair call");
   const ids = [...new Set(input.companyIds)];
@@ -39,9 +43,11 @@ export async function repairStoredBrochures(db: Db, input: { sectorId: string; c
     try {
       const current = await db.select().from(documents).where(and(eq(documents.companyId, companyId), eq(documents.isCurrent, true),
         inArray(documents.path, BROCHURE_ITEMS.map(itemPath))));
-      const anchor = current.find((d) => d.path === itemPath("5"));
+      // If an earlier split missed Item 5, another cited section can recover
+      // it. The version/content checks below still require one coherent PDF.
+      const anchor = current.find((d) => d.path === itemPath("5")) ?? current[0];
       const version = anchor?.title.match(/\((\d{4}-\d{2}-\d{2}), v(\d+)\)/);
-      if (!anchor || !version || anchor.sourceIds.length !== 1) { result.reason = "no unambiguous current Item 5 source/version"; results.push(result); continue; }
+      if (!anchor || !version || anchor.sourceIds.length !== 1) { result.reason = "no unambiguous stored brochure source/version"; results.push(result); continue; }
       const sourceId = anchor.sourceIds[0] as string;
       result.sourceId = sourceId;
       const [source] = await db.select().from(sources).where(and(eq(sources.id, sourceId), eq(sources.companyId, companyId)));
@@ -49,8 +55,13 @@ export async function repairStoredBrochures(db: Db, input: { sectorId: string; c
         new URL(source.url).searchParams.get("BRCHR_VRSN_ID") !== version[2]) {
         result.reason = "current cited brochure source missing or version mismatch"; results.push(result); continue;
       }
-      if (current.some((d) => !d.title.includes(version[0]) || d.sourceIds.length !== 1 || d.sourceIds[0] !== sourceId)) {
-        result.reason = "mixed brochure versions or sources require review"; results.push(result); continue;
+      const citedIds = [...new Set(current.flatMap((d) => d.sourceIds))];
+      const cited = await db.select().from(sources).where(and(eq(sources.companyId, companyId), inArray(sources.id, citedIds)));
+      // Separate snapshots may cite the exact same immutable PDF bytes. Keep
+      // each document's original citation; differing bytes/versions need review.
+      if (current.some((d) => !d.title.includes(version[0]) || d.sourceIds.length !== 1) ||
+        cited.length !== citedIds.length || cited.some((s) => s.status !== "ok" || s.collector !== "ria_brochure" || s.blobSha256 !== source.blobSha256 || new URL(s.url).searchParams.get("BRCHR_VRSN_ID") !== version[2])) {
+        result.reason = "mixed brochure versions or source contents require review"; results.push(result); continue;
       }
       const stored = await blobText(db, source.blobSha256);
       if (!stored) { result.reason = "stored brochure blob missing"; results.push(result); continue; }
@@ -58,7 +69,8 @@ export async function repairStoredBrochures(db: Db, input: { sectorId: string; c
       const missing = current.filter((d) => !items[BROCHURE_ITEMS.find((i) => itemPath(i) === d.path) as string]);
       if (missing.length) { result.reason = "reparse lost existing sections; manual review required"; results.push(result); continue; }
       result.changedItems = BROCHURE_ITEMS.filter((item) => items[item] !== undefined && current.find((d) => d.path === itemPath(item))?.contentMd !== items[item]);
-      result.opsRefreshRequired = result.changedItems.some((item) => promptItems.has(item));
+      const oldItems = Object.fromEntries(current.map((d) => [BROCHURE_ITEMS.find((item) => itemPath(item) === d.path) as string, d.contentMd]));
+      result.opsRefreshRequired = operationsInput(oldItems) !== operationsInput(items);
       if (!dryRun && result.changedItems.length) {
         await db.transaction(async (tx) => {
           const latest = await tx.select().from(documents).where(and(eq(documents.companyId, companyId), eq(documents.isCurrent, true),
@@ -70,7 +82,7 @@ export async function repairStoredBrochures(db: Db, input: { sectorId: string; c
             const old = current.find((d) => d.path === itemPath(item));
             await saveDocument(tx, { companyId, path: itemPath(item), runId: anchor.runId, kind: old?.kind ?? anchor.kind,
               title: `Part 2A brochure Item ${item} (${version[1]}, v${version[2]})`, contentMd: items[item] as string,
-              sourceIds: [sourceId], factIds: old?.factIds, recordIds: old?.recordIds, tags: old?.tags,
+              sourceIds: old?.sourceIds ?? [sourceId], factIds: old?.factIds, recordIds: old?.recordIds, tags: old?.tags,
               createdBy: "collector:ria_brochure" });
           }
           // Preserve successful extracted facts/records and their old input hash.

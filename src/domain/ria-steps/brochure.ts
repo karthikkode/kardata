@@ -32,7 +32,7 @@ export function brochureMarks(text: string): Mark[] {
   const strong: Mark[] = [];
   lines.forEach((line, i) => {
     const trimmed = line.trim();
-    if (trimmed.length > 120 || LEADERS.test(trimmed)) return;
+    if (trimmed.length > 120 || LEADERS.test(trimmed) || /\b(?:for additional information|for more information|above|below|see also|refer to)\b/i.test(trimmed)) return;
     const m =
       /^(?:Form ADV(?:\s*,\s*|\s+)(?:Part 2A,?\s*)?|Part 2A,?\s*)?(?:ITEM|Item)\s+(4|5|8|9|12|14|15)\b/.exec(trimmed) ??
       /^[A-Z][^\n]{0,70}[-–—]\s*(?:ITEM|Item)\s+(4|5|8|9|12|14|15)\b/.exec(trimmed);
@@ -71,19 +71,29 @@ export function brochureMarks(text: string): Mark[] {
  * run of TOC entries (dot leaders or several Item mentions at once).
  */
 export function chooseBodyMarks(candidates: Mark[], text: string): Mark[] {
-  const items = [...new Set(candidates.map((m) => m.item))];
+  const items = [...new Set(candidates.map((m) => m.item))].sort((a, b) => Number(a) - Number(b));
   const chosen: Mark[] = [];
+  const contents = /^[ \t]*(?:(?:Item[ \t]+)?3[.:–—-]?[ \t]+)?(?:Table[ \t]+of[ \t]+Contents|Contents)[ \t]*$/im.exec(text);
+  let bodyStart = contents ? contents.index + contents[0].length : 0;
   for (const item of items) {
-    const mine = candidates.filter((m) => m.item === item);
-    const body = mine.find((m) => {
+    // Material changes repeat later Item headings before the actual body.
+    // Part 2A body sections proceed in Item order, unlike those references.
+    const mine = candidates.filter((m) => m.item === item && m.start >= bodyStart);
+    if (!mine.length) continue;
+    const qualifies = (m: Mark, minLength: number) => {
       const next = candidates.find((n) => n.start >= m.contentStart && n.item !== m.item);
       const segment = text.slice(m.contentStart, next?.start);
-      if (segment.trim().length < 80) return false;
+      if (segment.trim().length < minLength) return false;
       const window = segment.slice(0, 500);
-      const itemMentions = window.match(/\bItem\s+\d+/g)?.length ?? 0;
-      return itemMentions < 2 && !/\.{4,}/.test(window.slice(0, 200));
-    });
-    chosen.push(body ?? (mine[0] as Mark));
+      const itemMentions = window.match(/^[ \t]*Item\s+\d+/gim)?.length ?? 0;
+      return itemMentions < 2 && !/^\s*\d{1,3}\s+Item\s+\d+/i.test(window) && !/\.{4,}/.test(window.slice(0, 200));
+    };
+    // Short substantive disclosures are valid; contents-only candidates are
+    // never a fallback for an absent/unreadable body section.
+    const mark = mine.find((m) => qualifies(m, 80)) ?? mine.find((m) => qualifies(m, 40));
+    if (!mark) continue;
+    chosen.push(mark);
+    bodyStart = mark.contentStart;
   }
   return chosen.sort((a, b) => a.start - b.start);
 }

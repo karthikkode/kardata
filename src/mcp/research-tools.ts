@@ -1510,7 +1510,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   registerTool(server, db, auth,
     "ria_brochures_repair",
     {
-      description: "Operator: preview or repair sections from the exact stored brochure PDF cited by current Item 5. No network or AI. Apply requires paused/drained RIA work; changed inputs invalidate dependent operations/signals until refreshed. Dry run by default.",
+      description: "Operator: preview or repair sections from the exact stored brochure PDF cited by current sections (prefer Item 5). No network or AI. Apply requires paused/drained RIA work; changed inputs invalidate dependent operations/signals until refreshed. Dry run by default.",
       inputSchema: { sectorId: z.string().uuid(), companyIds: z.array(z.string().uuid()).max(200), dryRun: z.boolean().optional() },
     },
     async (input) => wrap(async () => {
