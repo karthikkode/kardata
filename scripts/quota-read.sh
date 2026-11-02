@@ -17,7 +17,7 @@ fi
 curl --fail-with-body -sS -m 20 -X POST https://api.meta.ai/muse-code/key \
   -H "Authorization: Bearer ${TOKEN}" \
   -H 'Content-Type: application/json' \
-  -d '{}' | python3 "$(dirname "$0")/quota-response.py" || {
+  -d '{}' | python3 "$(dirname "$0")/quota-response.py" "${1:-}" || {
   echo "quota-read: bad or empty quota response" >&2
   exit 1
 }

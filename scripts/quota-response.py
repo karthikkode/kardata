@@ -52,6 +52,13 @@ def reset(w):
 w = u.get('window')
 k = u.get('weekly')
 out = {'fivePct': pct(w), 'fiveResetAt': reset(w), 'weeklyPct': pct(k), 'weeklyResetAt': reset(k)}
+if '--diagnostics' in sys.argv[1:]:
+    fields = ['is_subs_active', 'require_payment', 'has_payment_method', 'can_subscribe', 'show_subs_upsell']
+    account = {key: d.get(key) if isinstance(d.get(key), bool) else None for key in fields}
+    account['apiKeyPresent'] = isinstance(d.get('api_key'), str) and bool(d['api_key'])
+    quota = out if out['fivePct'] is not None or out['weeklyPct'] is not None else None
+    print(json.dumps({'account': account, 'quota': quota}))
+    sys.exit(0)
 if out['fivePct'] is None and out['weeklyPct'] is None:
     diagnose(d)
     # Numeric error codes only: never print messages or tokens.

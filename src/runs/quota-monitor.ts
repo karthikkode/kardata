@@ -121,6 +121,22 @@ export function readQuotaLive(): Promise<QuotaReading | null> {
   });
 }
 
+/** Inspect only non-secret account flags; absent usage never becomes zero usage. */
+export function readMuseAccount(): Promise<Record<string, boolean | null> | null> {
+  const script = path.join(process.cwd(), "scripts", "quota-read.sh");
+  return new Promise((resolve) => {
+    execFile(script, ["--diagnostics"], { timeout: 60000, maxBuffer: 4096 }, (err, stdout) => {
+      if (err) { resolve(null); return; }
+      try {
+        const account = (JSON.parse(stdout) as { account?: Record<string, unknown> }).account;
+        if (!account) { resolve(null); return; }
+        const fields = ["is_subs_active", "require_payment", "has_payment_method", "can_subscribe", "show_subs_upsell", "apiKeyPresent"];
+        resolve(Object.fromEntries(fields.map((key) => [key, typeof account[key] === "boolean" ? account[key] : null])) as Record<string, boolean | null>);
+      } catch { resolve(null); }
+    });
+  });
+}
+
 export interface QuotaMonitorDeps {
   pollMs?: number;
   clock?: () => Date;

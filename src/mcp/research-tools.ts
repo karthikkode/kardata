@@ -57,7 +57,7 @@ import { runRiaStep, setRiaStepPaused } from "../domain/ria-steps/runner.js";
 import { runRiaPipeline, riaPipelineStatus } from "../domain/ria-steps/pipeline.js";
 import { RIA_STEP_HANDLERS, riaPipelineHandlers } from "../domain/ria-steps/steps.js";
 import { queueRiaDeepResearch } from "../domain/ria-steps/deep-research.js";
-import { createQuotaMonitor, quotaSnapshotGet, readQuotaLive } from "../runs/quota-monitor.js";
+import { createQuotaMonitor, quotaSnapshotGet, readQuotaLive, readMuseAccount } from "../runs/quota-monitor.js";
 import { probeMuseVolumeBytes } from "../harness/session-cleanup.js";
 import { researchStart } from "../runs/agent.js";
 import {
@@ -1718,9 +1718,9 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
     "quota_breaker_status",
     {
       description: "Operator: quota breaker state. Optional refresh reads live provider usage now; failed reads retain the previous snapshot.",
-      inputSchema: { refresh: z.boolean().optional() },
+      inputSchema: { refresh: z.boolean().optional(), inspectAccount: z.boolean().optional().describe("Read non-secret provider subscription flags; no credentials or personal details") },
     },
-    async ({ refresh }) =>
+    async ({ refresh, inspectAccount }) =>
       wrap(async () => {
         if (refresh) await createQuotaMonitor(db, { readUsage: readQuotaLive }).poll();
         const trip = await quotaBreakerGet(db);
@@ -1744,7 +1744,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
             : liveText ?? (pct === null
               ? `no trip, burn ${burn} (uncalibrated)`
               : `no trip, burn ${total} (${pct}% of learned window)`),
-          data: { trip, calibration: cal, burn, inflight, pct, agentsAllowed, agentsMax, live },
+          data: { trip, calibration: cal, burn, inflight, pct, agentsAllowed, agentsMax, live, account: inspectAccount ? await readMuseAccount() : undefined },
         };
       }),
   );
