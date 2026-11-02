@@ -225,6 +225,7 @@ describe("ingest and document tools", () => {
     expect(page.totalChars).toBeGreaterThanOrEqual(String(excerpt.text).length);
     const invalidPage = await call("source_get", { sourceId, offset: -1 });
     expect(errorOf(invalidPage).code).toBe("invalid_input");
+    expect(errorOf(await call("source_get", { sourceId, pdfPage: 1 })).code).toBe("invalid_input");
 
     const captured = dataOf(
       await call("source_capture", {
@@ -485,17 +486,28 @@ describe("PDF source reads", () => {
   it.each(["application/pdf", "application/octet-stream"])("returns extracted PDF text through fetch and stored reads with %s MIME", async (contentType) => {
     const companyId = await makeCompany("PDF Reader");
     const stream = "BT /F1 11 Tf 72 720 Td (Fees and Compensation) Tj 0 -16 Td (Fees are billed quarterly in arrears.) Tj ET";
+    const laterStream = "BT /F1 11 Tf 72 720 Td (Custody disclosure on later page) Tj ET";
     const pdf = ["%PDF-1.4", "1 0 obj <</Type/Catalog/Pages 2 0 R>> endobj",
-      "2 0 obj <</Type/Pages/Kids[3 0 R]/Count 1>> endobj",
+      "2 0 obj <</Type/Pages/Kids[3 0 R 6 0 R]/Count 2>> endobj",
       "3 0 obj <</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>> endobj",
       `4 0 obj <</Length ${Buffer.byteLength(stream)}>> stream\n${stream}\nendstream endobj`,
-      "5 0 obj <</Type/Font/Subtype/Type1/BaseFont/Helvetica>> endobj", "trailer<</Root 1 0 R>>", "%%EOF"].join("\n");
+      "5 0 obj <</Type/Font/Subtype/Type1/BaseFont/Helvetica>> endobj",
+      "6 0 obj <</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents 7 0 R/Resources<</Font<</F1 5 0 R>>>>>> endobj",
+      `7 0 obj <</Length ${Buffer.byteLength(laterStream)}>> stream\n${laterStream}\nendstream endobj`,
+      "trailer<</Root 1 0 R>>", "%%EOF"].join("\n");
     site.routes.set("/filing.pdf", (_req, res) => { res.writeHead(200, { "content-type": contentType }); res.end(pdf); });
     const fetched = dataOf(await call("source_fetch", { companyId, url: `${site.baseUrl}/filing.pdf` }));
     expect(fetched.text).toContain("Fees are billed quarterly in arrears.");
     expect(fetched.text).not.toContain("%PDF");
     const stored = dataOf(await call("source_get", { sourceId: fetched.sourceId }));
     expect(stored.text).toBe(fetched.text);
+    const page = dataOf(await call("source_get", { sourceId: fetched.sourceId, pdfPage: 2, offset: 8, maxChars: 10 }));
+    expect(page.text).toBe("disclosure");
+    expect(page.pdfPage).toEqual({ pageNumber: 2, totalPages: 2 });
+    expect(page.totalChars).toBe("Custody disclosure on later page".length);
+    expect(page.truncated).toBe(true);
+    expect(page.id).toBe(fetched.sourceId);
+    expect(errorOf(await call("source_get", { sourceId: fetched.sourceId, pdfPage: 3 })).code).toBe("invalid_input");
   });
 });
 

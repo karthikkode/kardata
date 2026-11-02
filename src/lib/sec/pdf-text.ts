@@ -44,6 +44,22 @@ export async function pdfText(body: Buffer): Promise<string> {
   return (await readPdf(body, true, false)).text;
 }
 
+/** Read one explicitly requested page, including pages beyond the default text bound. */
+export async function pdfPageText(body: Buffer, pageNumber: number): Promise<{ text: string; pageNumber: number; totalPages: number }> {
+  if (!Number.isInteger(pageNumber) || pageNumber < 1) throw new RangeError("PDF page must be a positive integer");
+  const task = getDocument({ data: new Uint8Array(body), useSystemFonts: true });
+  try {
+    const doc = await task.promise;
+    if (pageNumber > doc.numPages) throw new RangeError(`PDF page exceeds ${doc.numPages} pages`);
+    const page = await doc.getPage(pageNumber);
+    const content = await page.getTextContent();
+    const text = content.items.map((item) => ("str" in item ? item.str : "")).join("\n").replace(/\u0000/g, "");
+    return { text, pageNumber, totalPages: doc.numPages };
+  } finally {
+    await task.destroy();
+  }
+}
+
 /** Positioned text for table-style parsing. */
 export async function pdfTextItems(body: Buffer): Promise<PdfTextItem[]> {
   return (await readPdf(body, false, true)).items;

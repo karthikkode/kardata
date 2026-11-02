@@ -1,5 +1,5 @@
 import { gunzipSync } from "node:zlib";
-import { pdfText } from "../../lib/sec/pdf-text.js";
+import { pdfText, pdfPageText } from "../../lib/sec/pdf-text.js";
 import { load } from "cheerio";
 import { and, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
@@ -796,14 +796,24 @@ export async function documentSearch(
   return rows.map((r) => ({ ...r, rank: Number(r.rank), headline: r.headline.slice(0, 200) }));
 }
 
-export async function blobText(db: Db, sha256: string): Promise<{ text: string; contentType: string } | null> {
+export async function blobText(db: Db, sha256: string, pdfPage?: number): Promise<{ text: string; contentType: string; pdfPage?: { pageNumber: number; totalPages: number } } | null> {
   const [blob] = await db.select().from(blobs).where(eq(blobs.sha256, sha256));
   if (!blob) return null;
   const body = gunzipSync(blob.gzip);
   const contentType = blob.contentType ?? "";
   if (contentType.toLowerCase().includes("application/pdf") || body.subarray(0, 5).toString("ascii") === "%PDF-") {
+    if (pdfPage !== undefined) {
+      try {
+        const page = await pdfPageText(body, pdfPage);
+        return { text: page.text, contentType, pdfPage: { pageNumber: page.pageNumber, totalPages: page.totalPages } };
+      } catch (error) {
+        if (error instanceof RangeError) throw new DomainError("invalid_input", error.message);
+        throw error;
+      }
+    }
     return { text: await pdfText(body), contentType };
   }
+  if (pdfPage !== undefined) throw new DomainError("invalid_input", "pdfPage requires a stored PDF source");
   const raw = body.toString("utf8");
   return {
     text: contentType.includes("html") ? extractText(raw) : raw,
@@ -811,11 +821,12 @@ export async function blobText(db: Db, sha256: string): Promise<{ text: string; 
   };
 }
 
-export async function getSourceExcerpt(db: Db, input: { sourceId: string; maxChars?: number; offset?: number; companyScope?: string }) {
+export async function getSourceExcerpt(db: Db, input: { sourceId: string; maxChars?: number; offset?: number; pdfPage?: number; companyScope?: string }) {
   const maxChars = input.maxChars ?? 5000;
   const offset = input.offset ?? 0;
   if (maxChars < 1 || maxChars > 5000) throw new DomainError("invalid_input", "maxChars must be 1..5000");
   if (!Number.isInteger(offset) || offset < 0) throw new DomainError("invalid_input", "offset must be a nonnegative integer");
+  if (input.pdfPage !== undefined && (!Number.isInteger(input.pdfPage) || input.pdfPage < 1)) throw new DomainError("invalid_input", "pdfPage must be a positive integer");
   const [source] = await db.select().from(sources).where(eq(sources.id, input.sourceId));
   if (!source) throw new DomainError("not_found", `source not found: ${input.sourceId}`);
   if (input.companyScope !== undefined && source.companyId !== input.companyScope) {
@@ -824,15 +835,17 @@ export async function getSourceExcerpt(db: Db, input: { sourceId: string; maxCha
   let text: string | null = null;
   let truncated = false;
   let totalChars: number | null = null;
+  let pdfPage: { pageNumber: number; totalPages: number } | null = null;
   if (source.blobSha256) {
-    const blob = await blobText(db, source.blobSha256);
+    const blob = await blobText(db, source.blobSha256, input.pdfPage);
     if (blob) {
       text = blob.text.slice(offset, offset + maxChars);
       totalChars = blob.text.length;
       truncated = blob.text.length > offset + maxChars;
+      pdfPage = blob.pdfPage ?? null;
     }
   }
   const { blobSha256: _ignored, ...meta } = source;
   void _ignored;
-  return { ...meta, text, truncated, offset, totalChars };
+  return { ...meta, text, truncated, offset, totalChars, pdfPage };
 }
