@@ -104,6 +104,7 @@ const EXPECTED_TOOLS = [
   "company_jobs_cancel",
   "ria_status",
   "ria_officer_titles_clean",
+  "ria_brochures_repair",
   "ria_step_run",
   "ria_pipeline_run",
   "ria_pipeline_status",
@@ -204,6 +205,13 @@ afterAll(async () => {
 });
 
 describe("mcp tools", () => {
+  it("exposes a dry-run stored brochure repair and rejects unsafe apply and oversized requests", async () => {
+    const sectorId = randomUUID();
+    expect(dataOf(await call("ria_brochures_repair", { sectorId, companyIds: [] }))).toMatchObject({ dryRun: true, considered: 0 });
+    expect(errorOf(await call("ria_brochures_repair", { sectorId, companyIds: [], dryRun: false })).message).toContain("pause and drain");
+    expect((await call("ria_brochures_repair", { sectorId, companyIds: Array.from({ length: 201 }, () => randomUUID()) })).isError).toBe(true);
+  });
+
   it("lists exactly the stage-1 tools", async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual([...EXPECTED_TOOLS].sort());
