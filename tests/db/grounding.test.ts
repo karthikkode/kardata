@@ -383,7 +383,7 @@ describe("verifyRunExtraction", () => {
     expect(row?.verification).toBe("unverified");
   });
 
-  it("drops email and phone fields from records: those come only from Apollo (D-67)", async () => {
+  it("drops unreviewed email and phone fields from extractor records", async () => {
     const { companyId, runId } = await setup();
     const src = await captured(companyId, runId, "Founder: Ada Wells.");
     const [result] = await upsertRecords(handle.db, {
@@ -404,5 +404,21 @@ describe("verifyRunExtraction", () => {
     expect(result?.ok && result.warnings.some((w) => w.includes("email, Phone"))).toBe(true);
     const [row] = await handle.db.select().from(records).where(eq(records.companyId, companyId));
     expect(row?.data).toEqual({ name: "Ada Wells", role: "Founder" });
+  });
+
+  it("saves cited operator-reviewed contact details unverified and preserves existing contact values", async () => {
+    const { companyId, runId } = await setup();
+    const sourceId = await captured(companyId, runId, "Ada Wells, Founder. Email ada@x.example; office +1 555 0100.");
+    const input = { companyId, runId, createdBy: "owner", records: [{ type: "test_leader", data: { name: "Ada Wells", role: "Founder", email: "ada@x.example", phone: "+1 555 0100" }, sourceIds: [sourceId], tags: ["contact:email-unverified", "contact:phone-unverified"] }] };
+    expect((await upsertRecords(handle.db, input))[0]).toMatchObject({ ok: true });
+    const [first] = await handle.db.select().from(records).where(eq(records.companyId, companyId));
+    expect(first?.data).toMatchObject({ email: "ada@x.example", phone: "+1 555 0100" });
+    expect(first?.verification).toBe("unverified");
+    const alternative = { ...input, records: [{ ...input.records[0]!, data: { ...input.records[0]!.data, email: "alternative@x.example", phone: "+1 555 0199" } }] };
+    const [updated] = await upsertRecords(handle.db, alternative);
+    expect(updated?.ok && updated.warnings.some((w) => w.includes("retained existing contact field"))).toBe(true);
+    const [kept] = await handle.db.select().from(records).where(eq(records.companyId, companyId));
+    expect(kept?.data).toMatchObject({ email: "ada@x.example", phone: "+1 555 0100" });
+    expect(kept?.sourceIds).toEqual([sourceId]);
   });
 });

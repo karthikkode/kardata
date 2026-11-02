@@ -122,11 +122,13 @@ async function upsertOne(
   if (typeof item.data !== "object" || item.data === null || Array.isArray(item.data)) {
     throw new DomainError("invalid_input", `record "${typeName}": data must be an object`);
   }
-  // D-67: emails and phone numbers come only from Apollo, never from public research.
+  // Extractors supply names/roles. Operator-reviewed contact details may be
+  // saved with the mandatory company-scoped sources; this does not grant
+  // Apollo verification or make a record contactable.
   const contactFields = Object.keys(item.data).filter((k) => CONTACT_FIELD.test(k));
-  if (contactFields.length > 0) {
+  if (contactFields.length > 0 && ctx.input.createdBy !== "owner") {
     item = { ...item, data: Object.fromEntries(Object.entries(item.data).filter(([k]) => !CONTACT_FIELD.test(k))) };
-    warnings.push(`dropped contact fields (emails and phones come only from Apollo): ${contactFields.join(", ")}`);
+    warnings.push(`dropped unreviewed extractor contact fields: ${contactFields.join(", ")}`);
   }
   if (Object.keys(item.data).length === 0) {
     throw new DomainError("invalid_input", `record "${typeName}": data is empty`);
@@ -240,6 +242,14 @@ async function upsertOne(
     return { ok: true, id: row.id, outcome: "created", warnings };
   }
 
+  // An unverified alternative must never replace an existing contact value.
+  // Keep the alternative in its cited source/review note for owner review.
+  for (const key of Object.keys(data)) {
+    if (CONTACT_FIELD.test(key) && existing.data[key] && existing.data[key] !== data[key]) {
+      delete data[key];
+      warnings.push(`retained existing contact field ${key}; alternative requires review`);
+    }
+  }
   const merged = { ...existing.data, ...data };
   const union = [...new Set([...existing.sourceIds, ...item.sourceIds])];
   const tagsUnion = [...new Set([...existing.tags, ...tags])];
