@@ -1,6 +1,7 @@
 import { and, eq, gte, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
 import { harnessSettings, providerCalls, researchRuns } from "../../db/schema.js";
+import { CODEX_MODEL } from "../../harness/codex-model.js";
 
 /**
  * Quota circuit breaker state. There is no provider quota-% API: the only
@@ -198,6 +199,6 @@ export async function windowBurn(db: Db, since: Date | null): Promise<number> {
       total: sql<number | string>`coalesce(sum(${providerCalls.inputTokens} + ${providerCalls.cachedTokens}), 0)::bigint`,
     })
     .from(providerCalls)
-    .where(since ? gte(providerCalls.at, since) : undefined);
+    .where(and(sql`${providerCalls.model} IS DISTINCT FROM ${CODEX_MODEL}`, since ? gte(providerCalls.at, since) : undefined));
   return Number(row?.total ?? 0);
 }

@@ -1,7 +1,9 @@
 import { eq } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
 import { harnessSettings, type RiaStep } from "../../db/schema.js";
-import { quotaEarlyTripRatioGet, quotaSnapshotWeeklyPct, quotaBreakerGet, quotaBreakerSet, parseQuotaExhaustion } from "../quota/breaker.js";
+import { quotaBreakerSet, parseQuotaExhaustion } from "../quota/breaker.js";
+import { riaProviderGate, withRiaProvider } from "./provider.js";
+import { CodexCallError } from "../../harness/codex-extract.js";
 import { MAX_RIA_AI, riaAiSlots } from "./slots.js";
 import { eligibleCompanyIds, recordStep, stepState, type StepOutcome } from "./status.js";
 
@@ -93,18 +95,17 @@ export async function runRiaStep(
         const shared = await stepState(db, input.sectorId, companyId, input.step);
         if (shared?.status === "failed") outcome.failed += 1;
         if (await riaStepPaused(db)) outcome.stopped = "pause";
-        else if (AI_STEPS.has(input.step) && (await quotaBreakerGet(db)).tripped) outcome.stopped = "quota";
+        else if (AI_STEPS.has(input.step) && !(await riaProviderGate(db)).available) outcome.stopped = "quota";
         continue;
       }
       const execute = async () => {
         // Recheck after waiting for a shared slot: quota/pause may have changed.
         if (await riaStepPaused(db)) { outcome.stopped = "pause"; return; }
-        if (AI_STEPS.has(input.step)) {
-          const [snap, setting, trip] = await Promise.all([quotaSnapshotWeeklyPct(db), quotaEarlyTripRatioGet(db), quotaBreakerGet(db)]);
-          if (trip.tripped || (snap.weeklyPct !== null && snap.weeklyPct >= setting.ratio * 100)) { outcome.stopped = "quota"; return; }
-        }
+        const provider = AI_STEPS.has(input.step) ? await riaProviderGate(db) : null;
+        if (provider && !provider.available) { outcome.stopped = "quota"; return; }
         try {
-          const result = await handler(db, input.sectorId, companyId);
+          const work = () => handler(db, input.sectorId, companyId);
+          const result = await (provider ? withRiaProvider(provider.provider, work) : work());
           if (result.cached) { outcome.skippedDone += 1; return; }
           await recordStep(db, { sectorId: input.sectorId, companyId, step: input.step, ...result });
           outcome[result.status] += 1;
@@ -113,7 +114,8 @@ export async function runRiaStep(
           let deepest = "step error";
           let cur: unknown = err;
           for (let i = 0; i < 5 && cur instanceof Error; i++) { deepest = cur.message; cur = (cur as { cause?: unknown }).cause; }
-          const quota = parseQuotaExhaustion(deepest);
+          if (err instanceof CodexCallError && (err.kind === "quota" || err.kind === "auth")) outcome.stopped = "quota";
+          const quota = err instanceof CodexCallError ? { exhausted: false, resumeAt: null } : parseQuotaExhaustion(deepest);
           if (quota.exhausted) {
             outcome.stopped = "quota";
             await quotaBreakerSet(db, { trippedAt: new Date().toISOString(), resumeAt: quota.resumeAt?.toISOString() ?? null, estimated: false, jobIds: [], error: deepest.slice(0, 600) });

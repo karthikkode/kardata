@@ -57,6 +57,7 @@ import { riaStatus } from "../domain/ria-steps/status.js";
 import { runRiaStep, setRiaStepPaused } from "../domain/ria-steps/runner.js";
 import { runRiaPipeline, riaPipelineStatus } from "../domain/ria-steps/pipeline.js";
 import { RIA_STEP_HANDLERS, riaPipelineHandlers } from "../domain/ria-steps/steps.js";
+import { riaProviderStatus, setRiaProviderMode } from "../domain/ria-steps/provider.js";
 import { queueRiaDeepResearch } from "../domain/ria-steps/deep-research.js";
 import { createQuotaMonitor, quotaSnapshotGet, readQuotaLive, readMuseAccount } from "../runs/quota-monitor.js";
 import { readMuseCliUsage } from "../runs/cli-quota.js";
@@ -1541,11 +1542,38 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   );
 
   registerTool(server, db, auth,
+    "ria_provider_status",
+    {
+      description: "Operator: RIA extractor selection and separate app-owned Codex auth/model/quota readiness. Refresh performs non-model Codex account/model/rate-limit reads; never exposes credentials or account details.",
+      inputSchema: { refresh: z.boolean().optional() },
+    },
+    async ({ refresh }) => wrap(async () => {
+      const status = await riaProviderStatus(db, refresh ?? false);
+      return { summary: `RIA extractor ${status.provider}: ${status.available ? "available" : status.reason}`, data: status };
+    }),
+  );
+
+  registerTool(server, db, auth,
+    "ria_provider_set",
+    {
+      description: "Operator: select muse, codex, or auto (Muse primary only with fresh confirmed capacity, Codex otherwise) for RIA reads only. Requires drained RIA calls. Codex is pinned to GPT-6.1 Terra, 500000-token context and medium reasoning with app-owned ChatGPT auth. Quotas remain separate; completed reads are retained.",
+      inputSchema: { mode: z.enum(["muse", "codex", "auto"]) },
+    },
+    async ({ mode }) => wrap(async () => {
+      const live = riaPipelineStatus(db);
+      if (live.pipelines.length || live.ai.active || live.collection.active) throw new DomainError("invalid_input", "drain RIA calls before changing extractor provider");
+      await setRiaProviderMode(db, mode);
+      const status = await riaProviderStatus(db, mode !== "muse");
+      return { summary: `RIA extractor mode ${mode}; ${status.provider} ${status.available ? "available" : status.reason}`, data: status };
+    }),
+  );
+
+  registerTool(server, db, auth,
     "ria_pipeline_status",
     { description: "Operator: live RIA pipeline progress, shared AI/collection slots and queued work. Stored per-firm outcomes remain available through ria_status.", inputSchema: {} },
     async () => wrap(async () => {
       const status = riaPipelineStatus(db);
-      return { summary: `${status.pipelines.length} RIA pipelines; AI slots ${status.ai.active}/${status.ai.limit}`, data: status };
+      return { summary: `${status.pipelines.length} RIA pipelines; AI slots ${status.ai.active}/${status.ai.limit}`, data: { ...status, provider: await riaProviderStatus(db) } };
     }),
   );
 

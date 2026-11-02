@@ -1,12 +1,11 @@
 import { AGENTS_NETWORK } from "./setup.js";
 import { CONTAINER_CPUS, CONTAINER_MEMORY, CONTAINER_PIDS_LIMIT, RUN_LABEL } from "./docker.js";
+import { CODEX_MODEL, CODEX_CONTEXT, CODEX_REASONING } from "./codex-model.js";
+export { CODEX_MODEL, CODEX_CONTEXT, CODEX_REASONING } from "./codex-model.js";
 
 export const CODEX_IMAGE = "kardata-codex-agent";
 export const CODEX_VOLUME = "kardata_codex";
 export const CODEX_MOUNT = "/opt/codex";
-export const CODEX_MODEL = "gpt-6.1-terra";
-export const CODEX_CONTEXT = 500_000;
-export const CODEX_REASONING = "medium";
 export const CODEX_AUTH_ARGS = ["-c", 'cli_auth_credentials_store="file"'];
 
 export function codexContainerName(runId: string, area: string): string {
@@ -28,7 +27,7 @@ export function codexExtractArgs(input: { runId: string; area: string; inputDir:
     "--mount", `type=bind,src=${input.inputDir},dst=/input,ro`, CODEX_IMAGE,
     ...CODEX_AUTH_ARGS, "exec", "--json", "--ephemeral", "--skip-git-repo-check",
     "--ignore-user-config", "--ignore-rules", "--sandbox", "read-only",
-    "--disable", "shell_tool", "--disable", "multi_agent", "--disable", "hooks",
+    "--disable", "shell_tool", "--disable", "multi_agent", "--disable", "hooks", "--disable", "plugins",
     "-c", 'web_search="disabled"', "-c", "mcp_servers={}",
     "--model", CODEX_MODEL, "-c", `model_context_window=${CODEX_CONTEXT}`,
     "-c", `model_reasoning_effort="${CODEX_REASONING}"`, "-c", 'forced_login_method="chatgpt"',

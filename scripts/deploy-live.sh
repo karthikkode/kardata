@@ -102,6 +102,7 @@ update_and_restart() {
   # Workers run the baked-in scraper from this image; a deploy without a
   # rebuild silently leaves stale parser code live.
   docker build -t kardata-agent harness/
+  docker build -f harness/Codex.Dockerfile -t kardata-codex-agent harness/
   npm run db:migrate
   # Final guard: a job begun since the drain check would orphan on restart.
   local running
