@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { eq } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DbHandle } from "../../src/db/client.js";
 import {
   companies,
@@ -24,6 +24,8 @@ import {
   getTestDb,
   resetTestDb,
 } from "../db.js";
+
+import * as quotaMonitor from "../../src/runs/quota-monitor.js";
 
 const TOKEN = "test-operator-token";
 
@@ -408,6 +410,14 @@ describe("mcp tools", () => {
     });
     const quotaLive = dataOf(await call("quota_breaker_status", {}));
     expect((quotaLive.live as { weeklyPct: number }).weeklyPct).toBe(89);
+    const quotaReader = vi.spyOn(quotaMonitor, "readQuotaLive").mockResolvedValue({ fivePct: 0, fiveResetAt: null, weeklyPct: 30, weeklyResetAt: null });
+    const refreshed = dataOf(await call("quota_breaker_status", { refresh: true }));
+    expect((refreshed.live as { fivePct: number }).fivePct).toBe(0);
+    expect(quotaReader).toHaveBeenCalledOnce();
+    quotaReader.mockResolvedValue(null);
+    const retained = dataOf(await call("quota_breaker_status", { refresh: true }));
+    expect(retained.live).toEqual(refreshed.live);
+    quotaReader.mockRestore();
     const quotaCleared = dataOf(await call("quota_breaker_clear", {}));
     expect(quotaCleared.tripped).toBe(false);
 

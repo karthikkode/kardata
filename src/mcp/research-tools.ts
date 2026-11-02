@@ -57,7 +57,7 @@ import { runRiaStep, setRiaStepPaused } from "../domain/ria-steps/runner.js";
 import { runRiaPipeline, riaPipelineStatus } from "../domain/ria-steps/pipeline.js";
 import { RIA_STEP_HANDLERS, riaPipelineHandlers } from "../domain/ria-steps/steps.js";
 import { queueRiaDeepResearch } from "../domain/ria-steps/deep-research.js";
-import { quotaSnapshotGet } from "../runs/quota-monitor.js";
+import { createQuotaMonitor, quotaSnapshotGet, readQuotaLive } from "../runs/quota-monitor.js";
 import { probeMuseVolumeBytes } from "../harness/session-cleanup.js";
 import { researchStart } from "../runs/agent.js";
 import {
@@ -1717,11 +1717,12 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   registerTool(server, db, auth,
     "quota_breaker_status",
     {
-      description: "Operator: quota breaker state — trip, reset time, live 5h/weekly % from the monitor, burn vs learned allowance.",
-      inputSchema: {},
+      description: "Operator: quota breaker state. Optional refresh reads live provider usage now; failed reads retain the previous snapshot.",
+      inputSchema: { refresh: z.boolean().optional() },
     },
-    async () =>
+    async ({ refresh }) =>
       wrap(async () => {
+        if (refresh) await createQuotaMonitor(db, { readUsage: readQuotaLive }).poll();
         const trip = await quotaBreakerGet(db);
         const cal = await quotaCalibrationGet(db);
         const start = cal ? new Date(cal.windowStart) : null;
