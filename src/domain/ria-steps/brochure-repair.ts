@@ -5,7 +5,7 @@ import { DomainError } from "../errors.js";
 import { saveDocument } from "../research/documents.js";
 import { blobText } from "../research/reads.js";
 import { opsPrompt } from "./handlers.js";
-import { BROCHURE_ITEMS, splitBrochureItems } from "./brochure.js";
+import { BROCHURE_ITEMS, splitBrochureItems, FULL_BROCHURE_PATH, FULL_BROCHURE_CAP, FULL_BROCHURE_GAP } from "./brochure.js";
 import { riaPipelineStatus } from "./pipeline.js";
 import { riaStepPaused } from "./runner.js";
 import { eligibleCompanyIds, recordStep } from "./status.js";
@@ -17,6 +17,8 @@ interface RepairResult {
   applied: boolean;
   opsRefreshRequired: boolean;
   reason?: string;
+  mode?: "sections" | "full_text";
+  brochureGap?: string;
 }
 const itemPath = (item: string) => `financials/brochure-item-${item}.md`;
 const promptItems = ["5", "4", "12", "15", "8", "14"];
@@ -24,8 +26,18 @@ function operationsInput(items: Record<string, string>) {
   return opsPrompt(promptItems.filter((item) => (items[item]?.trim().length ?? 0) >= 40).map((item) => ({ item, text: items[item] as string })));
 }
 
+async function invalidate(db: Db, sectorId: string, companyId: string, ops: boolean, gap?: string, version?: string) {
+  for (const step of ["brochure", ...(ops ? ["ops_read"] as const : []), "signals"] as const) {
+    const [prior] = await db.select().from(riaStepRuns).where(and(eq(riaStepRuns.sectorId, sectorId), eq(riaStepRuns.companyId, companyId), eq(riaStepRuns.step, step)));
+    await recordStep(db, { sectorId, companyId, step,
+      status: step === "brochure" ? gap ? "gap" : prior?.status as "done" | "gap" | "failed" ?? "done" : "gap",
+      reason: step === "brochure" ? gap ?? (prior?.status === "gap" ? prior.reason : "stored brochure sections repaired") : `stored brochure changed; ${step} refresh required`,
+      inputHash: step === "brochure" && version ? version : prior?.inputHash, tokensUsed: prior?.tokensUsed });
+  }
+}
+
 /** Re-split the current cited PDF (prefer Item 5). No fetch or model. */
-export async function repairStoredBrochures(db: Db, input: { sectorId: string; companyIds: string[]; dryRun?: boolean }) {
+export async function repairStoredBrochures(db: Db, input: { sectorId: string; companyIds: string[]; dryRun?: boolean; fullTextFallback?: boolean }) {
   if (input.companyIds.length > 200) throw new DomainError("invalid_input", "at most 200 companies per repair call");
   const ids = [...new Set(input.companyIds)];
   const eligible = new Set(await eligibleCompanyIds(db, input.sectorId));
@@ -42,10 +54,11 @@ export async function repairStoredBrochures(db: Db, input: { sectorId: string; c
     const result: RepairResult = { companyId, changedItems: [], applied: false, opsRefreshRequired: false };
     try {
       const current = await db.select().from(documents).where(and(eq(documents.companyId, companyId), eq(documents.isCurrent, true),
-        inArray(documents.path, BROCHURE_ITEMS.map(itemPath))));
+        inArray(documents.path, [...BROCHURE_ITEMS.map(itemPath), FULL_BROCHURE_PATH])));
       // If an earlier split missed Item 5, another cited section can recover
       // it. The version/content checks below still require one coherent PDF.
-      const anchor = current.find((d) => d.path === itemPath("5")) ?? current[0];
+      const full = current.find((d) => d.path === FULL_BROCHURE_PATH);
+      const anchor = current.find((d) => d.path === itemPath("5")) ?? full ?? current[0];
       const version = anchor?.title.match(/\((\d{4}-\d{2}-\d{2}), v(\d+)\)/);
       if (!anchor || !version || anchor.sourceIds.length !== 1) { result.reason = "no unambiguous stored brochure source/version"; results.push(result); continue; }
       const sourceId = anchor.sourceIds[0] as string;
@@ -65,6 +78,38 @@ export async function repairStoredBrochures(db: Db, input: { sectorId: string; c
       }
       const stored = await blobText(db, source.blobSha256);
       if (!stored) { result.reason = "stored brochure blob missing"; results.push(result); continue; }
+      if (full || input.fullTextFallback === true) {
+        // Explicit operator fallback for readable prose without reliable Item
+        // headings. Keep literal source text; never invent section boundaries.
+        if (stored.text.trim().length < 500 || !/[a-z]{3,} [a-z]{3,} [a-z]{3,}/i.test(stored.text.replace(/\s+/g, " "))) {
+          result.reason = "stored brochure has insufficient readable prose"; results.push(result); continue;
+        }
+        if (stored.text.length > FULL_BROCHURE_CAP) {
+          result.reason = "stored brochure exceeds bounded whole-text read; source excerpts require review"; results.push(result); continue;
+        }
+        result.mode = "full_text";
+        const stale = (version[1] as string) < new Date(Date.now() - 2 * 365.25 * 86_400_000).toISOString().slice(0, 10);
+        result.brochureGap = FULL_BROCHURE_GAP + (stale ? "; brochure older than 2 years" : "");
+        const sections = current.filter((d) => d.path !== FULL_BROCHURE_PATH);
+        result.changedItems = sections.map((d) => BROCHURE_ITEMS.find((item) => itemPath(item) === d.path) as string);
+        if (!full || full.contentMd !== stored.text) result.changedItems.push("full_text");
+        result.opsRefreshRequired = !full || full.contentMd !== stored.text;
+        if (!dryRun && result.changedItems.length) {
+          await db.transaction(async (tx) => {
+            const latest = await tx.select().from(documents).where(and(eq(documents.companyId, companyId), eq(documents.isCurrent, true),
+              inArray(documents.path, [...BROCHURE_ITEMS.map(itemPath), FULL_BROCHURE_PATH]))).for("update");
+            if (latest.length !== current.length || current.some((d) => !latest.some((n) => n.id === d.id && n.contentSha256 === d.contentSha256))) throw new Error("brochure changed during fallback; retry preview");
+            if (sections.length) await tx.update(documents).set({ isCurrent: false }).where(inArray(documents.id, sections.map((d) => d.id)));
+            await saveDocument(tx, { companyId, path: FULL_BROCHURE_PATH, runId: anchor.runId, kind: anchor.kind,
+              title: `Part 2A stored brochure text (${version[1]}, v${version[2]})`, contentMd: stored.text, sourceIds: [sourceId],
+              createdBy: "collector:ria_brochure", tags: ["brochure:section-boundaries-unavailable"] });
+            await invalidate(tx as Db, input.sectorId, companyId, result.opsRefreshRequired, result.brochureGap, version[2]);
+          });
+          result.applied = true;
+        }
+        results.push(result); continue;
+      }
+      result.mode = "sections";
       const items = splitBrochureItems(stored.text);
       const missing = current.filter((d) => !items[BROCHURE_ITEMS.find((i) => itemPath(i) === d.path) as string]);
       if (missing.length) { result.reason = "reparse lost existing sections; manual review required"; results.push(result); continue; }
@@ -85,15 +130,7 @@ export async function repairStoredBrochures(db: Db, input: { sectorId: string; c
               sourceIds: old?.sourceIds ?? [sourceId], factIds: old?.factIds, recordIds: old?.recordIds, tags: old?.tags,
               createdBy: "collector:ria_brochure" });
           }
-          // Preserve successful extracted facts/records and their old input hash.
-          // Explicitly invalidate dependent stage status until it is refreshed.
-          for (const step of ["brochure", ...(result.opsRefreshRequired ? ["ops_read"] as const : []), "signals"] as const) {
-            const [prior] = await tx.select().from(riaStepRuns).where(and(eq(riaStepRuns.sectorId, input.sectorId), eq(riaStepRuns.companyId, companyId), eq(riaStepRuns.step, step)));
-            await recordStep(tx as Db, { sectorId: input.sectorId, companyId, step,
-              status: step === "brochure" ? prior?.status as "done" | "gap" | "failed" ?? "done" : "gap",
-              reason: step === "brochure" ? prior?.status === "gap" ? prior.reason : "stored brochure sections repaired" : `stored brochure changed; ${step} refresh required`,
-              inputHash: prior?.inputHash, tokensUsed: prior?.tokensUsed });
-          }
+          await invalidate(tx as Db, input.sectorId, companyId, result.opsRefreshRequired);
         });
         result.applied = true;
       }

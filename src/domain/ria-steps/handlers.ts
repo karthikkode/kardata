@@ -18,7 +18,7 @@ import { recordVerdicts } from "../tiering.js";
 import { custodianCountNames } from "./custodians.js";
 import { storedOrFetch } from "./stored-source.js";
 import { stepState } from "./status.js";
-import { splitBrochureItems } from "./brochure.js";
+import { splitBrochureItems, FULL_BROCHURE_PATH, FULL_BROCHURE_CAP, FULL_BROCHURE_GAP } from "./brochure.js";
 import type { StepHandler, StepResult } from "./runner.js";
 import { dockerExtractorCall, type ExtractorCall } from "../../runs/extract.js";
 
@@ -172,6 +172,12 @@ export function createBrochureStep(preferStoredSources = false): StepHandler {
     }
     if (!choice) return finish({ status: "gap", reason: "no brochure filed", inputHash: crd });
 
+    const [full] = await db.select().from(documents).where(and(eq(documents.companyId, companyId), eq(documents.path, FULL_BROCHURE_PATH), eq(documents.isCurrent, true)));
+    if (full?.title.includes(`v${choice.versionId})`)) {
+      const staleFull = choice.dateSubmitted < new Date(Date.now() - 2 * 365.25 * 86_400_000).toISOString().slice(0, 10);
+      return finish({ status: "gap", reason: FULL_BROCHURE_GAP + (staleFull ? "; brochure older than 2 years" : ""), inputHash: String(choice.versionId) });
+    }
+
     // Already stored at this version: skip the download.
     const existing = await db
       .select({ title: documents.title, contentMd: documents.contentMd })
@@ -232,6 +238,7 @@ export function createBrochureStep(preferStoredSources = false): StepHandler {
         createdBy: "collector:ria_brochure",
       });
     }
+    if (full) await db.update(documents).set({ isCurrent: false }).where(eq(documents.id, full.id));
     if (stale) return finish({ status: "gap", reason: "brochure older than 2 years", inputHash: String(choice.versionId) });
     return finish({ status: "done", reason: `items ${found.join(",")}, brochure ${choice.dateSubmitted} (v${choice.versionId})`, inputHash: String(choice.versionId) });
   } catch (err) {
@@ -293,11 +300,13 @@ export const OPS_SCHEMA = JSON.stringify({
   required: ["services", "outside_managers", "sub_advisers", "wrap_programs", "tamp_providers", "custodians_named", "brokers_named", "directed_brokerage", "trade_aggregation", "private_funds", "custody_sloa", "custody_exam", "systems", "fee_schedule", "family_grouping", "negotiable", "fee_types", "minimums", "billing", "proration", "refunds", "collection", "quotes"],
 });
 
-const OPS_ITEM_CAPS: Record<string, number> = { "5": 40_000, "4": 30_000, "12": 20_000, "15": 10_000, "8": 12_000, "14": 8_000 };
+const OPS_ITEM_CAPS: Record<string, number> = { "5": 40_000, "4": 30_000, "12": 20_000, "15": 10_000, "8": 12_000, "14": 8_000, full_brochure: FULL_BROCHURE_CAP };
 
 export function opsPrompt(items: { item: string; text: string }[]): string {
   const parts = [
-    "Read this Form ADV Part 2A brochure text (Items 4, 5, 8, 12, 14, 15) and return one JSON object matching the schema. No tools.",
+    items.some((i) => i.item === "full_brochure")
+      ? "Read this bounded stored Part 2A brochure text. Section headings could not be extracted reliably. Use substantive body prose, never contents entries, for one JSON object matching the schema. No tools."
+      : "Read this Form ADV Part 2A brochure text (Items 4, 5, 8, 12, 14, 15) and return one JSON object matching the schema. No tools.",
     "services: service lines offered, from: financial_planning, tax, insurance, retirement_plan_consulting, trusts_estates, investment_management, other (use these words).",
     "outside_managers / sub_advisers / wrap_programs: true only when the text says the firm uses them. tamp_providers: model or TAMP provider names.",
     "custodians_named / brokers_named: custodian and broker names stated. directed_brokerage / trade_aggregation: true only when stated.",
@@ -312,7 +321,7 @@ export function opsPrompt(items: { item: string; text: string }[]): string {
   return parts.join("\n");
 }
 
-async function brochureItemText(db: Db, companyId: string, item: string): Promise<{ text: string; sourceIds: string[]; createdAt: Date } | null> {
+async function brochureItemText(db: Db, companyId: string, item: string): Promise<{ text: string; sourceIds: string[]; createdAt: Date; title: string } | null> {
   // Documents are versioned rows; only the current version is the brochure
   // text. An unordered pick can return a superseded slice (the O5-era
   // table-of-contents Item 5), which starves the grounding check.
@@ -322,20 +331,25 @@ async function brochureItemText(db: Db, companyId: string, item: string): Promis
     .where(
       and(
         eq(documents.companyId, companyId),
-        eq(documents.path, `financials/brochure-item-${item}.md`),
+        eq(documents.path, item === "full_brochure" ? FULL_BROCHURE_PATH : `financials/brochure-item-${item}.md`),
         eq(documents.isCurrent, true),
       ),
     );
   if (!latest) return null;
-  return { text: latest.contentMd ?? "", sourceIds: latest.sourceIds ?? [], createdAt: latest.createdAt };
+  return { text: latest.contentMd ?? "", sourceIds: latest.sourceIds ?? [], createdAt: latest.createdAt, title: latest.title };
 }
 
 export function createOpsReadStep(call: ExtractorCall = dockerExtractorCall): StepHandler {
   return async (db, sectorId, companyId) => {
-    const item5 = await brochureItemText(db, companyId, "5");
-    if (!item5 || item5.text.trim().length < 40) return { status: "gap", reason: "no brochure Item 5 stored" };
-    const loaded: { item: string; text: string; sourceIds: string[]; createdAt: Date }[] = [{ item: "5", ...item5 }];
-    for (const item of ["4", "12", "15", "8", "14"]) {
+    const full = await brochureItemText(db, companyId, "full_brochure");
+    const brochure = full ? await stepState(db, sectorId, companyId, "brochure") : null;
+    const fullVersion = full?.title.match(/, v(\d+)\)/)?.[1];
+    const useFull = !!full && fullVersion === brochure?.inputHash;
+    if (useFull && full.text.length > FULL_BROCHURE_CAP) return { status: "gap", reason: "stored brochure exceeds bounded operations read; reviewed excerpts required" };
+    const item5 = useFull ? full : await brochureItemText(db, companyId, "5");
+    if (!item5 || item5.text.trim().length < 40) return { status: "gap", reason: full && !useFull ? "stored full brochure version is stale; current sections unavailable" : "no brochure Item 5 stored" };
+    const loaded: { item: string; text: string; sourceIds: string[]; createdAt: Date }[] = [{ item: useFull ? "full_brochure" : "5", ...item5 }];
+    for (const item of useFull ? [] : ["4", "12", "15", "8", "14"]) {
       const got = await brochureItemText(db, companyId, item);
       if (got && got.text.trim().length >= 40) loaded.push({ item, ...got });
     }
@@ -343,7 +357,7 @@ export function createOpsReadStep(call: ExtractorCall = dockerExtractorCall): St
     const inputHash = createHash("sha256").update(prompt).update(OPS_SCHEMA).digest("hex").slice(0, 16);
     const existing = await stepState(db, sectorId, companyId, "ops_read");
     const legacyHash = createHash("sha256").update(item5.text.slice(0, 5000)).digest("hex").slice(0, 16);
-    const legacyUnchanged = existing?.inputHash === legacyHash && loaded.every((item) => item.createdAt <= existing.updatedAt);
+    const legacyUnchanged = !useFull && existing?.inputHash === legacyHash && loaded.every((item) => item.createdAt <= existing.updatedAt);
     if (existing?.status === "done" && (existing.inputHash === inputHash || legacyUnchanged)) return { status: "done", cached: true, inputHash: existing.inputHash };
     const runId = await newRun(db, companyId, "extraction");
     try {
@@ -352,7 +366,7 @@ export function createOpsReadStep(call: ExtractorCall = dockerExtractorCall): St
       const quoteList = Array.isArray(json["quotes"]) ? (json["quotes"] as { field?: string; quote?: string }[]) : [];
       const quotes: Record<string, string> = {};
       for (const q of quoteList) if (typeof q.field === "string" && typeof q.quote === "string") quotes[q.field] = q.quote;
-      const haystacks = loaded.map((l) => ({ norm: normalizeForGrounding(l.text), sourceIds: l.sourceIds }));
+      const haystacks = loaded.map((l) => ({ norm: normalizeForGrounding(l.text.slice(0, OPS_ITEM_CAPS[l.item] ?? 10_000)), sourceIds: l.sourceIds }));
       const ground = (field: string): { quote: string; sourceId: string | null } | null => {
         const q = quotes[field];
         if (!q) return null;
@@ -387,7 +401,7 @@ export function createOpsReadStep(call: ExtractorCall = dockerExtractorCall): St
         { key: "ria.fee_proration", value: json["proration"] === true, field: "proration" },
         { key: "ria.fee_refunds", value: json["refunds"] === true, field: "refunds" },
         { key: "ria.fee_collection", value: String(json["collection"] ?? ""), field: "collection" },
-      ].filter((i) => !(typeof i.value === "string" && i.value === "") && !(Array.isArray(i.value) && i.value.length === 0) && i.value !== false);
+      ].filter((i) => !(typeof i.value === "string" && i.value === "") && !(Array.isArray(i.value) && i.value.length === 0));
       const facts: { key: string; value: never; sourceIds: string[]; confidence: "high" | "medium" | "low"; quote: string | null; quoteSourceId: string | null }[] = [];
       for (const i of items) {
         const g = ground(i.field);

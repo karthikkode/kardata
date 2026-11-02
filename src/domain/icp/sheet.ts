@@ -1,3 +1,4 @@
+import { FULL_BROCHURE_PATH } from "../ria-steps/brochure.js";
 import { and, eq, inArray } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
 import { companies, documents, facts, factsCurrent, records, riaStepRuns, RIA_STEPS, type CompanyIcpCheck } from "../../db/schema.js";
@@ -325,10 +326,11 @@ export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRo
       if (days >= 180) growth = `${Math.round(((last.n - first.n) / first.n) * 100)}%`;
     }
     const brochureDocs = await db
-      .select({ title: documents.title })
+      .select({ title: documents.title, path: documents.path })
       .from(documents)
-      .where(and(eq(documents.companyId, row.companyId), eq(documents.path, "financials/brochure-item-5.md")));
-    const brochureDate = /\((\d{4}-\d{2}-\d{2})[),]/.exec(brochureDocs[brochureDocs.length - 1]?.title ?? "")?.[1] ?? "";
+      .where(and(eq(documents.companyId, row.companyId), eq(documents.isCurrent, true), inArray(documents.path, ["financials/brochure-item-5.md", FULL_BROCHURE_PATH])));
+    const brochureDoc = brochureDocs.find((d) => d.path === "financials/brochure-item-5.md") ?? brochureDocs.find((d) => d.path === FULL_BROCHURE_PATH);
+    const brochureDate = /\((\d{4}-\d{2}-\d{2})[),]/.exec(brochureDoc?.title ?? "")?.[1] ?? "";
     const feeSummary = (textOf("ria.fee_schedule").trim() || textOf("firm.fee_schedule").trim()).slice(0, 120);
     const steps = await db.select().from(riaStepRuns).where(and(eq(riaStepRuns.sectorId, sectorId), eq(riaStepRuns.companyId, row.companyId), inArray(riaStepRuns.step, [...RIA_STEPS])));
     const gaps = steps.filter((s) => s.status !== "done").map((s) => `${s.step}: ${s.reason || s.status}`);

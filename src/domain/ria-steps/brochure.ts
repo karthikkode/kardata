@@ -1,5 +1,9 @@
 /** Split Part 2A brochure text by Item headings (Stage 5.8 B4). Pure. */
 
+export const FULL_BROCHURE_PATH = "financials/brochure-full-text.md";
+export const FULL_BROCHURE_CAP = 120_000;
+export const FULL_BROCHURE_GAP = "brochure section boundaries unavailable; stored extracted text available";
+
 export const BROCHURE_ITEMS = ["4", "5", "8", "9", "12", "14", "15"] as const;
 
 const ITEM_TITLES: Record<string, string> = {
