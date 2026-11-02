@@ -1,3 +1,4 @@
+import type { fetchUrl } from "../fetch.js";
 import type { Db } from "../../db/client.js";
 import type { Area, Company, Source } from "../../db/schema.js";
 import type { EffectiveCompany } from "../../domain/companies.js";
@@ -105,6 +106,7 @@ export interface CollectorCtx {
   endpoints: CollectEndpoints;
   privateHostAllowlist: string[];
   shared: RunShared;
+  fetch?: typeof fetchUrl;
 }
 
 export type AreaOutcomeStatus = "done" | "not_found" | "blocked" | "error" | "skipped";

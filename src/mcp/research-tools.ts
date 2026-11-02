@@ -54,7 +54,8 @@ import { ADAPTERS } from "../collect/adapters.js";
 import { cleanStoredOfficerTitles } from "../domain/ria-steps/officers.js";
 import { riaStatus } from "../domain/ria-steps/status.js";
 import { runRiaStep, setRiaStepPaused } from "../domain/ria-steps/runner.js";
-import { RIA_STEP_HANDLERS } from "../domain/ria-steps/steps.js";
+import { runRiaPipeline, riaPipelineStatus } from "../domain/ria-steps/pipeline.js";
+import { RIA_STEP_HANDLERS, riaPipelineHandlers } from "../domain/ria-steps/steps.js";
 import { queueRiaDeepResearch } from "../domain/ria-steps/deep-research.js";
 import { quotaSnapshotGet } from "../runs/quota-monitor.js";
 import { probeMuseVolumeBytes } from "../harness/session-cleanup.js";
@@ -1511,7 +1512,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         step: z.enum(["firm_data", "brochure", "ops_read", "contacts", "signals"]).describe("Step name"),
         companyIds: z.array(z.string()).optional().describe("Exactly these firms (re-runs even when done)"),
         limit: z.number().int().optional().describe("Cap firms in this call"),
-        concurrency: z.number().int().optional().describe("Parallel firms (default 4, max 16; SEC host delay still applies)"),
+        concurrency: z.number().int().min(1).max(64).optional().describe("Parallel firms (default 4, max 64; AI slots shared across RIA calls; SEC delay still applies)"),
       },
     },
     async ({ sectorId, step, companyIds, limit, concurrency }) =>
@@ -1519,6 +1520,31 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         const result = await runRiaStep(db, { sectorId, step: step as never, companyIds: companyIds ?? undefined, limit: limit ?? undefined, concurrency: concurrency ?? undefined }, RIA_STEP_HANDLERS);
         return { summary: `${step}: done ${result.done}, gap ${result.gap}, failed ${result.failed}, skipped ${result.skippedDone}${result.stopped ? `, stopped (${result.stopped})` : ""}, tokens ${result.tokensUsed}`, data: result };
       }),
+  );
+
+  registerTool(server, db, auth,
+    "ria_pipeline_status",
+    { description: "Operator: live RIA pipeline progress, shared AI/collection slots and queued work. Stored per-firm outcomes remain available through ria_status.", inputSchema: {} },
+    async () => wrap(async () => {
+      const status = riaPipelineStatus(db);
+      return { summary: `${status.pipelines.length} RIA pipelines; AI slots ${status.ai.active}/${status.ai.limit}`, data: status };
+    }),
+  );
+
+  registerTool(server, db, auth,
+    "ria_pipeline_run",
+    {
+      description: "Operator: rolling RIA research for a named eligible batch. Reparse recent stored SEC inputs (48h, original citations), fetch missing inputs politely, share at most 64 RIA AI slots across all calls, replenish workers continuously and refresh each firm's signals after its reads. Completed input-identical reads are reused. Stops on pause or quota, with progress stored per step for recovery.",
+      inputSchema: {
+        sectorId: z.string().uuid(),
+        companyIds: z.array(z.string().uuid()).max(10000),
+        concurrency: z.number().int().min(1).max(64).optional().describe("Company workers, default 64; shared RIA AI maximum remains 64"),
+      },
+    },
+    async (input) => wrap(async () => {
+      const result = await runRiaPipeline(db, input, riaPipelineHandlers());
+      return { summary: `RIA pipeline: ${result.completed}/${result.considered} completed, ${result.failed} failed${result.stopped ? `, stopped (${result.stopped})` : ""}`, data: result };
+    }),
   );
 
   registerTool(server, db, auth,

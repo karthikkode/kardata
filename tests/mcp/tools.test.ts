@@ -103,6 +103,8 @@ const EXPECTED_TOOLS = [
   "ria_status",
   "ria_officer_titles_clean",
   "ria_step_run",
+  "ria_pipeline_run",
+  "ria_pipeline_status",
   "ria_step_pause",
   "ria_deep_research",
   "company_job_retry",

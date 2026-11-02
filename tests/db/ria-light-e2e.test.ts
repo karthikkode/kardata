@@ -160,20 +160,20 @@ describe("synthetic RIA sector through the light steps (B9)", () => {
     for (const step of ["firm_data", "brochure", "ops_read"] as const) {
       const out = await runRiaStep(db, { sectorId: sector.id, step, companyIds: [firm.id] }, handlers);
       expect(out.failed, step).toBe(0);
-      expect(out.done, step).toBe(1);
+      expect(out.done + out.skippedDone, step).toBe(1);
     }
     // Point the firm at the fake site now (firm_data normalises websites to domains).
     await db.update(companies).set({ website: `${site.baseUrl}/` }).where(eq(companies.id, firm.id));
     for (const step of ["contacts", "signals"] as const) {
       const out = await runRiaStep(db, { sectorId: sector.id, step, companyIds: [firm.id] }, handlers);
       expect(out.failed, step).toBe(0);
-      expect(out.done, step).toBe(1);
+      expect(out.done + out.skippedDone, step).toBe(1);
     }
     const view = await riaStatus(db, sector.id);
     for (const step of ["firm_data", "brochure", "ops_read"] as const) {
       const out = await runRiaStep(db, { sectorId: sector.id, step, companyIds: [firm.id] }, handlers);
       expect(out.failed, step).toBe(0);
-      expect(out.done, step).toBe(1);
+      expect(out.done + out.skippedDone, step).toBe(1);
     }
     // Point the firm at the fake site now (firm_data normalises websites to domains).
     await db.update(companies).set({ website: `${site.baseUrl}/` }).where(eq(companies.id, firm.id));

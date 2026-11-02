@@ -17,7 +17,7 @@ export async function collectFetch(
   url: string,
   opts: FetchOptions = {},
 ): Promise<FetchResult> {
-  return fetchUrl(ctx.db, {
+  return (ctx.fetch ?? fetchUrl)(ctx.db, {
     runId: ctx.runId,
     companyId: ctx.companyId,
     collector,

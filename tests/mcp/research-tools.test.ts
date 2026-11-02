@@ -512,3 +512,12 @@ describe("stored RIA officer cleanup", () => {
     expect((await call("ria_officer_titles_clean", { sectorId, companyIds: ["invalid"] })).isError).toBe(true);
   });
 });
+
+
+it("reports shared RIA capacity and runs an empty rolling pipeline without touching other firms", async () => {
+  const sector = dataOf(await call("sector_create", { name: "Rolling pipeline" }));
+  const sectorId = (sector.sector as { id: string }).id;
+  expect(dataOf(await call("ria_pipeline_status"))).toMatchObject({ ai: { limit: 64, active: 0 }, pipelines: [] });
+  expect(dataOf(await call("ria_pipeline_run", { sectorId, companyIds: [], concurrency: 64 }))).toMatchObject({ considered: 0, completed: 0, failed: 0 });
+  expect((await call("ria_pipeline_run", { sectorId, companyIds: [], concurrency: 65 })).isError).toBe(true);
+});
