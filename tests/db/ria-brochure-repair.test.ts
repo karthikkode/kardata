@@ -111,3 +111,15 @@ it("preserves successful operations when only text outside the actual supplied p
   expect(result.results[0]).toMatchObject({ changedItems: ["5"], opsRefreshRequired: false });
   expect(await stepState(handle.db, f.sectorId, f.companyId, "ops_read")).toEqual(before);
 });
+
+it("recovers a previously missed Item 5 from another current section's same filed source", async () => {
+  const f = await setup();
+  await handle.db.delete(documents).where(and(eq(documents.companyId, f.companyId), eq(documents.path, "financials/brochure-item-5.md")));
+  await setRiaStepPaused(handle.db, true);
+  const preview = await repairStoredBrochures(handle.db, f);
+  expect(preview).toMatchObject({ changed: 1, unresolved: 0 });
+  expect(preview.results[0]?.changedItems).toContain("5");
+  expect(await repairStoredBrochures(handle.db, { ...f, dryRun: false })).toMatchObject({ applied: 1, unresolved: 0 });
+  const [restored] = await handle.db.select().from(documents).where(and(eq(documents.companyId, f.companyId), eq(documents.path, "financials/brochure-item-5.md"), eq(documents.isCurrent, true)));
+  expect(restored).toMatchObject({ contentMd: fees, sourceIds: [f.sourceId], title: "Part 2A brochure Item 5 (2026-03-01, v123)" });
+});

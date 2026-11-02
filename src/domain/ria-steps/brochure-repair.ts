@@ -24,7 +24,7 @@ function operationsInput(items: Record<string, string>) {
   return opsPrompt(promptItems.filter((item) => (items[item]?.trim().length ?? 0) >= 40).map((item) => ({ item, text: items[item] as string })));
 }
 
-/** Re-split only the source cited by the current Item 5. No fetch or model. */
+/** Re-split the current cited PDF (prefer Item 5). No fetch or model. */
 export async function repairStoredBrochures(db: Db, input: { sectorId: string; companyIds: string[]; dryRun?: boolean }) {
   if (input.companyIds.length > 200) throw new DomainError("invalid_input", "at most 200 companies per repair call");
   const ids = [...new Set(input.companyIds)];
@@ -43,9 +43,11 @@ export async function repairStoredBrochures(db: Db, input: { sectorId: string; c
     try {
       const current = await db.select().from(documents).where(and(eq(documents.companyId, companyId), eq(documents.isCurrent, true),
         inArray(documents.path, BROCHURE_ITEMS.map(itemPath))));
-      const anchor = current.find((d) => d.path === itemPath("5"));
+      // If an earlier split missed Item 5, another cited section can recover
+      // it. The version/content checks below still require one coherent PDF.
+      const anchor = current.find((d) => d.path === itemPath("5")) ?? current[0];
       const version = anchor?.title.match(/\((\d{4}-\d{2}-\d{2}), v(\d+)\)/);
-      if (!anchor || !version || anchor.sourceIds.length !== 1) { result.reason = "no unambiguous current Item 5 source/version"; results.push(result); continue; }
+      if (!anchor || !version || anchor.sourceIds.length !== 1) { result.reason = "no unambiguous stored brochure source/version"; results.push(result); continue; }
       const sourceId = anchor.sourceIds[0] as string;
       result.sourceId = sourceId;
       const [source] = await db.select().from(sources).where(and(eq(sources.id, sourceId), eq(sources.companyId, companyId)));
