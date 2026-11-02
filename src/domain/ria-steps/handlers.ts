@@ -7,6 +7,7 @@ import { DEFAULT_ENDPOINTS } from "../../collect/collectors/types.js";
 import { secFirmCollector } from "../../collect/collectors/sec-firm.js";
 import { fetchUrl } from "../../collect/fetch.js";
 import { normalizeDomain } from "../../lib/apollo/parse.js";
+import { isContactName } from "../../lib/contact-name.js";
 import { pdfText } from "../../lib/sec/pdf-text.js";
 import { toEffectiveCompany } from "../companies.js";
 import { addFacts } from "../research/facts.js";
@@ -480,7 +481,7 @@ const SCHEDULE_A_ORDER: { label: string; pattern: RegExp }[] = [
 ];
 
 export function pickScheduleAContact(leaders: { name: string; title: string }[]): { name: string; title: string } | null {
-  leaders = leaders.filter((l) => l.name.replace(/[^\p{L}]/gu, "").length >= 3);
+  leaders = leaders.filter((l) => isContactName(l.name));
   for (const { pattern } of SCHEDULE_A_ORDER) {
     const found = leaders.find((l) => pattern.test(l.title));
     if (found) return found;
