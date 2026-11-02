@@ -418,6 +418,11 @@ describe("mcp tools", () => {
     const retained = dataOf(await call("quota_breaker_status", { refresh: true }));
     expect(retained.live).toEqual(refreshed.live);
     quotaReader.mockRestore();
+    const accountReader = vi.spyOn(quotaMonitor, "readMuseAccount").mockResolvedValue({ apiKeyPresent: true, is_subs_active: false, require_payment: true });
+    const inspected = dataOf(await call("quota_breaker_status", { inspectAccount: true }));
+    expect(inspected.account).toEqual({ apiKeyPresent: true, is_subs_active: false, require_payment: true });
+    expect(inspected.live).toEqual(refreshed.live);
+    accountReader.mockRestore();
     const quotaCleared = dataOf(await call("quota_breaker_clear", {}));
     expect(quotaCleared.tripped).toBe(false);
 

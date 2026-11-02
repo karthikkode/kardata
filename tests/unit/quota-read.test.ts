@@ -34,6 +34,10 @@ it("keeps zero usage and never prints provider credentials or error bodies", () 
     const classified = spawnSync("bash", ["scripts/quota-read.sh"], { env, encoding: "utf8" });
     expect(classified.stderr).toContain('error classifications=["authentication"]');
     expect(classified.stderr).not.toContain("fixture-secret");
+    writeFileSync(curl, '#!/bin/sh\necho \'{"api_key":"fixture-secret","user_email":"fixture-secret","is_subs_active":false,"require_payment":true}\'\n', { mode: 0o755 });
+    const account = execFileSync("bash", ["scripts/quota-read.sh", "--diagnostics"], { env, encoding: "utf8" });
+    expect(JSON.parse(account)).toMatchObject({ account: { apiKeyPresent: true, is_subs_active: false, require_payment: true }, quota: null });
+    expect(account).not.toContain("fixture-secret");
   } finally {
     rmSync(dir, { recursive: true });
   }
