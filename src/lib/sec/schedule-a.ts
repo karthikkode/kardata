@@ -13,7 +13,8 @@ export interface ScheduleAEntry {
   titleSince: string | null;
 }
 
-const DATE_RE = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
+// SEC Schedule A uses MM/YYYY; some stored templates include a day.
+const DATE_RE = /^\d{1,2}\/(?:\d{1,2}\/)?\d{4}$/;
 const OWNERSHIP_CODE = /^(I|DE|D|IE|IO|INDIRECT|DIRECT)\s+(.+)$/;
 
 /** Titles pick up the Schedule A ownership column ("I", "DE", …) as debris. */

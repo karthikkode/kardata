@@ -75,3 +75,16 @@ describe("parseScheduleA layout 3: entity owners mixed with officers", () => {
     expect(parseScheduleA(items)[0]?.title).toBe("CHIEF COMPLIANCE OFFICER");
   });
 });
+
+it("reads actual Schedule A month/year dates without losing full names or wrapped titles", () => {
+  const items = [
+    ...heading(),
+    it_(3, 40, 630, "Example, Alex, Morgan"), it_(3, 280, 630, "I"), it_(3, 300, 630, "Chief Compliance Officer and"), it_(3, 500, 630, "07/2013"),
+    it_(3, 300, 612, "Chief Executive Officer"),
+    it_(3, 40, 580, "Sample, Jamie, Taylor"), it_(3, 280, 580, "I"), it_(3, 300, 580, "Chief Financial Officer"), it_(3, 500, 580, "05/2020"),
+  ];
+  expect(parseScheduleA(items)).toEqual([
+    { name: "Example, Alex, Morgan", title: "Chief Compliance Officer and Chief Executive Officer", titleSince: "07/2013" },
+    { name: "Sample, Jamie, Taylor", title: "Chief Financial Officer", titleSince: "05/2020" },
+  ]);
+});
