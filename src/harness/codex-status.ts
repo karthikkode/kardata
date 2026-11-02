@@ -16,7 +16,7 @@ function object(value: unknown): Record<string, unknown> {
 function windowOf(value: unknown): CodexWindow | null {
   const v = object(value);
   if (typeof v.usedPercent !== "number" || !Number.isFinite(v.usedPercent) || v.usedPercent < 0 || v.usedPercent > 100 ||
-      typeof v.windowDurationMins !== "number" || v.windowDurationMins <= 0 ||
+      typeof v.windowDurationMins !== "number" || !Number.isFinite(v.windowDurationMins) || v.windowDurationMins <= 0 ||
       typeof v.resetsAt !== "number" || !Number.isFinite(v.resetsAt)) return null;
   const date = new Date(v.resetsAt * 1000);
   if (!Number.isFinite(date.getTime())) return null;

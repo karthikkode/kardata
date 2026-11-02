@@ -28,7 +28,7 @@ export function codexExtractArgs(input: { runId: string; area: string; inputDir:
     ...CODEX_AUTH_ARGS, "exec", "--json", "--ephemeral", "--skip-git-repo-check",
     "--ignore-user-config", "--ignore-rules", "--sandbox", "read-only",
     "--disable", "shell_tool", "--disable", "multi_agent", "--disable", "hooks", "--disable", "plugins",
-    "-c", 'web_search="disabled"', "-c", "mcp_servers={}",
+    "-c", 'web_search="disabled"', "-c", "mcp_servers={}", "-c", 'approval_policy="never"',
     "--model", CODEX_MODEL, "-c", `model_context_window=${CODEX_CONTEXT}`,
     "-c", `model_reasoning_effort="${CODEX_REASONING}"`, "-c", 'forced_login_method="chatgpt"',
     "--output-schema", "/input/schema.json", "-"];
