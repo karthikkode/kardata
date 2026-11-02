@@ -131,7 +131,7 @@ it("recovers a previously missed Item 5 from another current section's same file
 
 it("retains exact bounded source text when headings are unavailable, preserves history and uses one cached grounded read", async () => {
   const f = await setup();
-  const text = ["Stored public brochure", advisory.repeat(6), "Our annual fee is one percent.", "We do not use outside managers."].join("\n");
+  const text = ["Stored public brochure", advisory.repeat(6), "Our annual fee is one percent.", "We do not use outside managers.", "We use no external TAMP providers."].join("\n");
   const sha = await storeBlob(handle.db, "text/plain", Buffer.from(text));
   await handle.db.update(sources).set({ blobSha256: sha }).where(eq(sources.id, f.sourceId));
   const sourceBefore = await handle.db.select().from(sources).where(eq(sources.id, f.sourceId));
@@ -148,13 +148,14 @@ it("retains exact bounded source text when headings are unavailable, preserves h
   expect(await stepState(handle.db, f.sectorId, f.companyId, "brochure")).toMatchObject({ status: "gap", inputHash: "123" });
   expect((await riaStatus(handle.db, f.sectorId, [f.companyId])).details?.find((r) => r.step === "brochure")?.reason).toBe(FULL_BROCHURE_GAP);
   expect(await repairStoredBrochures(handle.db, { ...f, dryRun: false })).toMatchObject({ changed: 0, applied: 0, unresolved: 0 });
-  await addFacts(handle.db, { companyId: f.companyId, createdBy: "extractor:ria_ops", facts: [{ key: "ria.outside_managers", value: true, sourceIds: [f.sourceId] }] });
+  await addFacts(handle.db, { companyId: f.companyId, createdBy: "extractor:ria_ops", facts: [{ key: "ria.outside_managers", value: true, sourceIds: [f.sourceId] }, { key: "ria.tamp_providers", value: ["Synthetic Model"], sourceIds: [f.sourceId] }] });
   let calls = 0;
   const step = createOpsReadStep(async ({ prompt }) => {
     calls += 1; expect(prompt).toContain(text); expect(prompt).toContain("never contents entries");
-    return { json: { fee_schedule: "1% annually", outside_managers: false, quotes: [
+    return { json: { fee_schedule: "1% annually", outside_managers: false, tamp_providers: [], quotes: [
       { field: "fee_schedule", quote: "Our annual fee is one percent." },
       { field: "outside_managers", quote: "We do not use outside managers." },
+      { field: "tamp_providers", quote: "We use no external TAMP providers." },
     ] }, usage: { inputTokens: 100, outputTokens: 50, cachedTokens: 0, reasoningTokens: 0, calls: 1 } };
   });
   await setRiaStepPaused(handle.db, false);
@@ -167,6 +168,7 @@ it("retains exact bounded source text when headings are unavailable, preserves h
   expect(exported).toMatchObject({ brochureDate: "2026-03-01", feeSummary: "1% annually" });
   expect(exported?.researchGaps).toContain(FULL_BROCHURE_GAP);
   expect((await handle.db.select().from(factsCurrent).where(and(eq(factsCurrent.companyId, f.companyId), eq(factsCurrent.key, "ria.outside_managers"))))[0]?.valueBool).toBe(false);
+  expect((await handle.db.select().from(factsCurrent).where(and(eq(factsCurrent.companyId, f.companyId), eq(factsCurrent.key, "ria.tamp_providers"))))[0]?.valueJson).toEqual([]);
   expect(await handle.db.select().from(facts).where(and(eq(facts.companyId, f.companyId), eq(facts.key, "ria.outside_managers")))).toHaveLength(2);
   await recordStep(handle.db, { sectorId: f.sectorId, companyId: f.companyId, step: "brochure", status: "gap", inputHash: "999", reason: "new filing unavailable" });
   expect(await step(handle.db, f.sectorId, f.companyId)).toMatchObject({ status: "gap", reason: "stored full brochure version is stale; current sections unavailable" });

@@ -401,7 +401,7 @@ export function createOpsReadStep(call: ExtractorCall = dockerExtractorCall): St
         { key: "ria.fee_proration", value: json["proration"] === true, field: "proration" },
         { key: "ria.fee_refunds", value: json["refunds"] === true, field: "refunds" },
         { key: "ria.fee_collection", value: String(json["collection"] ?? ""), field: "collection" },
-      ].filter((i) => !(typeof i.value === "string" && i.value === "") && !(Array.isArray(i.value) && i.value.length === 0));
+      ].filter((i) => !(typeof i.value === "string" && i.value === ""));
       const facts: { key: string; value: never; sourceIds: string[]; confidence: "high" | "medium" | "low"; quote: string | null; quoteSourceId: string | null }[] = [];
       for (const i of items) {
         const g = ground(i.field);
