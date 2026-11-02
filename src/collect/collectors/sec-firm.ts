@@ -1,5 +1,5 @@
 import { inflateSync } from "node:zlib";
-import { pdfText, pdfTextItems } from "../../lib/sec/pdf-text.js";
+import { pdfTextAndItems } from "../../lib/sec/pdf-text.js";
 import { parseScheduleA, type ScheduleAEntry } from "../../lib/sec/schedule-a.js";
 import { addFacts } from "../../domain/research/facts.js";
 import { upsertRecords } from "../../domain/research/records.js";
@@ -149,8 +149,9 @@ export const secFirmCollector: Collector = {
     if (pdf.source.status === "ok" && pdf.body) {
       sourceIds.push(pdf.source.id);
       try {
-        scheduleA = parseScheduleA(await pdfTextItems(pdf.body));
-        filingText = await pdfText(pdf.body);
+        const parsed = await pdfTextAndItems(pdf.body);
+        scheduleA = parseScheduleA(parsed.items);
+        filingText = parsed.text;
       } catch {
         filingText = extractPdfText(pdf.body);
       }
