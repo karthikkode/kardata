@@ -40,6 +40,9 @@ async function setup() {
 
 it("exports custodian lists consistent with signals, without truncation, and flags missing grounded fee summaries", async () => {
   const f = await setup();
+  await upsertRecords(handle.db, { companyId: f.companyId, runId: f.runId, createdBy: "collector:sec_firm", records: [
+    { type: "leader", data: { name: "Synthetic Officer", title: "Chief Compliance Officer" }, sourceIds: [f.sourceId] },
+  ] });
   const names = ["First Synthetic Custodian With A Long Legal Company Name", "Second Synthetic Custodian With A Long Legal Company Name", "Third Synthetic Custodian"];
   const written = await addFacts(handle.db, { companyId: f.companyId, runId: f.runId, createdBy: "extractor:ria_ops", facts: [
     { key: "ria.custodians_named", value: names, sourceIds: [f.sourceId] },
@@ -73,6 +76,29 @@ it("exports custodian lists consistent with signals, without truncation, and fla
   expect(complete?.custodians.split("; ")).toHaveLength(4);
   await recordStep(handle.db, { sectorId: f.sectorId, companyId: f.companyId, step: "contacts", status: "gap", reason: "team page unavailable" });
   expect((await riaSheetRows(handle.db, f.sectorId)).find((r) => r.companyId === f.companyId)?.researchGaps).toBe("contacts: team page unavailable");
+});
+
+it("reports a real named-contact gap for corporate-only owners and selects a sourced human when available", async () => {
+  const f = await setup();
+  await upsertRecords(handle.db, { companyId: f.companyId, runId: f.runId, createdBy: "collector:sec_firm", records: [
+    { type: "leader", data: { name: "Example National Bank", title: "SOLE OWNER" }, sourceIds: [f.sourceId] },
+  ] });
+  await addFacts(handle.db, { companyId: f.companyId, runId: f.runId, createdBy: "extractor:ria_ops", facts: [
+    { key: "ria.fee_schedule", value: "1% annually", sourceIds: [f.sourceId] },
+  ] });
+  for (const step of RIA_STEPS) await recordStep(handle.db, { sectorId: f.sectorId, companyId: f.companyId, step, status: "done" });
+  await signalsStep(handle.db, f.sectorId, f.companyId);
+  const missing = (await riaSheetRows(handle.db, f.sectorId)).find((r) => r.companyId === f.companyId);
+  expect(missing?.contactName).toBe("");
+  expect(missing?.researchStatus).toBe("Complete with gaps");
+  expect(missing?.researchGaps).toContain("Named contact unavailable");
+  await upsertRecords(handle.db, { companyId: f.companyId, runId: f.runId, createdBy: "collector:sec_firm", records: [
+    { type: "leader", data: { name: "Jane Banks", title: "Chief Compliance Officer" }, sourceIds: [f.sourceId] },
+  ] });
+  const selected = (await riaSheetRows(handle.db, f.sectorId)).find((r) => r.companyId === f.companyId);
+  expect(selected?.contactName).toBe("Jane Banks");
+  expect(selected?.researchGaps).toBe("");
+  expect(await handle.db.select().from(records).where(eq(records.companyId, f.companyId))).toHaveLength(2);
 });
 
 it("reports actual step failures and pending reads instead of claiming missing fee research is complete", async () => {

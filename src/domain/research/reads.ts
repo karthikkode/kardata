@@ -811,9 +811,11 @@ export async function blobText(db: Db, sha256: string): Promise<{ text: string; 
   };
 }
 
-export async function getSourceExcerpt(db: Db, input: { sourceId: string; maxChars?: number; companyScope?: string }) {
+export async function getSourceExcerpt(db: Db, input: { sourceId: string; maxChars?: number; offset?: number; companyScope?: string }) {
   const maxChars = input.maxChars ?? 5000;
+  const offset = input.offset ?? 0;
   if (maxChars < 1 || maxChars > 5000) throw new DomainError("invalid_input", "maxChars must be 1..5000");
+  if (!Number.isInteger(offset) || offset < 0) throw new DomainError("invalid_input", "offset must be a nonnegative integer");
   const [source] = await db.select().from(sources).where(eq(sources.id, input.sourceId));
   if (!source) throw new DomainError("not_found", `source not found: ${input.sourceId}`);
   if (input.companyScope !== undefined && source.companyId !== input.companyScope) {
@@ -821,14 +823,16 @@ export async function getSourceExcerpt(db: Db, input: { sourceId: string; maxCha
   }
   let text: string | null = null;
   let truncated = false;
+  let totalChars: number | null = null;
   if (source.blobSha256) {
     const blob = await blobText(db, source.blobSha256);
     if (blob) {
-      text = blob.text.slice(0, maxChars);
-      truncated = blob.text.length > maxChars;
+      text = blob.text.slice(offset, offset + maxChars);
+      totalChars = blob.text.length;
+      truncated = blob.text.length > offset + maxChars;
     }
   }
   const { blobSha256: _ignored, ...meta } = source;
   void _ignored;
-  return { ...meta, text, truncated };
+  return { ...meta, text, truncated, offset, totalChars };
 }

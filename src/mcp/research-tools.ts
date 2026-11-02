@@ -415,17 +415,19 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   registerTool(server, db, auth, 
     "source_get",
     {
-      description: "Source metadata plus an extracted-text excerpt. Returns the source.",
+      description: "Source metadata plus a paged excerpt of stored text, without fetching again. Returns offset and totalChars.",
       inputSchema: {
         sourceId: z.string().describe("Source UUID"),
         maxChars: z.number().int().optional().describe("1..5000, default 5000"),
+        offset: z.number().int().optional().describe("Stored-text character offset, default 0"),
       },
     },
-    async ({ sourceId, maxChars }) =>
+    async ({ sourceId, maxChars, offset }) =>
       wrap(async () => {
         const source = await getSourceExcerpt(db, {
           sourceId,
           maxChars: maxChars ?? undefined,
+          offset: offset ?? undefined,
           companyScope: auth.kind === "run" ? auth.companyId : undefined,
         });
         return { summary: `${source.url} (${source.status})`, data: source };
