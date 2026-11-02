@@ -79,3 +79,35 @@ it("refuses mismatched source ownership/version and loss of existing sections wi
   expect((await repairStoredBrochures(handle.db, f)).results[0]?.reason).toContain("source missing");
   await expect(repairStoredBrochures(handle.db, { ...f, companyIds: [randomUUID()] })).rejects.toThrow("eligible sector members");
 });
+
+it("accepts byte-identical cited snapshots while preserving each original citation", async () => {
+  const f = await setup();
+  const [original] = await handle.db.select().from(sources).where(eq(sources.id, f.sourceId));
+  if (!original) throw new Error("missing source");
+  const secondId = randomUUID();
+  await handle.db.insert(sources).values({ id: secondId, companyId: f.companyId, runId: original.runId, url: original.url, finalUrl: original.finalUrl,
+    collector: original.collector, status: "ok", blobSha256: original.blobSha256 });
+  await handle.db.update(documents).set({ sourceIds: [secondId] }).where(and(eq(documents.companyId, f.companyId), eq(documents.path, "financials/brochure-item-4.md")));
+  await setRiaStepPaused(handle.db, true);
+  expect(await repairStoredBrochures(handle.db, { ...f, dryRun: false })).toMatchObject({ applied: 1, unresolved: 0 });
+  const [fixed] = await handle.db.select().from(documents).where(and(eq(documents.companyId, f.companyId), eq(documents.path, "financials/brochure-item-4.md"), eq(documents.isCurrent, true)));
+  expect(fixed?.sourceIds).toEqual([secondId]);
+  const different = await storeBlob(handle.db, "text/plain", Buffer.from("different filing contents"));
+  await handle.db.update(sources).set({ blobSha256: different }).where(eq(sources.id, secondId));
+  expect((await repairStoredBrochures(handle.db, f)).results[0]?.reason).toContain("source contents require review");
+});
+it("preserves successful operations when only text outside the actual supplied prompt changes", async () => {
+  const f = await setup();
+  const prefix = "Fee disclosure text. ".repeat(2100);
+  const sha = await storeBlob(handle.db, "text/plain", Buffer.from(["Item 4 Advisory Business", advisory, "Item 5 Fees and Compensation", prefix + "new tail"].join("\n")));
+  await handle.db.update(sources).set({ blobSha256: sha }).where(eq(sources.id, f.sourceId));
+  for (const [item, body] of [["4", advisory], ["5", prefix + "old tail"]]) await saveDocument(handle.db, {
+    companyId: f.companyId, path: `financials/brochure-item-${item}.md`, title: `Part 2A brochure Item ${item} (2026-03-01, v123)`,
+    contentMd: body as string, sourceIds: [f.sourceId], createdBy: "collector:ria_brochure" });
+  const before = await stepState(handle.db, f.sectorId, f.companyId, "ops_read");
+  await setRiaStepPaused(handle.db, true);
+  const result = await repairStoredBrochures(handle.db, { ...f, dryRun: false });
+  expect(result).toMatchObject({ changed: 1, applied: 1, unresolved: 0 });
+  expect(result.results[0]).toMatchObject({ changedItems: ["5"], opsRefreshRequired: false });
+  expect(await stepState(handle.db, f.sectorId, f.companyId, "ops_read")).toEqual(before);
+});
