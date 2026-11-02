@@ -113,6 +113,23 @@ describe("splitBrochureItems / brochureDate (B4)", () => {
     expect(items["9"]).toContain("inline cross-reference");
   });
 
+  it("does not invent body sections from a contents-only text layer", () => {
+    expect(splitBrochureItems([
+      "TABLE OF CONTENTS", "ITEM 4 Advisory Business", "4", "ITEM 5 Fees and Compensation", "5",
+      "ITEM 8 Methods of Analysis", "8", "ITEM 9 Disciplinary Information", "9",
+      "ITEM 10 Other Activities", "10", "ITEM 11 Code of Ethics", "11", "ITEM 12 Brokerage Practices", "12",
+      "ITEM 14 Client Referrals", "14", "ITEM 15 Custody", "15", "ITEM 16 Investment Discretion", "16", "ITEM 17 Voting", "17", "ITEM 18 Financial Information", "18",
+    ].join("\n"))).toEqual({});
+  });
+
+  it("accepts short real disclosures and ordinary inline references in a body", () => {
+    const advisory = "For details, see Item 5 and Item 12; our advisory services are provided to individual clients under written agreements.";
+    const fees = "We charge no annual advisory fee for these accounts.";
+    const items = splitBrochureItems(["Item 4 Advisory Business", advisory, "Item 5 Fees and Compensation", fees].join("\n"));
+    expect(items["4"]).toBe(advisory);
+    expect(items["5"]).toBe(fees);
+  });
+
   it("retains explicitly numbered alternative section titles", () => {
     const body = "We disclose payments and referral arrangements in writing, including applicable conflicts of interest for clients.";
     expect(splitBrochureItems(["Item 14 Payment for Client Referrals", body].join("\n"))["14"]).toBe(body);

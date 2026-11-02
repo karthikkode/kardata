@@ -407,8 +407,14 @@ describe("stage machine", () => {
       }
       await vi.waitFor(async () => expect((await jobRow(jobId)).status).toBe("completed"));
       expect(checked).toEqual([jobId]);
-      const events = await handle.db.select().from(jobEvents).where(eq(jobEvents.jobId, jobId));
-      const types = events.map((e) => e.type);
+      // Job status is committed before its completion event is appended.
+      // Wait for that event, then assert the persisted event order.
+      const types = await vi.waitFor(async () => {
+        const events = await handle.db.select().from(jobEvents).where(eq(jobEvents.jobId, jobId)).orderBy(asc(jobEvents.id));
+        const result = events.map((e) => e.type);
+        expect(result).toContain("job_completed");
+        return result;
+      });
       expect(types).toContain(fail ? "icp_failed" : "icp_done");
       expect(types.indexOf(fail ? "icp_failed" : "icp_done")).toBeLessThan(types.indexOf("job_completed"));
     }

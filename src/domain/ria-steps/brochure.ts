@@ -80,15 +80,18 @@ export function chooseBodyMarks(candidates: Mark[], text: string): Mark[] {
     // Part 2A body sections proceed in Item order, unlike those references.
     const mine = candidates.filter((m) => m.item === item && m.start >= bodyStart);
     if (!mine.length) continue;
-    const body = mine.find((m) => {
+    const qualifies = (m: Mark, minLength: number) => {
       const next = candidates.find((n) => n.start >= m.contentStart && n.item !== m.item);
       const segment = text.slice(m.contentStart, next?.start);
-      if (segment.trim().length < 80) return false;
+      if (segment.trim().length < minLength) return false;
       const window = segment.slice(0, 500);
-      const itemMentions = window.match(/\bItem\s+\d+/gi)?.length ?? 0;
-      return itemMentions < 2 && !/\.{4,}/.test(window.slice(0, 200));
-    });
-    const mark = body ?? (mine[0] as Mark);
+      const itemMentions = window.match(/^[ \t]*Item\s+\d+/gim)?.length ?? 0;
+      return itemMentions < 2 && !/^\s*\d{1,3}\s+Item\s+\d+/i.test(window) && !/\.{4,}/.test(window.slice(0, 200));
+    };
+    // Short substantive disclosures are valid; contents-only candidates are
+    // never a fallback for an absent/unreadable body section.
+    const mark = mine.find((m) => qualifies(m, 80)) ?? mine.find((m) => qualifies(m, 40));
+    if (!mark) continue;
     chosen.push(mark);
     bodyStart = mark.contentStart;
   }
