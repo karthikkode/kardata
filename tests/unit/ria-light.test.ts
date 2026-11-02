@@ -272,5 +272,8 @@ describe("pickScheduleAContact", () => {
     expect(pickScheduleAContact([{ name: "G Owner", title: "Sole Owner" }])?.name).toBe("G Owner");
     expect(pickScheduleAContact([{ name: "F Compliance", title: "MANAGER COMPLIANCE OFFICER" }])?.name).toBe("F Compliance");
     expect(pickScheduleAContact([{ name: "D Adviser", title: "Financial Advisor" }])).toBeNull();
+    const entities = [{ name: "Example Holdings, LLC", title: "OWNER COMPLIANCE OFFICER" }];
+    expect(pickScheduleAContact(entities)).toBeNull();
+    expect(pickScheduleAContact([...entities, { name: "A Person", title: "President" }])?.name).toBe("A Person");
   });
 });

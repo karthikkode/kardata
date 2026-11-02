@@ -8,6 +8,7 @@ import { hasTechTeam, latestIcpCheck, sectorIcpCompanies, signalsMet, type Secto
 import { RIA_LEAD_PRIORITY, RIA_SIGNAL_RULES } from "./ria-rules.js";
 import { SIGNAL_RULES } from "./rules.js";
 import { custodianCountNames } from "../ria-steps/custodians.js";
+import { isContactName } from "../../lib/contact-name.js";
 
 const ALL_SIGNAL_RULES = [...SIGNAL_RULES, ...RIA_SIGNAL_RULES];
 
@@ -168,7 +169,7 @@ const FOUNDER_TITLE = /\b(founder|managing partner|president|ceo|owner)\b/i;
 
 export function pickContact(leaders: { name: string; title: string }[], group: string): { name: string; title: string } | null {
   // A two-letter fragment (e.g. "CO" from "CO-FOUNDER") is not a name.
-  leaders = leaders.filter((l) => l.name.replace(/[^\p{L}]/gu, "").length >= 3);
+  leaders = leaders.filter((l) => isContactName(l.name));
   const order = group === "R" ? [OPS_TITLE, CCO_TITLE, FOUNDER_TITLE] : [FOUNDER_TITLE, OPS_TITLE];
   for (const pattern of order) {
     const found = leaders.find((l) => pattern.test(l.title));
