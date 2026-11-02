@@ -51,6 +51,7 @@ import {
   windowBurn,
 } from "../domain/quota/breaker.js";
 import { ADAPTERS } from "../collect/adapters.js";
+import { repairStoredBrochures } from "../domain/ria-steps/brochure-repair.js";
 import { cleanStoredOfficerTitles } from "../domain/ria-steps/officers.js";
 import { riaStatus } from "../domain/ria-steps/status.js";
 import { runRiaStep, setRiaStepPaused } from "../domain/ria-steps/runner.js";
@@ -1503,6 +1504,18 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
     async (input) => wrap(async () => {
       const result = await cleanStoredOfficerTitles(db, input);
       return { summary: `${result.matched} officer titles need cleanup; ${result.updated} updated${result.dryRun ? " (dry run)" : ""}`, data: result };
+    }),
+  );
+
+  registerTool(server, db, auth,
+    "ria_brochures_repair",
+    {
+      description: "Operator: preview or repair sections from the exact stored brochure PDF cited by current Item 5. No network or AI. Apply requires paused/drained RIA work; changed inputs invalidate dependent operations/signals until refreshed. Dry run by default.",
+      inputSchema: { sectorId: z.string().uuid(), companyIds: z.array(z.string().uuid()).max(200), dryRun: z.boolean().optional() },
+    },
+    async (input) => wrap(async () => {
+      const result = await repairStoredBrochures(db, input);
+      return { summary: `${result.changed} brochures changed; ${result.applied} repaired; ${result.unresolved} require review`, data: result };
     }),
   );
 

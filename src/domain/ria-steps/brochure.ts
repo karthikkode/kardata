@@ -36,7 +36,13 @@ export function brochureMarks(text: string): Mark[] {
     const m =
       /^(?:Form ADV(?:\s*,\s*|\s+)(?:Part 2A,?\s*)?|Part 2A,?\s*)?(?:ITEM|Item)\s+(4|5|8|9|12|14|15)\b/.exec(trimmed) ??
       /^[A-Z][^\n]{0,70}[-–—]\s*(?:ITEM|Item)\s+(4|5|8|9|12|14|15)\b/.exec(trimmed);
-    if (m?.[1]) strong.push({ item: m[1], start: offsets[i] ?? 0, contentStart: (offsets[i] ?? 0) + line.length });
+    if (m?.[1]) {
+      const tail = trimmed.slice(m[0].length).replace(/^[\s.:–—-]+/, "");
+      // A material-changes sentence mentioning an Item is not its heading.
+      const title = (ITEM_TITLES[m[1]] ?? "").toLowerCase();
+      if (tail && !tail.toLowerCase().startsWith(title) && !title.startsWith(tail.toLowerCase())) return;
+      strong.push({ item: m[1], start: offsets[i] ?? 0, contentStart: (offsets[i] ?? 0) + line.length });
+    }
   });
   // PDF text often puts "5." and "Fees and Compensation" on separate
   // lines, or omits "Item" entirely. Include these headings even when
@@ -47,13 +53,16 @@ export function brochureMarks(text: string): Mark[] {
     if (trimmed.length > 120 || LEADERS.test(trimmed)) return;
     const heading = trimmed.replace(/^\d{1,2}\s*[.):\-–—]\s*/, "");
     for (const [item, title] of Object.entries(ITEM_TITLES)) {
-      if (heading.toLowerCase().startsWith(title.toLowerCase())) {
+      const suffix = heading.slice(title.length).trim();
+      if (heading.toLowerCase().startsWith(title.toLowerCase()) &&
+        (!suffix || /^(?:[,;:&–—-]|and\b)/i.test(suffix))) {
         byTitle.push({ item, start: offsets[i] ?? 0, contentStart: (offsets[i] ?? 0) + line.length });
       }
     }
   });
-  const titledItems = new Set(byTitle.map((m) => m.item));
-  const candidates = [...strong.filter((m) => !titledItems.has(m.item)), ...byTitle].sort((a, b) => a.start - b.start);
+  // A later bare-title cross-reference must never suppress a numbered
+  // body heading earlier in the same PDF. TOC filtering happens below.
+  const candidates = [...strong, ...byTitle].sort((a, b) => a.start - b.start);
   return chooseBodyMarks(candidates, text);
 }
 

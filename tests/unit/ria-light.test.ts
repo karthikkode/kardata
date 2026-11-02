@@ -71,6 +71,25 @@ describe("splitBrochureItems / brochureDate (B4)", () => {
     expect(items["4"]).not.toContain(feeBody);
   });
 
+  it("keeps numbered body sections ahead of later bare-title cross-references and prose", () => {
+    const advisory = "Our firm provides discretionary advisory services for individual clients and families under written agreements.";
+    const fees = "Annual fees are charged quarterly in advance and prorated for partial quarters under the written agreement.";
+    const later = "This unrelated insurance discussion belongs to a later section and must not replace advisory services.";
+    const items = splitBrochureItems([
+      "Item 4 Advisory Business", "4", "Item 5 Fees and Compensation", "5",
+      "Item 4: Advisory Business", advisory,
+      "Item 5 Fees and Compensation", fees,
+      "Our fees are calculated as described in the", "Advisory Business", "section above and are not performance based.",
+      "Item 9 Disciplinary Information", later,
+      "advisory business or to our advisory clients except as listed below.", later,
+      "Item 15 Custody", later,
+    ].join("\n"));
+    expect(items["4"]).toBe(advisory);
+    expect(items["5"]).toContain(fees);
+    expect(items["4"]).not.toContain(later);
+    expect(items["9"]).toContain("advisory business or");
+  });
+
   it("reads the brochure date", () => {
     expect(brochureDate(text)).toBe("2025-03-15");
     expect(brochureDate("no date here")).toBeNull();
