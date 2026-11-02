@@ -85,8 +85,14 @@ export function chooseBodyMarks(candidates: Mark[], text: string): Mark[] {
       const segment = text.slice(m.contentStart, next?.start);
       if (segment.trim().length < minLength) return false;
       const window = segment.slice(0, 500);
-      const itemMentions = window.match(/^[ \t]*Item\s+\d+/gim)?.length ?? 0;
-      return itemMentions < 2 && !/^\s*\d{1,3}\s+Item\s+\d+/i.test(window) && !/\.{4,}/.test(window.slice(0, 200));
+      // A real short section may be followed by two other Item headings
+      // within this window. Only a leading later heading (after TOC page
+      // numbers) identifies a contents fragment; inline references and
+      // repeated same-Item headings do not invalidate substantive prose.
+      const head = window.trimStart().replace(/^(?:\d{1,3}[ \t]*\n\s*)+/, "");
+      const leadingItem = /^(?:Item\s+(\d{1,2})\b|(\d{1,2})[.):]?\s+[A-Z])/i.exec(head);
+      const laterItem = Number(leadingItem?.[1] ?? leadingItem?.[2] ?? 0) > Number(m.item);
+      return !laterItem && !/\.{4,}/.test(window.slice(0, 200));
     };
     // Short substantive disclosures are valid; contents-only candidates are
     // never a fallback for an absent/unreadable body section.

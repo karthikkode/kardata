@@ -130,6 +130,21 @@ describe("splitBrochureItems / brochureDate (B4)", () => {
     expect(items["5"]).toBe(fees);
   });
 
+  it("keeps real disclosures before nearby later headings and allows repeated same-Item headings", () => {
+    const body = "The firm has no current or pending disciplinary disclosures to report. We maintain compliance policies for all supervised people.";
+    const custody = "The qualified custodian sends statements directly to clients, who should review those statements and compare them to adviser reports.";
+    const items = splitBrochureItems([
+      "Item 9 Disciplinary Information", "Item 9 Disciplinary Information", body,
+      "Item 10 Other Activities", "Our firm has no other activities to disclose.",
+      "Item 11 Code of Ethics", "We maintain a written code of ethics for employees.",
+      "Item 15 Custody", custody,
+      "Item 16 Investment Discretion", "We have written discretionary authority.",
+      "Item 17 Proxy Voting", "Clients vote their own proxies.",
+    ].join("\n"));
+    expect(items["9"]).toContain(body);
+    expect(items["15"]).toContain(custody);
+  });
+
   it("retains explicitly numbered alternative section titles", () => {
     const body = "We disclose payments and referral arrangements in writing, including applicable conflicts of interest for clients.";
     expect(splitBrochureItems(["Item 14 Payment for Client Referrals", body].join("\n"))["14"]).toBe(body);
