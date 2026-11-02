@@ -20,3 +20,22 @@ it.each([["You've hit your usage limit", "quota"], ["Authentication required", "
   try { out.accept(JSON.stringify({ type: "turn.failed", error: { message } })); throw new Error("expected failure"); }
   catch (error) { expect(error).toBeInstanceOf(CodexCallError); expect((error as CodexCallError).kind).toBe(kind); expect((error as Error).message).not.toBe(message); }
 });
+
+
+it("lets the CLI recover nonterminal reconnect and transport-warning events", () => {
+  const out = new CodexExtractionOutput();
+  out.accept(JSON.stringify({ type: "error", message: "Reconnecting... 1/5 (stream disconnected; private diagnostic omitted)" }));
+  out.accept(JSON.stringify({ type: "item.completed", item: { type: "error", message: "Falling back from WebSockets to HTTPS transport" } }));
+  out.accept(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: '{"value":true}' } }));
+  out.accept(JSON.stringify({ type: "turn.completed", usage: { input_tokens: 20, output_tokens: 5 } }));
+  expect(out.result().json).toEqual({ value: true });
+});
+it("requires a successful terminal turn even after recoverable notices", () => {
+  const out = new CodexExtractionOutput();
+  out.accept(JSON.stringify({ type: "error", message: "Reconnecting... stream closed SECRET" }));
+  out.accept(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: '{"value":true}' } }));
+  expect(() => out.result()).toThrow("transport");
+  expect(() => out.accept(JSON.stringify({ type: "turn.failed", error: { message: "HTTP429 too many requests SECRET" } }))).toThrow("rate_limited");
+  try { out.accept(JSON.stringify({ type: "turn.failed", error: { message: "Authentication required SECRET" } })); }
+  catch (error) { expect((error as CodexCallError).kind).toBe("auth"); expect((error as Error).message).not.toContain("SECRET"); }
+});
