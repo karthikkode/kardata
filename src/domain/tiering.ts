@@ -403,6 +403,42 @@ function factAmount(row: { valueNum: unknown; valueJson: unknown }): number | nu
   return null;
 }
 
+function riaRevenueTruth(companyId: string, groupSplitAum: number, aum: number | null, staffCandidates: StaffCount[],
+  verdict: { score: number; status: string; exclusionReason: string | null } | null | undefined): RevenueTruth & { companyId: string } {
+  const score = verdict ? verdict.score : null;
+  const group = aum === null ? null : aum < groupSplitAum ? "P" : "R";
+  const revenueUsed = aum === null ? null : Math.round(aum * 0.008);
+  let status: IcpStatus;
+  let exclusionReason: string | null = null;
+  if (verdict?.status === "icp_rejected") {
+    status = "icp_rejected";
+    exclusionReason = verdict.exclusionReason ?? "rejected";
+  } else if (verdict?.status === "research_incomplete") {
+    status = "research_incomplete";
+  } else if (score === null) {
+    status = "icp_watchlist";
+  } else {
+    // Advisers: score 0 is still called, last (layer 8).
+    status = "icp_accepted";
+  }
+  return {
+    companyId,
+    revenueUsed,
+    revenueSource: revenueUsed === null ? null : "staff_estimate",
+    revenueKind: null,
+    publicSourceName: null,
+    flaggedFigure: null,
+    rejected: null,
+    staff: pickStaff(staffCandidates),
+    tier: group as Tier,
+    score,
+    layer: score === null ? null : 8 - score,
+    status,
+    exclusionReason,
+    flags: revenueUsed === null ? ["no AUM basis"] : [`revenue estimated as AUM x 0.8%: $${revenueUsed.toLocaleString("en-US")}`],
+  };
+}
+
 export async function companyRevenueTruth(db: Db, companyId: string, sectorId: string): Promise<RevenueTruth & { companyId: string }> {
   const [company] = await db.select({ id: companies.id }).from(companies).where(eq(companies.id, companyId));
   if (!company) throw new DomainError("not_found", `company not found: ${companyId}`);
@@ -484,38 +520,7 @@ export async function companyRevenueTruth(db: Db, companyId: string, sectorId: s
       .from(factsCurrent)
       .where(and(eq(factsCurrent.companyId, companyId), eq(factsCurrent.key, "firm.regulatory_aum")));
     const aum = aumRow ? factAmount(aumRow) : null;
-    const score = verdict ? verdict.score : null;
-    const group = aum === null ? null : aum < profile.ria.groupSplitAum ? "P" : "R";
-    const revenueUsed = aum === null ? null : Math.round(aum * 0.008);
-    let status: IcpStatus;
-    let exclusionReason: string | null = null;
-    if (verdict?.status === "icp_rejected") {
-      status = "icp_rejected";
-      exclusionReason = verdict.exclusionReason ?? "rejected";
-    } else if (verdict?.status === "research_incomplete") {
-      status = "research_incomplete";
-    } else if (score === null) {
-      status = "icp_watchlist";
-    } else {
-      // Advisers: score 0 is still called, last (layer 8).
-      status = "icp_accepted";
-    }
-    return {
-      companyId,
-      revenueUsed,
-      revenueSource: revenueUsed === null ? null : "staff_estimate",
-      revenueKind: null,
-      publicSourceName: null,
-      flaggedFigure: null,
-      rejected: null,
-      staff: pickStaff(staffCandidates),
-      tier: group as Tier,
-      score,
-      layer: score === null ? null : 8 - score,
-      status,
-      exclusionReason,
-      flags: revenueUsed === null ? ["no AUM basis"] : [`revenue estimated as AUM x 0.8%: $${revenueUsed.toLocaleString("en-US")}`],
-    };
+    return riaRevenueTruth(companyId, profile.ria.groupSplitAum, aum, staffCandidates, verdict);
   }
 
   const truth = computeRevenueTruth({
@@ -562,9 +567,35 @@ export async function sectorSheetRows(db: Db, sectorId: string): Promise<SheetRo
     .from(sectorCompanies)
     .innerJoin(companies, eq(sectorCompanies.companyId, companies.id))
     .where(sectorCompaniesScope(sectorId));
+  // The source-heavy export must not issue the same profile/fact/verdict reads per firm.
+  // Keep the exact single-company rules above; only prefetch their inputs in bounded chunks.
+  const profile = await getProfileOrNull(db, sectorId);
+  const riaTruths = new Map<string, RevenueTruth & { companyId: string }>();
+  if (profile?.playbook === "ria" && profile.ria) {
+    for (let offset = 0; offset < members.length; offset += 500) {
+      const ids = members.slice(offset, offset + 500).map((m) => m.companyId);
+      const current = await db.select().from(factsCurrent).where(and(inArray(factsCurrent.companyId, ids),
+        inArray(factsCurrent.key, ["firm.regulatory_aum", "financials.employees"])));
+      const verdicts = await db.select().from(companyVerdicts).where(and(eq(companyVerdicts.sectorId, sectorId), inArray(companyVerdicts.companyId, ids)));
+      const verdictById = new Map(verdicts.map((v) => [v.companyId, v]));
+      const factById = new Map<string, typeof current>();
+      for (const fact of current) { const list = factById.get(fact.companyId) ?? []; list.push(fact); factById.set(fact.companyId, list); }
+      for (const id of ids) {
+        const list = factById.get(id) ?? [];
+        const staffCandidates: StaffCount[] = [];
+        for (const row of list.filter((r) => r.key === "financials.employees")) {
+          const n = factAmount(row); if (n === null) continue;
+          const sourceRaw = row.qualifiers["source"];
+          staffCandidates.push({ count: Math.round(n), source: sourceRaw === "companies_house" ? "companies_house" : sourceRaw === "apollo" ? "apollo" : "other", asOf: row.asOf ? String(row.asOf).slice(0, 10) : null });
+        }
+        const aum = list.find((r) => r.key === "firm.regulatory_aum");
+        riaTruths.set(id, riaRevenueTruth(id, profile.ria.groupSplitAum, aum ? factAmount(aum) : null, staffCandidates, verdictById.get(id)));
+      }
+    }
+  }
   const rows: SheetRow[] = [];
   for (const m of members) {
-    const truth = await companyRevenueTruth(db, m.companyId, sectorId);
+    const truth = riaTruths.get(m.companyId) ?? await companyRevenueTruth(db, m.companyId, sectorId);
     if (truth.status !== "icp_accepted" || !truth.tier || truth.layer === null) continue;
     rows.push({
       companyId: m.companyId,

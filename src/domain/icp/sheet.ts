@@ -1,7 +1,7 @@
 import { FULL_BROCHURE_PATH } from "../ria-steps/brochure.js";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
-import { companies, documents, facts, factsCurrent, records, riaStepRuns, RIA_STEPS, type CompanyIcpCheck } from "../../db/schema.js";
+import { companies, companyIcpChecks, documents, facts, factsCurrent, records, riaStepRuns, RIA_STEPS, type CompanyIcpCheck } from "../../db/schema.js";
 import { sectorSheetRows, type SheetRow } from "../tiering.js";
 import type { EvidenceItem } from "./evidence.js";
 import type { BucketResult } from "./judge.js";
@@ -261,7 +261,35 @@ export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRo
   // Group signal frequencies (over checked firms of each group) for the
   // rarest-signal lead.
   const checks = new Map<string, CompanyIcpCheck | null>();
-  for (const row of base) checks.set(row.companyId, await latestIcpCheck(db, row.companyId, sectorId));
+  const companyById = new Map<string, { state: string | null; phone: string | null; website: string | null }>();
+  const leadersById = new Map<string, { data: Record<string, unknown> }[]>();
+  const factsById = new Map<string, (typeof factsCurrent.$inferSelect)[]>();
+  const historyById = new Map<string, { key: string; valueNum: string | null; asOf: string | null }[]>();
+  const brochuresById = new Map<string, { title: string; path: string | null }[]>();
+  const stepsById = new Map<string, (typeof riaStepRuns.$inferSelect)[]>();
+  const append = <T>(map: Map<string, T[]>, id: string, value: T) => {
+    const rows = map.get(id) ?? []; rows.push(value); map.set(id, rows);
+  };
+  // Bound parameters and memory while replacing tens of thousands of serial reads.
+  // Only fields used below are fetched; the row formatting and gap rules are unchanged.
+  for (let offset = 0; offset < base.length; offset += 500) {
+    const ids = base.slice(offset, offset + 500).map((r) => r.companyId);
+    const latest = await db.selectDistinctOn([companyIcpChecks.companyId]).from(companyIcpChecks)
+      .where(and(eq(companyIcpChecks.sectorId, sectorId), inArray(companyIcpChecks.companyId, ids)))
+      .orderBy(companyIcpChecks.companyId, desc(companyIcpChecks.createdAt));
+    for (const check of latest) checks.set(check.companyId, check);
+    for (const row of await db.select({ id: companies.id, state: companies.state, phone: companies.phone, website: companies.website })
+      .from(companies).where(inArray(companies.id, ids))) companyById.set(row.id, row);
+    for (const row of await db.select({ companyId: records.companyId, data: records.data }).from(records)
+      .where(and(inArray(records.companyId, ids), eq(records.type, "leader"))).orderBy(records.createdAt, records.id)) append(leadersById, row.companyId, row);
+    for (const row of await db.select().from(factsCurrent).where(and(inArray(factsCurrent.companyId, ids),
+      inArray(factsCurrent.key, ["firm.regulatory_aum", "financials.employees", "ria.fee_schedule", "firm.fee_schedule", "firm.custodians", "ria.custodians_named"])))) append(factsById, row.companyId, row);
+    for (const row of await db.select({ companyId: facts.companyId, key: facts.key, valueNum: facts.valueNum, asOf: facts.asOf }).from(facts)
+      .where(and(inArray(facts.companyId, ids), inArray(facts.key, ["firm.regulatory_aum", "financials.employees"])))) append(historyById, row.companyId, row);
+    for (const row of await db.select({ companyId: documents.companyId, title: documents.title, path: documents.path }).from(documents)
+      .where(and(inArray(documents.companyId, ids), eq(documents.isCurrent, true), inArray(documents.path, ["financials/brochure-item-5.md", FULL_BROCHURE_PATH])))) append(brochuresById, row.companyId, row);
+    for (const row of await db.select().from(riaStepRuns).where(and(eq(riaStepRuns.sectorId, sectorId), inArray(riaStepRuns.companyId, ids), inArray(riaStepRuns.step, [...RIA_STEPS])))) append(stepsById, row.companyId, row);
+  }
   const freqByGroup = new Map<string, Map<string, number>>();
   for (const row of base) {
     const check = checks.get(row.companyId);
@@ -285,22 +313,15 @@ export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRo
   };
   const rows: RiaSheetRow[] = [];
   for (const row of base) {
-    const [company] = await db
-      .select({ state: companies.state, phone: companies.phone, website: companies.website })
-      .from(companies)
-      .where(eq(companies.id, row.companyId));
-    const leaderRows = await db
-      .select({ data: records.data })
-      .from(records)
-      .where(and(eq(records.companyId, row.companyId), eq(records.type, "leader")))
-      .orderBy(records.createdAt, records.id);
+    const company = companyById.get(row.companyId);
+    const leaderRows = leadersById.get(row.companyId) ?? [];
     const leaders = leaderRows
       .map((r) => r.data as Record<string, unknown>)
       .filter((d) => typeof d["name"] === "string")
       .map((d) => ({ name: String(d["name"]), title: String(d["title"] ?? d["role"] ?? "") }));
     const check = checks.get(row.companyId) ?? null;
     const contact = pickContact(leaders, row.tier);
-    const factRows = await db.select().from(factsCurrent).where(eq(factsCurrent.companyId, row.companyId));
+    const factRows = factsById.get(row.companyId) ?? [];
     const byKey = new Map(factRows.map((f) => [f.key, f]));
     const numOf = (key: string): number | null => {
       const v = byKey.get(key)?.valueNum;
@@ -311,7 +332,7 @@ export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRo
       const v = fact?.valueText ?? fact?.valueJson;
       return typeof v === "string" ? v : "";
     };
-    const history = await db.select().from(facts).where(eq(facts.companyId, row.companyId));
+    const history = historyById.get(row.companyId) ?? [];
     let growth = "";
     for (const key of ["firm.regulatory_aum", "financials.employees"] as const) {
       const pts = history
@@ -325,14 +346,11 @@ export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRo
       const days = (new Date(last.d).getTime() - new Date(first.d).getTime()) / 86_400_000;
       if (days >= 180) growth = `${Math.round(((last.n - first.n) / first.n) * 100)}%`;
     }
-    const brochureDocs = await db
-      .select({ title: documents.title, path: documents.path })
-      .from(documents)
-      .where(and(eq(documents.companyId, row.companyId), eq(documents.isCurrent, true), inArray(documents.path, ["financials/brochure-item-5.md", FULL_BROCHURE_PATH])));
+    const brochureDocs = brochuresById.get(row.companyId) ?? [];
     const brochureDoc = brochureDocs.find((d) => d.path === "financials/brochure-item-5.md") ?? brochureDocs.find((d) => d.path === FULL_BROCHURE_PATH);
     const brochureDate = /\((\d{4}-\d{2}-\d{2})[),]/.exec(brochureDoc?.title ?? "")?.[1] ?? "";
     const feeSummary = (textOf("ria.fee_schedule").trim() || textOf("firm.fee_schedule").trim()).slice(0, 120);
-    const steps = await db.select().from(riaStepRuns).where(and(eq(riaStepRuns.sectorId, sectorId), eq(riaStepRuns.companyId, row.companyId), inArray(riaStepRuns.step, [...RIA_STEPS])));
+    const steps = stepsById.get(row.companyId) ?? [];
     const gaps = steps.filter((s) => s.status !== "done").map((s) => `${s.step}: ${s.reason || s.status}`);
     const pending = RIA_STEPS.filter((step) => !steps.some((s) => s.step === step));
     if (pending.length) gaps.push(`Pending: ${pending.join(", ")}`);
