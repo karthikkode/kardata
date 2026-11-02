@@ -2,17 +2,22 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { and, eq } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import type { DbHandle } from "../../src/db/client.js";
-import { companies, documents, sources, researchRuns } from "../../src/db/schema.js";
+import { companies, documents, sources, researchRuns, facts, factsCurrent } from "../../src/db/schema.js";
 import { createSector } from "../../src/domain/sectors.js";
 import { importSec } from "../../src/domain/imports.js";
 import { deriveCompany } from "../../src/domain/sector-preflight/eligibility.js";
 import { storeBlob } from "../../src/domain/research/sources.js";
 import { saveDocument } from "../../src/domain/research/documents.js";
 import { repairStoredBrochures } from "../../src/domain/ria-steps/brochure-repair.js";
-import { recordStep, stepState } from "../../src/domain/ria-steps/status.js";
-import { setRiaStepPaused } from "../../src/domain/ria-steps/runner.js";
+import { recordStep, stepState, riaStatus } from "../../src/domain/ria-steps/status.js";
+import { createOpsReadStep, createBrochureStep, signalsStep } from "../../src/domain/ria-steps/handlers.js";
+import { FULL_BROCHURE_PATH, FULL_BROCHURE_GAP, FULL_BROCHURE_CAP } from "../../src/domain/ria-steps/brochure.js";
+import { riaSheetRows } from "../../src/domain/icp/sheet.js";
+import { addFacts } from "../../src/domain/research/facts.js";
+import * as fetchModule from "../../src/collect/fetch.js";
+import { runRiaStep, setRiaStepPaused } from "../../src/domain/ria-steps/runner.js";
 import { ensureMigrated, fixtureImportDirs, getTestDb, resetTestDb } from "../db.js";
 let handle: DbHandle;
 beforeAll(async () => { handle = getTestDb(); await ensureMigrated(handle); });
@@ -122,4 +127,88 @@ it("recovers a previously missed Item 5 from another current section's same file
   expect(await repairStoredBrochures(handle.db, { ...f, dryRun: false })).toMatchObject({ applied: 1, unresolved: 0 });
   const [restored] = await handle.db.select().from(documents).where(and(eq(documents.companyId, f.companyId), eq(documents.path, "financials/brochure-item-5.md"), eq(documents.isCurrent, true)));
   expect(restored).toMatchObject({ contentMd: fees, sourceIds: [f.sourceId], title: "Part 2A brochure Item 5 (2026-03-01, v123)" });
+});
+
+it("retains exact bounded source text when headings are unavailable, preserves history and uses one cached grounded read", async () => {
+  const f = await setup();
+  const text = ["Stored public brochure", advisory.repeat(6), "Our annual fee is one percent.", "We do not use outside managers.", "We use no external TAMP providers."].join("\n");
+  const sha = await storeBlob(handle.db, "text/plain", Buffer.from(text));
+  await handle.db.update(sources).set({ blobSha256: sha }).where(eq(sources.id, f.sourceId));
+  const sourceBefore = await handle.db.select().from(sources).where(eq(sources.id, f.sourceId));
+  expect((await repairStoredBrochures(handle.db, f)).unresolved).toBe(1);
+  const preview = await repairStoredBrochures(handle.db, { ...f, fullTextFallback: true });
+  expect(preview.results[0]).toMatchObject({ mode: "full_text", applied: false, brochureGap: FULL_BROCHURE_GAP });
+  await setRiaStepPaused(handle.db, true);
+  expect(await repairStoredBrochures(handle.db, { ...f, fullTextFallback: true, dryRun: false })).toMatchObject({ applied: 1, unresolved: 0 });
+  const docs = await handle.db.select().from(documents).where(eq(documents.companyId, f.companyId));
+  expect(docs.filter((d) => d.isCurrent)).toHaveLength(1);
+  expect(docs.find((d) => d.isCurrent)).toMatchObject({ path: FULL_BROCHURE_PATH, contentMd: text, sourceIds: [f.sourceId] });
+  expect(docs.filter((d) => !d.isCurrent)).toHaveLength(2);
+  expect(await handle.db.select().from(sources).where(eq(sources.id, f.sourceId))).toEqual(sourceBefore);
+  expect(await stepState(handle.db, f.sectorId, f.companyId, "brochure")).toMatchObject({ status: "gap", inputHash: "123" });
+  expect((await riaStatus(handle.db, f.sectorId, [f.companyId])).details?.find((r) => r.step === "brochure")?.reason).toBe(FULL_BROCHURE_GAP);
+  expect(await repairStoredBrochures(handle.db, { ...f, dryRun: false })).toMatchObject({ changed: 0, applied: 0, unresolved: 0 });
+  await addFacts(handle.db, { companyId: f.companyId, createdBy: "extractor:ria_ops", facts: [{ key: "ria.outside_managers", value: true, sourceIds: [f.sourceId] }, { key: "ria.tamp_providers", value: ["Synthetic Model"], sourceIds: [f.sourceId] }] });
+  let calls = 0;
+  const step = createOpsReadStep(async ({ prompt }) => {
+    calls += 1; expect(prompt).toContain(text); expect(prompt).toContain("never contents entries");
+    return { json: { fee_schedule: "1% annually", outside_managers: false, tamp_providers: [], quotes: [
+      { field: "fee_schedule", quote: "Our annual fee is one percent." },
+      { field: "outside_managers", quote: "We do not use outside managers." },
+      { field: "tamp_providers", quote: "We use no external TAMP providers." },
+    ] }, usage: { inputTokens: 100, outputTokens: 50, cachedTokens: 0, reasoningTokens: 0, calls: 1 } };
+  });
+  await setRiaStepPaused(handle.db, false);
+  expect(await runRiaStep(handle.db, { ...f, step: "ops_read" }, { ops_read: step })).toMatchObject({ done: 1, failed: 0 });
+  expect(await runRiaStep(handle.db, { ...f, step: "ops_read" }, { ops_read: step })).toMatchObject({ skippedDone: 1 });
+  expect(calls).toBe(1);
+  for (const stage of ["firm_data", "contacts"] as const) await recordStep(handle.db, { sectorId: f.sectorId, companyId: f.companyId, step: stage, status: "done" });
+  await signalsStep(handle.db, f.sectorId, f.companyId);
+  const exported = (await riaSheetRows(handle.db, f.sectorId)).find((row) => row.companyId === f.companyId);
+  expect(exported).toMatchObject({ brochureDate: "2026-03-01", feeSummary: "1% annually" });
+  expect(exported?.researchGaps).toContain(FULL_BROCHURE_GAP);
+  expect((await handle.db.select().from(factsCurrent).where(and(eq(factsCurrent.companyId, f.companyId), eq(factsCurrent.key, "ria.outside_managers"))))[0]?.valueBool).toBe(false);
+  expect((await handle.db.select().from(factsCurrent).where(and(eq(factsCurrent.companyId, f.companyId), eq(factsCurrent.key, "ria.tamp_providers"))))[0]?.valueJson).toEqual([]);
+  expect(await handle.db.select().from(facts).where(and(eq(facts.companyId, f.companyId), eq(facts.key, "ria.outside_managers")))).toHaveLength(2);
+  await recordStep(handle.db, { sectorId: f.sectorId, companyId: f.companyId, step: "brochure", status: "gap", inputHash: "999", reason: "new filing unavailable" });
+  expect(await step(handle.db, f.sectorId, f.companyId)).toMatchObject({ status: "gap", reason: "stored full brochure version is stale; current sections unavailable" });
+  expect(calls).toBe(1);
+});
+
+it("keeps a same-version whole-text fallback through brochure refresh without downloading or restoring misleading slices", async () => {
+  const f = await setup();
+  const text = advisory.repeat(8);
+  const sha = await storeBlob(handle.db, "text/plain", Buffer.from(text));
+  await handle.db.update(sources).set({ blobSha256: sha }).where(eq(sources.id, f.sourceId));
+  await setRiaStepPaused(handle.db, true);
+  await repairStoredBrochures(handle.db, { ...f, dryRun: false, fullTextFallback: true });
+  const [source] = await handle.db.select().from(sources).where(eq(sources.id, f.sourceId));
+  if (!source) throw new Error("missing source");
+  const lookup = JSON.stringify({ hits: { hits: [{ _source: { iacontent: JSON.stringify({ brochures: { part2ExemptFlag: "N", brochuredetails: [{ brochureVersionID: 123, brochureName: "FIRM BROCHURE", dateSubmitted: "3/1/2026" }] } }) } }] } });
+  const fetch = vi.spyOn(fetchModule, "fetchUrl").mockResolvedValue({ source, text: lookup, body: Buffer.from(lookup), contentType: "application/json" });
+  try {
+    expect(await createBrochureStep()(handle.db, f.sectorId, f.companyId)).toMatchObject({ status: "gap", reason: FULL_BROCHURE_GAP, inputHash: "123" });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const current = await handle.db.select().from(documents).where(and(eq(documents.companyId, f.companyId), eq(documents.isCurrent, true)));
+    expect(current).toHaveLength(1); expect(current[0]?.path).toBe(FULL_BROCHURE_PATH);
+  } finally { fetch.mockRestore(); }
+});
+
+it("refuses oversized or unreadable fallback text without archiving sections", async () => {
+  const f = await setup();
+  await setRiaStepPaused(handle.db, true);
+  for (const text of ["x".repeat(50), advisory.repeat(Math.ceil(FULL_BROCHURE_CAP / advisory.length) + 1)]) {
+    const sha = await storeBlob(handle.db, "text/plain", Buffer.from(text));
+    await handle.db.update(sources).set({ blobSha256: sha }).where(eq(sources.id, f.sourceId));
+    expect(await repairStoredBrochures(handle.db, { ...f, dryRun: false, fullTextFallback: true })).toMatchObject({ applied: 0, unresolved: 1 });
+    expect(await handle.db.select().from(documents).where(and(eq(documents.companyId, f.companyId), eq(documents.isCurrent, true)))).toHaveLength(2);
+  }
+});
+
+it("does not ground a quote found only beyond the actual supplied Item cap", async () => {
+  const f = await setup();
+  await saveDocument(handle.db, { companyId: f.companyId, path: "financials/brochure-item-4.md", title: "Part 2A brochure Item 4 (2026-03-01, v123)", contentMd: advisory.repeat(300) + "Unprovided annual fee is nine percent.", sourceIds: [f.sourceId], createdBy: "collector:ria_brochure" });
+  const step = createOpsReadStep(async () => ({ json: { fee_schedule: "9%", quotes: [{ field: "fee_schedule", quote: "Unprovided annual fee is nine percent." }] }, usage: undefined }));
+  expect(await step(handle.db, f.sectorId, f.companyId)).toMatchObject({ status: "gap", reason: "no grounded ops terms in brochure text" });
+  expect(await handle.db.select().from(facts).where(and(eq(facts.companyId, f.companyId), eq(facts.key, "ria.fee_schedule")))).toHaveLength(0);
 });
