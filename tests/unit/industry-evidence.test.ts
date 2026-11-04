@@ -29,6 +29,10 @@ describe("industry evidence", () => {
       <p><strong>Transcript:</strong></p><p>Guest: This is the conversation.</p></details>
       <p>End of article.</p></main>`;
     expect(articleText(article, true).text).toBe("Guest: This is the conversation.");
+    expect(articleText(`<article><details><summary>Show transcript and notes</summary>
+      <p>Shownotes:</p><p>Book recommendations.</p><p>Host: Welcome to our episode on workflows.</p>
+      <p>Guest: We improved the intake process.</p></details></article>`, true).text)
+      .toBe("Host: Welcome to our episode on workflows.\n\nGuest: We improved the intake process.");
     expect(articleText("<article><p>Only a summary</p></article>", true).text).toBe("");
   });
 

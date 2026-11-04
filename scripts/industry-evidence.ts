@@ -7,6 +7,7 @@ import { load } from "cheerio";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { z } from "zod";
+import { fetchRssEvidence } from "../src/domain/research/rss-evidence-fetch.js";
 import { loadAppEnv, requireEnv } from "../src/lib/env.js";
 import {
   articleText, canonicalIndustryUrl, extractIndustryEvidence, industryPath, redditItems,
@@ -61,7 +62,7 @@ async function readItem(dir: string, name: string): Promise<Item | null> {
   };
 }
 
-async function feedItems(dir: string, redditXml?: string): Promise<Item[]> {
+async function feedItems(dir: string, redditXml: readonly string[]): Promise<Item[]> {
   const rss = await readFile(join(dir, "kitces-feedblitz.raw"), "utf8").catch(() => "");
   const $ = load(rss, { xmlMode: true });
   const articles = $("item").toArray().flatMap((node): Item[] => {
@@ -78,7 +79,7 @@ async function feedItems(dir: string, redditXml?: string): Promise<Item[]> {
     return text.length >= 200 ? [{ group: "kitces-blog", url: canonicalIndustryUrl(link),
       title, text, published: cleanedDate(item.children("pubDate").text()) }] : [];
   });
-  if (redditXml) for (const item of redditItems(redditXml)) articles.push({ group: "reddit", ...item });
+  for (const xml of redditXml) for (const item of redditItems(xml)) articles.push({ group: "reddit", ...item });
   return articles;
 }
 
@@ -89,11 +90,23 @@ function jsonLines<T>(contents: string): T[] {
 async function main() {
   const dir = resolve(process.argv[2] ?? "var/sources/industry");
   const watch = process.argv.includes("--watch");
-  const readReddit = process.argv.includes("--reddit-feed-stdin");
-  if (watch && readReddit) throw new Error("Use a one-shot run for an allowed Reddit RSS stream");
-  const input: Buffer[] = [];
-  if (readReddit) for await (const chunk of process.stdin) input.push(Buffer.from(chunk));
-  const redditXml = input.length ? Buffer.concat(input).toString("utf8") : undefined;
+  const readReddit = process.argv.includes("--reddit");
+  if (watch && readReddit) throw new Error("Use a one-shot run to read the approved Reddit RSS paths");
+  const redditXml: string[] = [];
+  if (readReddit) {
+    const origin = "https://www.reddit.com";
+    const topics = ["billing", "onboarding", "operations", "custodian", "paperwork", "hiring", "CRM", "rebalancing"];
+    const urls = ["CFP", "financialplanners"].flatMap((subreddit) => [
+      ...["year", "all"].map((period) => `${origin}/r/${subreddit}/top/.rss?t=${period}`),
+      ...topics.map((topic) => `${origin}/r/${subreddit}/search.rss?q=${encodeURIComponent(topic)}&restrict_sr=on&sort=top&t=all`),
+    ]);
+    for (const row of await fetchRssEvidence(urls, {
+      origin, fetcher: fetch, userAgent: "Kardata karthik@kardata.co", minimumIntervalMs: 60_000, minimum429PauseMs: 600_000,
+    })) {
+      if ("text" in row) redditXml.push(row.text);
+      else console.error(JSON.stringify(row));
+    }
+  }
   const journalPath = join(dir, "mcp-checkpoints.ndjson");
   const journal = new Map(jsonLines<Checkpoint>(await readFile(journalPath, "utf8").catch(() => ""))
     .map((row) => [row.key, row]));
@@ -184,8 +197,9 @@ async function main() {
         await tryConsume(name, () => readItem(dir, name));
       }
       for (const item of await feedItems(dir, redditXml)) await tryConsume(item.url, async () => item);
-      if (watch) await sleep(15_000);
-    } while (watch);
+      if (!watch || entries.has("collection.done")) break;
+      await sleep(15_000);
+    } while (true);
   } finally {
     if (!dryRun) await client.close();
   }

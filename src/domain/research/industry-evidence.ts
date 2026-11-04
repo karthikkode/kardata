@@ -62,9 +62,15 @@ export function articleText(html: string, transcript = false) {
     return /^(?:full |episode )?transcript(?:\s*[:.!].{0,80})?$/i.test(label)
       || /^(?!.*(?:show\s*notes|download|print)).{1,38}\btranscript\s*[:.!]?$/i.test(label);
   });
-  const root = transcript && transcriptHeading ? $(transcriptHeading).nextAll() : body.find("p,li,h2,h3,h4");
+  const dialogueStart = transcript && !transcriptHeading
+    ? body.find("details").filter((_, el) => /transcript/i.test($(el).children("summary").text()))
+      .find("p").toArray().find((el) => /^\p{Lu}[\p{L} .'’-]{1,40}:\s+.{20,}/u.test(compact($(el).text())))
+    : undefined;
+  const root = !transcript ? body.find("p,li,h2,h3,h4")
+    : transcriptHeading ? $(transcriptHeading).nextAll()
+      : dialogueStart ? $(dialogueStart).add($(dialogueStart).nextAll()) : $();
   const blocks: string[] = [];
-  if (!transcript || transcriptHeading) for (const node of root.toArray()) {
+  for (const node of root.toArray()) {
     const entry = $(node);
     if (entry.is("div,section")) {
       for (const nested of entry.find("p,li,h2,h3,h4").toArray()) {
