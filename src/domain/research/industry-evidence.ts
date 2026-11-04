@@ -91,7 +91,10 @@ export function articleText(html: string, transcript = false) {
       if (text && !blocks.includes(text)) blocks.push(text);
     }
   }
-  return { title, published, canonical, text: blocks.join("\n\n") };
+  const introduction = paragraphs.slice(0, 12).map((el) => compact($(el).text())).find((text) =>
+    /^my guest on today['’]s podcast is\b/i.test(text) && text.length <= 1500,
+  ) ?? null;
+  return { title, published, canonical, introduction, text: blocks.join("\n\n") };
 }
 
 export function industryPath(url: string, group: string, episode?: number | null) {
@@ -122,7 +125,9 @@ const SIZE_CONTEXT = /\b(?:we serve|we manage|our firm|the firm|its firm|their f
 
 type Evidence = { quote: string; timestamp: string | null };
 
-export function extractIndustryEvidence(text: string, options: { regulator?: boolean; toolNames?: readonly string[] } = {}) {
+export function extractIndustryEvidence(text: string, options: {
+  regulator?: boolean; toolNames?: readonly string[]; introduction?: string | null;
+} = {}) {
   const toolNames = options.toolNames ?? [];
   const toolPattern = toolNames.length
     ? new RegExp(`\\b(?:${toolNames.map((name) => name.replace(/[.*+?^$${}()|[\]\\]/g, "\\$&")).join("|")})\\b`, "gi")
@@ -136,6 +141,12 @@ export function extractIndustryEvidence(text: string, options: { regulator?: boo
   let speakerRole: "regulator" | "journalist" | "owner" | "operator" | "vendor" | "unknown" =
     options.regulator ? "regulator" : "unknown";
   let roleEvidence: Evidence | null = null;
+  const introducedAs = options.introduction?.match(/\bis\s+(?:(?:a|an|the)\s+)?(?:(?:co[- ]?)?(?:founder|owner|CEO)|chief (?:executive|operating) officer|operations director|software vendor|journalist)\b/i)?.[0];
+  if (speakerRole === "unknown" && introducedAs) {
+    speakerRole = /founder|owner/i.test(introducedAs) ? "owner" : /journalist/i.test(introducedAs) ? "journalist"
+      : /vendor/i.test(introducedAs) ? "vendor" : "operator";
+    roleEvidence = { quote: introducedAs, timestamp: null };
+  }
 
   for (const raw of text.split(/\n{2,}/)) {
     const block = compact(raw);

@@ -24,7 +24,7 @@ const receiptSchema = z.object({
   group: z.enum(industryGroups).nullish(), episode: z.number().int().positive().nullish(), error: z.string().nullish(),
 });
 type Evidence = ReturnType<typeof extractIndustryEvidence>;
-type Item = { group: IndustryGroup; contentFormat?: "publisher_transcript" | "local_transcript" | "publisher_page"; url: string; title: string; published: string | null; text: string; episode?: number | null };
+type Item = { group: IndustryGroup; introduction?: string | null; contentFormat?: "publisher_transcript" | "local_transcript" | "publisher_page"; url: string; title: string; published: string | null; text: string; episode?: number | null };
 type Checkpoint = { key: string; contentFormat?: Item["contentFormat"]; sourceId: string; documentId?: string; recordId?: string; url?: string; group?: IndustryGroup; evidence?: Evidence };
 
 function cleanedDate(value: string | null) {
@@ -62,9 +62,11 @@ async function readItem(dir: string, name: string): Promise<Item | null> {
     contentFormat = "publisher_page";
   }
   if (!article.text) throw new Error("No readable article body");
+  const introduction = receipt.group === "fas" ? article.introduction : null;
+  const text = introduction ? introduction + "\n\n" + article.text : article.text;
   return {
     group: receipt.group, url, title: article.title || receipt.key, published: cleanedDate(article.published),
-    text: article.text, episode: receipt.episode, contentFormat,
+    text, introduction, episode: receipt.episode, contentFormat,
   };
 }
 
@@ -134,7 +136,7 @@ async function main() {
   const consume = async (item: Item) => {
     const { key, path } = industryPath(item.url, item.group, item.episode);
     if (journal.get(key)?.recordId) return;
-    const evidence = extractIndustryEvidence(item.text, { regulator: item.group.startsWith("sec-"), toolNames });
+    const evidence = extractIndustryEvidence(item.text, { regulator: item.group.startsWith("sec-"), toolNames, introduction: item.introduction });
     if (dryRun) {
       console.log(JSON.stringify({ group: item.group, url: item.url, characters: item.text.length, problems: evidence.problems.length }));
       return;

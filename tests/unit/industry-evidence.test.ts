@@ -44,6 +44,15 @@ describe("industry evidence", () => {
     expect(articleText(episode, true).text).toMatch(/^Host: Welcome/);
   });
 
+  it("grounds an interviewee role in the publisher's explicit introduction", () => {
+    const item = articleText(`<article><p>My guest on today's podcast is Taylor.
+      Taylor is the chief operating officer of Example Advisors.</p>
+      <h2>Full Transcript</h2><p>Guest: We review our paperwork.</p></article>`, true);
+    const result = extractIndustryEvidence(item.text, { introduction: item.introduction });
+    expect(result.speakerRole).toBe("operator");
+    expect(result.roleEvidence?.quote).toBe("is the chief operating officer");
+  });
+
   it("strips author metadata, mentions and usernames in Reddit URLs and post text", () => {
     const rss = `<feed><entry><author><name>/u/example-person</name></author>
       <title>Onboarding from example-person</title>
