@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Db } from "../db/client.js";
 import { ensureEvidenceLibrary } from "../domain/evidence-library.js";
+import { importSchedules } from "../domain/sec-adv/schedules.js";
 import { importSnapshot } from "../domain/sec-adv/snapshot.js";
 import { registerTool, type AuthContext } from "./auth.js";
 import { wrap } from "./result.js";
@@ -26,5 +27,16 @@ export function registerBenchmarkTools(server: McpServer, db: Db, auth: AuthCont
   }, async input => wrap(async () => {
     const data = await importSnapshot(db, input);
     return { summary: `${data.counts.crd + data.counts.secNumber} verified matches, ${data.candidates.length} unverified candidates`, data };
+  }));
+
+  registerTool(server, db, auth, "sec_adv_schedules_import", {
+    description: "Import archived SEC Form ADV schedules by verified CRD. A snapshotDate selects the historical Part 1 fallback instead. Dry run by default.",
+    inputSchema: {
+      sectorId: z.string().uuid(), part1Path: z.string(), part2Path: z.string(), part1Url: secUrl, part2Url: secUrl,
+      dryRun: z.boolean().optional(), companyIds: z.array(z.string().uuid()).max(200).optional(), snapshotDate: z.string().optional(),
+    },
+  }, async input => wrap(async () => {
+    const data = await importSchedules(db, input);
+    return { summary: `${data.matched} matched archive filings, ${data.missing} missing`, data };
   }));
 }

@@ -106,3 +106,40 @@ it("keeps name matches unverified until independently confirmed and is retry saf
     else process.env.KARDATA_IMPORT_DIRS = dirs;
   }
 });
+
+it("imports archived schedules for the latest qualifying filing and reuses its evidence on retry", async () => {
+  const { sectorId } = await setup();
+  const companyId = randomUUID();
+  await handle.db.insert(companies).values({ id: companyId, name: "Synthetic filing firm", source: "sec", secCrd: "910001" });
+  await handle.db.insert(sectorCompanies).values({ companyId, sectorId, addedVia: "sec" });
+  const dirs = process.env.KARDATA_IMPORT_DIRS;
+  process.env.KARDATA_IMPORT_DIRS = fixtureImportDirs().join(",");
+  const args = {
+    sectorId, part1Path: join(fixtureImportDirs()[0]!, "sec-adv-history-a.zip"),
+    part2Path: join(fixtureImportDirs()[0]!, "sec-adv-history-b.zip"),
+    part1Url: "https://www.sec.gov/history-a.zip", part2Url: "https://www.sec.gov/history-b.zip",
+  };
+  try {
+    expect(await data("sec_adv_schedules_import", args)).toMatchObject({ matched: 1, missing: 0, written: 0 });
+    expect(await handle.db.select().from(sources)).toHaveLength(0);
+    expect(await data("sec_adv_schedules_import", { ...args, dryRun: false })).toMatchObject({ written: 1 });
+    const companyRecords = await handle.db.select().from(records).where(eq(records.companyId, companyId));
+    expect(companyRecords.filter(row => row.type === "sec_adv_owner").map(row => row.data)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ filing_id: "11", ownership_reported: false, entity_type: "individual" }),
+      expect.objectContaining({ filing_id: "11", ownership_reported: true, entity_type: "domestic_entity" }),
+    ]));
+    expect(companyRecords.find(row => row.type === "sec_adv_schedules")?.data).toMatchObject({
+      filing_id: "11", filing_date: "2024-09-01", custodian_count: 2, outside_entity_ownership: true,
+      websites: ["https://fixture.example/"], offices_by_state: { WA: 2, OR: 1 },
+      custodians: [
+        { name: "Fixture Custodian", sections: ["5.K.(3)", "7.A"], sharePct: 50 },
+        { name: "Fixture Affiliate", sections: ["7.A"], sharePct: null },
+      ],
+    });
+    expect(await data("sec_adv_schedules_import", { ...args, dryRun: false })).toMatchObject({ written: 0 });
+    expect(await handle.db.select().from(sources)).toHaveLength(4);
+  } finally {
+    if (dirs === undefined) delete process.env.KARDATA_IMPORT_DIRS;
+    else process.env.KARDATA_IMPORT_DIRS = dirs;
+  }
+});

@@ -133,7 +133,7 @@ async function identities(db: DbLike, members: Awaited<ReturnType<typeof activeM
   return [...byId.values()].map(row => ({ ...row, crds: [...row.crds], secNumbers: [...row.secNumbers] }));
 }
 
-async function snapshotDefinitions(db: DbLike) {
+export async function snapshotDefinitions(db: DbLike) {
   await db.insert(factKeys).values(SNAPSHOT_FIELDS.map(def => ({
     key: def.key,
     valueType: def.kind === "usd" ? "number" as const : def.kind,

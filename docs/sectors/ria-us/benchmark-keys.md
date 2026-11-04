@@ -22,3 +22,5 @@ November 4 backup, queried with MCP on a disposable local restore. 17,958 active
 Use the registry’s existing `firm` and `financials` keys where definitions match. The existing disclosure flag is text, so the filed Item 11 boolean has a separate key. Snapshot facts use the filing date and release month qualifier.
 
 SEC history ZIP part 1 contains the IA Base A/B, A/B ownership, and D 1.F and 1.I tables. Part 2 contains D 5.K.(3) and 7.A. Join by filing ID and use data through December 31, 2024. Registered-adviser monthly releases for September 2023–2025 are XLSX. The supplied October 2026 ZIP contains `ia09012026.csv`.
+
+Schedule records are `sec_adv_owner` (A/B ownership and officer status) and `sec_adv_schedules` (D 1.F/1.I offices and URLs, 5.K.(3)/7.A custodians). Custodian shares use reported 5.K.(3)(g) dollars divided by 5F total AUM less 5D(3)(d–f). Counts cover reported records. Historical schedule data stops in 2024.
