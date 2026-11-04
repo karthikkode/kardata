@@ -47,9 +47,10 @@ export function registerBenchmarkTools(server: McpServer, db: Db, auth: AuthCont
   }));
 
   registerTool(server, db, auth, "benchmark_fees_run", {
-    description: "Queue a background review of 20–30 named firms. Returns a job ID immediately. Pilot pauses when mean retries exceed one.",
+    description: "Queue a background fee review of 20–30 named pilot firms or explicitly opt in to all eligible firms. Returns a job ID immediately.",
     inputSchema: {
-      sectorId: z.string().uuid(), companyIds: z.array(z.string().uuid()).min(20).max(30),
+      sectorId: z.string().uuid(), companyIds: z.array(z.string().uuid()).min(20).max(30).optional(),
+      fullRun: z.literal(true).optional().describe("Explicit opt-in to all active eligible firms, without companyIds or pilot"),
       concurrency: z.number().int().min(1).max(16).optional(), pilot: z.literal(true).optional(),
       requestId: z.string().uuid().optional().describe("Optional idempotency ID for safely retrying the request"),
     },
@@ -60,10 +61,10 @@ export function registerBenchmarkTools(server: McpServer, db: Db, auth: AuthCont
 
   registerTool(server, db, auth, "benchmark_fees_status", {
     description: "Read a background fee job's current state, completed counts, per-firm telemetry, and eligible-cohort projection.",
-    inputSchema: { jobId: z.string().uuid() },
+    inputSchema: { jobId: z.string().uuid(), offset: z.number().int().nonnegative().optional(), limit: z.number().int().min(1).max(200).optional() },
     annotations: { readOnlyHint: true },
-  }, async ({ jobId }) => wrap(async () => {
-    const data = await benchmarkFeeJobStatus(db, jobId);
+  }, async ({ jobId, offset, limit }) => wrap(async () => {
+    const data = await benchmarkFeeJobStatus(db, jobId, offset, limit);
     return { summary: `Fee job ${jobId}: ${data.status} (${data.finished}/${data.selected} finished)`, data };
   }));
 

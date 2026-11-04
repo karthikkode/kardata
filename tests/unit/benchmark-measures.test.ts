@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { deriveMeasures, EMPTY_SNAPSHOT, type Fees, type Snapshot } from "../../src/domain/benchmark/measures.js";
+import { deriveMeasures, EMPTY_SNAPSHOT, primaryPeerFees, type Fees, type Snapshot } from "../../src/domain/benchmark/measures.js";
 import { peerStatistics, type PeerConfig } from "../../src/domain/benchmark/peers.js";
 
 const current: Snapshot = {
@@ -50,4 +50,29 @@ it("merges adjacent same-mix groups, separates solo firms, and assigns tied perc
   expect(report.memberGroups.get("c")?.percentiles.clients_per_staff).toBeCloseTo(100 * 2.5 / 3);
   expect(report.memberGroups.get("solo")).toMatchObject({ key: "solo", size: 1, percentiles: {} });
   expect(report.summaries.find(row => row.mix === "mixed")?.median).toBeNull();
+});
+
+it("compares a two-reading interval against single-reading primary peers without adding it to the sample", () => {
+  const standard = { role: "primary", category: "standard", name: "Individual investment management",
+    scope: { kind: "firm", quote: "Standard individual investment management." } };
+  const value = { ...fees, primaryScheduleIndex: 0, schedules: [standard] };
+  expect(primaryPeerFees(value)).toEqual(value);
+  expect(primaryPeerFees(fees)).toBeNull();
+  expect(primaryPeerFees({ ...value, schedules: [{ ...standard,
+    scope: { ...standard.scope, quote: "Fees for accounts offered through Financial Advisors." } }] })).toBeNull();
+  const both = { ...value, scenarios: {
+    cliff: { at1m: fees.at1m, at5m: fees.at5m },
+    marginal: { at1m: { dollars: 12_500, rate_pct: 1.25 }, at5m: { dollars: 62_500, rate_pct: 1.25 } },
+  } };
+  const make = (id: string, schedule: Fees | null) => ({ id, staff: current.staff, aum: current.aum,
+    ...deriveMeasures(current, prior, prior, schedule, "2026-11", [prior, current]) });
+  const one = make("a", primaryPeerFees(value));
+  const two = make("b", primaryPeerFees(both));
+  const three = make("c", primaryPeerFees({ ...value, at1m: { dollars: 12_500, rate_pct: 1.25 } }));
+  expect(two.values).toMatchObject({ fee_1m_dollars: null, fee_5m_dollars: null, estimated_annual_fee_revenue: null });
+  expect(two.feeRanges.fee_1m_dollars).toEqual({ low: 10_000, high: 12_500 });
+  const report = peerStatistics([one, two, three], config);
+  expect(report.summaries.find(row => row.measure === "fee_1m_dollars")).toMatchObject({ n: 2, median: 11_250 });
+  expect(report.memberGroups.get("b")?.percentiles.fee_1m_dollars).toBeUndefined();
+  expect(report.memberGroups.get("b")?.feeRangePercentiles.fee_1m_dollars).toEqual({ low: 25, high: 75 });
 });

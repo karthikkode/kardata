@@ -121,3 +121,33 @@ it("labels tiered ceilings and preserves the difference between a cap and no pri
   const negotiated = summarize([{ ...standard, pricing: "negotiated", tiers: [] }]);
   expect(negotiated).toMatchObject({ classification: "no_price", at1m: null, at5m: null, priceBasis: null });
 });
+
+it("recognizes successive dollar bands and a whole-account fee clause, without inferring from a valuation date", () => {
+  const first = "Up to $1,000,000 at 1%";
+  const next = "Next $1,000,000 to $5,000,000 at 0.5%";
+  const tiers = [
+    { ...rows[0], from: 0, to: 1_000_000, rate_pct: 1, evidence: quote(first) },
+    { ...rows[0], from: 1_000_000, to: 5_000_000, rate_pct: 0.5, evidence: quote(next) },
+  ];
+  expect(summarize([{ ...standard, tiers }], [first, next])).toMatchObject({
+    method: "marginal", at5m: { dollars: 30_000 },
+  });
+  const band = "$1,000,001 to $5,000,000 at 0.5%";
+  const ordinary = [{ ...standard, tiers: [tiers[0], { ...tiers[1], from: 1_000_001, evidence: quote(band) }] }];
+  expect(summarize(ordinary, ["Account Balance Annual Fee", first, band, "The annual fee is calculated based upon the total value of your account."]))
+    .toMatchObject({ method: "cliff", at5m: { dollars: 25_000 } });
+  expect(summarize(ordinary, ["Account Balance Annual Fee", first, band, "We use the account value on the last business day."]))
+    .toMatchObject({ method: null, flags: ["tier_method_unclear"] });
+});
+
+it.each([
+  ["Adviser channel", "Standard fees for accounts offered through Financial Advisors and to institutional clients.", "adviser_channel"],
+  ["Standard institutional", "Standard investment management for institutional clients.", "institutional"],
+  ["Synthetic Equity Fund", "Standard fees for the named portfolio.", "fund"],
+  ["Standard strategy", "The standard fee schedule by strategy.", "strategy"],
+])("keeps %s pricing scoped even if the model labels it standard", (name, restricted, scopeType) => {
+  const result = summarize([{ ...standard, name, scope: quote(restricted), method: "marginal", methodEvidence: quote(marginal) },
+    { ...standard, method: "marginal", methodEvidence: quote(marginal) }], [restricted]);
+  expect(result.primaryScheduleIndex).toBe(1);
+  expect(result.schedules[0]).toMatchObject({ role: "scoped", scopeType });
+});

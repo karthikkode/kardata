@@ -10,7 +10,7 @@ import { chunked, isValidDateString } from "../research/validate.js";
 import { canonicalFile, lockEvidence, SNAPSHOT_COLLECTOR } from "../sec-adv/evidence.js";
 import { activeMembers } from "../sec-adv/snapshot.js";
 import { FEE_COLLECTOR } from "./fees.js";
-import { deriveMeasures, EMPTY_SNAPSHOT, type Fees, type Snapshot } from "./measures.js";
+import { deriveMeasures, EMPTY_SNAPSHOT, primaryPeerFees, type Snapshot } from "./measures.js";
 import { peerConfig, peerStatistics } from "./peers.js";
 import { sectorData } from "./sector-data.js";
 
@@ -22,6 +22,7 @@ const formula = {
   estimated_annual_fee_revenue: "regulatory AUM × effective annual fee at AUM / accounts",
   estimated_fee_revenue_per_staff: "estimated annual fee revenue / staff",
   percentile: "(count below + count tied / 2) / non-null sample × 100",
+  fee_percentile: "single-reading primary fees only; two-reading endpoints ranked against that sample",
 };
 
 const FIELDS: Record<string, Exclude<keyof Snapshot, "filingDate">> = {
@@ -80,7 +81,7 @@ export async function computeBenchmark(db: Db, input: { sectorId: string; formul
     byFirmMonth.set(key, entry);
   }
   const revision = createHash("sha256")
-    .update(JSON.stringify({ sectorId, formulaVersion, months, config, ids }))
+    .update(JSON.stringify({ sectorId, formulaVersion, months, config, ids, feePeerVersion: 2 }))
     .update(snapshotRows.map(row => row.id).join(","))
     .update(feeStatuses.map(row => row.id).join(","))
     .update(feeStatuses.map(row => feesByFirm.get(row.companyId)?.fee?.id ?? "").join(","))
@@ -91,7 +92,7 @@ export async function computeBenchmark(db: Db, input: { sectorId: string; formul
     const chronological = months.map(month => pick(month)?.data ?? EMPTY_SNAPSHOT);
     const fee = feesByFirm.get(id);
     const result = deriveMeasures(current, pick(snapshots.prior1)?.data ?? EMPTY_SNAPSHOT, pick(snapshots.prior3)?.data ?? EMPTY_SNAPSHOT,
-      (fee?.fee?.valueJson ?? null) as Fees | null, snapshots.current, chronological);
+      primaryPeerFees(fee?.fee?.valueJson ?? null), snapshots.current, chronological);
     return {
       id, staff: current.staff, aum: current.aum, ...result, filingDate: current.filingDate,
       dates: Object.fromEntries(months.map((month, index) => [month, chronological[index]!.filingDate])),
@@ -143,7 +144,7 @@ export async function computeBenchmark(db: Db, input: { sectorId: string; formul
           qualifiers: { formula: formulaVersion, snapshot: snapshots.current, revision },
           asOf: firm.filingDate, sourceIds: firm.sourceIds, confidence: "high", verification: "verified_value",
           valueJson: {
-            values: firm.values, flags: firm.flags, jumps: firm.jumps, gapReasons: firm.gapReasons, dates: firm.dates, feeDate: firm.feeDate,
+            values: firm.values, flags: firm.flags, jumps: firm.jumps, gapReasons: firm.gapReasons, feeRanges: firm.feeRanges, dates: firm.dates, feeDate: firm.feeDate,
             peer: peers.memberGroups.get(firm.id) ?? null, summarySourceId: summarySource.id, formula,
           },
         });

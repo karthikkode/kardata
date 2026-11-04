@@ -293,6 +293,7 @@ export async function reviewBrochures(passages: Passage[],
   const initial: Review[] = [];
   const followups: Review[] = [];
   const gaps = [...coverage.gaps];
+  const requestedExcerpts = new Set<string>();
   let complete = true;
   let window: Passage[] = [];
   let chars = 0;
@@ -314,7 +315,7 @@ export async function reviewBrochures(passages: Passage[],
   }
   if (window.length) initial.push(await read(window, "read"));
   const appendix = primary.some(passage => APPENDIX_REFERENCE.test(passage.text) || SEPARATE_WRAP_REFERENCE.test(passage.text));
-  const expand = !initial.length || !complete || appendix || initial.some(review => review.needsFullDocument ||
+  const expand = !initial.length || !complete || appendix || initial.some(review => review.needsFullDocument || review.inspect.some(ref => !seen.has(ref)) ||
     review.schedules.some(schedule => schedule.invalidTierStarts.some(start => start === null || start <= 5_000_000)));
   if (expand) {
     const unread = primary.filter(passage => !seen.has(passage.ref));
@@ -323,14 +324,29 @@ export async function reviewBrochures(passages: Passage[],
       part.sourceId === passage.sourceId && part.page !== null && part.page === passage.page &&
       part.text.trim() === passage.text.trim()))];
     const chosen = prioritizeFeePages(supplemental, requested);
-    if (chosen.length) {
-      const candidates = reconcileFeeReviews(initial, []).candidates;
-      const previous = [...candidates].slice(0, 24).map(([id, schedule]) => ({
+    const candidateContext = () => [...reconcileFeeReviews(initial, followups).candidates]
+      .slice(0, 24).map(([id, schedule]) => ({
         id, name: schedule.name, pricing: schedule.pricing, page: schedule.scope.page,
         scope: schedule.scope.quote.slice(0, 200), rates: schedule.tiers.slice(0, 12).map(t => [t.from, t.to, t.rate_pct]),
       }));
-      if (initial.length) followups.push(await read(chosen, "review", previous));
-      else initial.push(await read(chosen, "read"));
+    const unsupplied = (review: Review) => review.inspect.filter(ref => !seen.has(ref));
+    if (chosen.length) {
+      const fallback = initial.length ? await read(chosen, "review", candidateContext()) : await read(chosen, "read");
+      (initial.length ? followups : initial).push(fallback);
+      const missing = new Set(unsupplied(fallback));
+      const requestedPages = prioritizeFeePages([...new Map([...full, ...primary]
+        .filter(passage => missing.has(passage.ref)).map(passage => [passage.ref, passage])).values()], missing);
+      if (requestedPages.length) {
+        const followup = await read(requestedPages, "review", candidateContext());
+        followups.push(followup);
+        for (const ref of unsupplied(followup)) missing.add(ref);
+      }
+      for (const ref of missing) requestedExcerpts.add(ref);
+      const unresolved = [...missing].filter(ref => !seen.has(ref));
+      if (unresolved.length) {
+        complete = false;
+        gaps.push(`Requested fee excerpts not supplied after bounded fallback: ${unresolved.join(", ")}`);
+      }
     }
     if (!coverage.complete || chosen.length < supplemental.length) {
       complete = false;
@@ -341,5 +357,8 @@ export async function reviewBrochures(passages: Passage[],
   const reviewedPages = new Set([...seen.values()].filter(passage => passage.page !== null)
     .map(passage => `${passage.sourceId}:${passage.page}`)).size;
   return { ...summarizeFeeReview(reconciled.review, initial, { complete, gaps, reviewedPages }),
-    drops: reconciled.drops, corrections: reconciled.corrections, readMode: expand ? "full_fallback" as const : "item_5" as const };
+    drops: reconciled.drops, corrections: reconciled.corrections,
+    requestedExcerpts: { supplied: [...requestedExcerpts].filter(ref => seen.has(ref)),
+      unavailable: [...requestedExcerpts].filter(ref => !seen.has(ref)) },
+    readMode: expand ? "full_fallback" as const : "item_5" as const };
 }

@@ -18,7 +18,7 @@ import { FEE_SCHEMA, feeReviewResponse } from "./fee-extraction.js";
 import { loadBrochureEvidence, needsWrapFiling, reviewBrochures } from "./brochure-review.js";
 
 export const FEE_COLLECTOR = "benchmark_fee_schedule";
-export const FEE_VERSION = "adv-2a-v3";
+export const FEE_VERSION = "adv-2a-v4";
 const fetchFeeBrochures = createBrochureStep(false, true);
 const ATTEMPTS = 3;
 

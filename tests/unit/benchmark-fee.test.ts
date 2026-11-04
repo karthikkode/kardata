@@ -176,3 +176,23 @@ it("includes failed firms and unmetered attempts in the pilot result", () => {
   expect(report).toMatchObject({ meanRetries: 1.5, failures: 1, missingTokenReports: 1,
     projected: { companies: 10, inputTokens: 1000, outputTokens: 250, elapsedMs: 5000, tokensAreLowerBound: true } });
 });
+
+it("makes one targeted read for pages missed by the fallback and reports any still unavailable", async () => {
+  const { reviewBrochures } = await import("../../src/domain/benchmark/brochure-review.js");
+  const filler = { ...passage, ref: "p1", page: 1, text: "Annual management fee. " + "Program information ".repeat(1100) };
+  const table = { ...passage, kind: "wrap" as const, ref: "p12", page: 12, text: "Optional wrap program\n" + flat + "\n" + "Conditions ".repeat(400) };
+  const prompts: string[] = [];
+  const result = await reviewBrochures([filler, table], { complete: true, gaps: [] }, async prompt => {
+    prompts.push(prompt);
+    if (!prompt.includes("--- Excerpt p12,")) return { ...response, schedules: [], inspect: ["p12", "p14"] };
+    return { ...response, schedules: [{ ...schedule, category: "program", name: "Wrap",
+      scope: cite(wrap, "p12"), tiers: [{ ...schedule.tiers[0], evidence: cite(flat, "p12") }] }], inspect: ["p15"] };
+  });
+  expect(prompts).toHaveLength(2);
+  expect(prompts[1]).toContain("--- Excerpt p12,");
+  expect(prompts[1]).not.toContain("--- Excerpt p1,");
+  expect(result).toMatchObject({ readMode: "full_fallback",
+    requestedExcerpts: { supplied: ["p12"], unavailable: ["p14", "p15"] },
+    schedules: [{ role: "scoped", at1m: { dollars: 10_000 }, at5m: { dollars: 50_000 } }] });
+  expect(result.coverage.gaps).toContain("Requested fee excerpts not supplied after bounded fallback: p14, p15");
+});

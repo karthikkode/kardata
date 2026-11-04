@@ -1169,6 +1169,7 @@ export type RiaStepRun = typeof riaStepRuns.$inferSelect;
 export const benchmarkFeeJobs = pgTable("benchmark_fee_jobs", {
   id: uuid("id").primaryKey(),
   sectorId: uuid("sector_id").notNull().references(() => sectors.id, { onDelete: "cascade" }),
+  fullRun: boolean("full_run").notNull().default(false),
   companyIds: uuid("company_ids").array().notNull(),
   eligibleSelected: integer("eligible_selected").notNull(),
   cohortSize: integer("cohort_size").notNull(),
@@ -1184,6 +1185,12 @@ export const benchmarkFeeJobs = pgTable("benchmark_fee_jobs", {
   finishedAt: timestamp("finished_at", { withTimezone: true }),
 }, t => [index("benchmark_fee_jobs_status_created_idx").on(t.status, t.createdAt)]);
 
+
+export const benchmarkFeeJobResults = pgTable("benchmark_fee_job_results", {
+  jobId: uuid("job_id").notNull().references(() => benchmarkFeeJobs.id, { onDelete: "cascade" }),
+  companyId: uuid("company_id").notNull(),
+  metrics: jsonb("metrics").$type<Record<string, unknown>>().notNull(),
+}, t => [primaryKey({ columns: [t.jobId, t.companyId] })]);
 
 // Human verdict on a flagged (over $1M per staff) public revenue figure.
 export const revenueConfirmations = pgTable("revenue_confirmations", {
