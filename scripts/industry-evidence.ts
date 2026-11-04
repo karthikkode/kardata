@@ -24,8 +24,8 @@ const receiptSchema = z.object({
   group: z.enum(industryGroups).nullish(), episode: z.number().int().positive().nullish(), error: z.string().nullish(),
 });
 type Evidence = ReturnType<typeof extractIndustryEvidence>;
-type Item = { group: IndustryGroup; url: string; title: string; published: string | null; text: string; episode?: number | null };
-type Checkpoint = { key: string; sourceId: string; documentId?: string; recordId?: string; url?: string; group?: IndustryGroup; evidence?: Evidence };
+type Item = { group: IndustryGroup; contentFormat?: "publisher_transcript" | "local_transcript" | "publisher_page"; url: string; title: string; published: string | null; text: string; episode?: number | null };
+type Checkpoint = { key: string; contentFormat?: Item["contentFormat"]; sourceId: string; documentId?: string; recordId?: string; url?: string; group?: IndustryGroup; evidence?: Evidence };
 
 function cleanedDate(value: string | null) {
   if (!value) return null;
@@ -49,16 +49,22 @@ async function readItem(dir: string, name: string): Promise<Item | null> {
   }
   if (receipt.group === "fat" && !/^\s*</.test(raw.toString("utf8"))) {
     const title = receipt.key;
-    return { group: receipt.group, url, title, published: null, text: raw.toString("utf8"), episode: receipt.episode };
+    return { group: receipt.group, url, title, published: null, text: raw.toString("utf8"), episode: receipt.episode, contentFormat: "local_transcript" };
   }
   const transcript = receipt.group === "fas" || receipt.group === "carl" || receipt.group === "fat";
-  const article = articleText(raw.toString("utf8"), transcript);
-  if (!article.text || (transcript && article.text.length < 500)) {
-    throw new Error(transcript ? "No readable published transcript" : "No readable article body");
+  const html = raw.toString("utf8");
+  let article = articleText(html, transcript);
+  let contentFormat: Item["contentFormat"] = transcript ? "publisher_transcript" : "publisher_page";
+  if (transcript && article.text.length < 500) {
+    if (receipt.group !== "carl") throw new Error("No readable published transcript");
+    // This archive also includes episode pages without a published conversation.
+    article = articleText(html);
+    contentFormat = "publisher_page";
   }
+  if (!article.text) throw new Error("No readable article body");
   return {
     group: receipt.group, url, title: article.title || receipt.key, published: cleanedDate(article.published),
-    text: article.text, episode: receipt.episode,
+    text: article.text, episode: receipt.episode, contentFormat,
   };
 }
 
@@ -158,13 +164,13 @@ async function main() {
         type: "industry_evidence", naturalKey: ["item_key"], tags: [item.group],
         sourceIds: [saved.sourceId], data: {
           item_key: key, url: item.url, source_group: item.group, document_id: saved.documentId,
-          published: item.published ?? "", episode: item.episode ?? 0, evidence,
+          published: item.published ?? "", episode: item.episode ?? 0, content_format: item.contentFormat ?? "", evidence,
         },
       }],
     });
     const row = record.results[0];
     if (!row?.ok || !row.id) throw new Error(row?.error ?? "industry_evidence write not acknowledged");
-    await checkpoint({ ...saved, recordId: row.id, group: item.group, url: item.url, evidence });
+    await checkpoint({ ...saved, recordId: row.id, group: item.group, url: item.url, contentFormat: item.contentFormat, evidence });
     console.log(JSON.stringify({ group: item.group, url: item.url, documentId: saved.documentId, recordId: row.id }));
   };
 

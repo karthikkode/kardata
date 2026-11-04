@@ -36,6 +36,14 @@ describe("industry evidence", () => {
     expect(articleText("<article><p>Only a summary</p></article>", true).text).toBe("");
   });
 
+  it("recognizes sustained speaker turns in older pages without a transcript heading", () => {
+    const episode = `<article><p>Executive summary: A short description of the latest episode.</p>
+      <p>Host: Welcome to our show this week.</p><p>Guest: We have a process to discuss.</p>
+      <p>Host: Can you describe the paperwork?</p><p>Guest: We have several forms to complete.</p>
+      <p>Host: What did you do to improve this?</p></article>`;
+    expect(articleText(episode, true).text).toMatch(/^Host: Welcome/);
+  });
+
   it("strips author metadata, mentions and usernames in Reddit URLs and post text", () => {
     const rss = `<feed><entry><author><name>/u/example-person</name></author>
       <title>Onboarding from example-person</title>

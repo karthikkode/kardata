@@ -62,10 +62,19 @@ export function articleText(html: string, transcript = false) {
     return /^(?:full |episode )?transcript(?:\s*[:.!].{0,80})?$/i.test(label)
       || /^(?!.*(?:show\s*notes|download|print)).{1,38}\btranscript\s*[:.!]?$/i.test(label);
   });
-  const dialogueStart = transcript && !transcriptHeading
+  const dialogue = /^(\p{Lu}[\p{L} .'’-]{1,40}):\s+.{12,}/u;
+  const paragraphs = body.find("p").toArray();
+  const detailedStart = transcript && !transcriptHeading
     ? body.find("details").filter((_, el) => /transcript/i.test($(el).children("summary").text()))
-      .find("p").toArray().find((el) => /^\p{Lu}[\p{L} .'’-]{1,40}:\s+.{20,}/u.test(compact($(el).text())))
+      .find("p").toArray().find((el) => dialogue.test(compact($(el).text())))
     : undefined;
+  const dialogueStart = detailedStart ?? (transcript && !transcriptHeading ? paragraphs.find((el) => {
+    const who = dialogue.exec(compact($(el).text()))?.[1];
+    if (!who) return false;
+    const labels = [who, ...$(el).nextAll("p").slice(0, 12).toArray()
+      .map((p) => dialogue.exec(compact($(p).text()))?.[1]).filter(Boolean)];
+    return labels.length >= 5 && new Set(labels).size >= 2 && labels.filter((name) => name === who).length >= 2;
+  }) : undefined);
   const root = !transcript ? body.find("p,li,h2,h3,h4")
     : transcriptHeading ? $(transcriptHeading).nextAll()
       : dialogueStart ? $(dialogueStart).add($(dialogueStart).nextAll()) : $();
