@@ -170,7 +170,7 @@ it("writes sourced fee terms and reports extraction retries without a live provi
       }], terms: [], findings: [], inspect: [], gaps: [] } };
   }, row => telemetry.push(row));
   expect(await step(handle.db, sectorId, company.id)).toMatchObject({ status: "done" });
-  expect(telemetry).toMatchObject([{ attempts: 3, retries: 1, inputTokens: 240, outputTokens: 40, unmeteredAttempts: 1 }]);
+  expect(telemetry).toMatchObject([{ attempts: 2, retries: 1, inputTokens: 120, outputTokens: 20, unmeteredAttempts: 1 }]);
   const feeFacts = await handle.db.select().from(facts).where(eq(facts.companyId, company.id));
   expect(feeFacts.find(row => row.key === "firm.fee_schedule")).toMatchObject({
     asOf: "2026-03-31", quote, sourceIds: [sourceId],

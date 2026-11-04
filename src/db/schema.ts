@@ -1165,6 +1165,26 @@ export const riaStepRuns = pgTable(
 );
 export type RiaStepRun = typeof riaStepRuns.$inferSelect;
 
+// Bounded, resumable review requests. Results are keyed by submitted company ID.
+export const benchmarkFeeJobs = pgTable("benchmark_fee_jobs", {
+  id: uuid("id").primaryKey(),
+  sectorId: uuid("sector_id").notNull().references(() => sectors.id, { onDelete: "cascade" }),
+  companyIds: uuid("company_ids").array().notNull(),
+  eligibleSelected: integer("eligible_selected").notNull(),
+  cohortSize: integer("cohort_size").notNull(),
+  concurrency: integer("concurrency").notNull(),
+  status: text("status", { enum: ["queued", "running", "paused", "completed", "failed"] }).notNull().default("queued"),
+  reason: text("reason"),
+  results: jsonb("results").$type<Record<string, unknown>>().notNull().default({}),
+  elapsedMs: bigint("elapsed_ms", { mode: "number" }).notNull().default(0),
+  activeSince: timestamp("active_since", { withTimezone: true }),
+  leaseId: uuid("lease_id"),
+  leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+}, t => [index("benchmark_fee_jobs_status_created_idx").on(t.status, t.createdAt)]);
+
+
 // Human verdict on a flagged (over $1M per staff) public revenue figure.
 export const revenueConfirmations = pgTable("revenue_confirmations", {
   companyId: uuid("company_id")

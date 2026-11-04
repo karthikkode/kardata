@@ -72,11 +72,12 @@ export async function benchmarkReport(db: Db, input: {
   const currentFees = new Map(statusRows.filter(row => row.valueText === "available").map(row => [row.companyId, row.qualifiers.input]));
   const terms = ["types", "tier_method", "minimum_annual_fee", "minimum_account_size", "billing_cadence",
     "billing_timing", "value_basis", "negotiable", "household_grouping", "proration", "termination_refund"];
-  const feeFields = Object.fromEntries([...terms, "tiers", "at1m", "at5m"].map(field => [field, { value: 0, notStated: 0, missing: members.length }]));
+  const feeFields = Object.fromEntries([...terms, "tiers", "at1m", "at5m", "primaryAt1m", "primaryAt5m"].map(field => [field, { value: 0, notStated: 0, missing: members.length }]));
   const feeClassifications: Record<string, number> = {};
   for (const row of feeFacts) {
     if (!currentFees.has(row.companyId) || row.qualifiers.input !== currentFees.get(row.companyId)) continue;
-    const fee = row.valueJson as { classification?: string; coverage?: { complete: boolean }; schedules?: { tiers: unknown[]; method: string | null; terms: { field: string }[] }[]; terms: Record<string, unknown>; tiers: unknown[]; at1m: unknown; at5m: unknown };
+    const fee = row.valueJson as { classification?: string; coverage?: { complete: boolean }; schedules?: { tiers: unknown[]; method: string | null; terms: { field: string }[] }[]; terms: Record<string, unknown>; tiers: unknown[]; at1m: unknown; at5m: unknown;
+      scenarios?: Partial<Record<"marginal" | "cliff", { at1m: unknown; at5m: unknown }>> };
     const classification = fee.classification ?? "legacy";
     feeClassifications[classification] = (feeClassifications[classification] ?? 0) + 1;
     for (const field of terms) {
@@ -90,8 +91,15 @@ export async function benchmarkReport(db: Db, input: {
         coverage.missing--;
       }
     }
-    for (const field of ["tiers", "at1m", "at5m"] as const) {
-      if (field === "tiers" ? (fee.schedules?.some(schedule => schedule.tiers.length > 0) ?? (fee.tiers.length > 0)) : fee[field] != null) {
+    const hasPrimaryScenario = (field: "at1m" | "at5m") =>
+      fee[field] != null || Object.values(fee.scenarios ?? {}).some(scenario => scenario?.[field] != null);
+    const measured = {
+      tiers: fee.schedules?.some(schedule => schedule.tiers.length > 0) ?? (fee.tiers.length > 0),
+      at1m: fee.at1m != null, at5m: fee.at5m != null,
+      primaryAt1m: hasPrimaryScenario("at1m"), primaryAt5m: hasPrimaryScenario("at5m"),
+    };
+    for (const [field, hasValue] of Object.entries(measured)) {
+      if (hasValue) {
         feeFields[field]!.value++;
         feeFields[field]!.missing--;
       }
