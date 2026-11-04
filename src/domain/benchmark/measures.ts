@@ -1,3 +1,4 @@
+import { scopeType } from "./fee-extraction.js";
 import { effectiveFee, type FeeTier, type TierMethod } from "./fee-math.js";
 
 export type Snapshot = {
@@ -7,10 +8,25 @@ export type Snapshot = {
   individualAum: number | null; hnwAum: number | null;
 };
 
+type FeeAmount = { dollars: number; rate_pct: number };
+type FeeScenarios = { at1m: FeeAmount | null; at5m: FeeAmount | null };
 export type Fees = {
   tiers: FeeTier[]; method: TierMethod | null; minimumAnnualFee: number | null; minimumAccountSize: number | null;
-  at1m: { dollars: number; rate_pct: number } | null; at5m: { dollars: number; rate_pct: number } | null;
+  at1m: FeeAmount | null; at5m: FeeAmount | null;
+  scenarios?: Record<TierMethod, FeeScenarios | null> | null;
 };
+
+type StoredFees = Fees & {
+  primaryScheduleIndex?: number | null;
+  schedules?: (Parameters<typeof scopeType>[0] & { role: string })[];
+};
+
+export function primaryPeerFees(value: unknown): Fees | null {
+  const fee = value as StoredFees | null;
+  const schedule = fee?.primaryScheduleIndex == null ? undefined : fee.schedules?.[fee.primaryScheduleIndex];
+  if (!fee || !schedule || schedule.role !== "primary" || scopeType(schedule) !== "standard") return null;
+  return fee;
+}
 
 export const EMPTY_SNAPSHOT: Snapshot = {
   filingDate: null, clients: null, accounts: null, staff: null, advisoryStaff: null, aum: null,
@@ -27,6 +43,23 @@ export const MEASURES = [
 ] as const;
 export type Measure = (typeof MEASURES)[number];
 export type MeasureValues = Record<Measure, number | null>;
+export type FeeMeasure = Extract<Measure, `fee_${string}`>;
+export type FeeRanges = Partial<Record<FeeMeasure, { low: number; high: number }>>;
+
+function twoReadingRanges(fees: Fees | null): FeeRanges {
+  const marginal = fees?.scenarios?.marginal;
+  const cliff = fees?.scenarios?.cliff;
+  const ranges: FeeRanges = {};
+  for (const [balance, suffix] of [["at1m", "1m"], ["at5m", "5m"]] as const) {
+    const a = marginal?.[balance];
+    const b = cliff?.[balance];
+    if (!a || !b) continue;
+    for (const [unit, field] of [["dollars", "dollars"], ["pct", "rate_pct"]] as const) {
+      ranges[`fee_${suffix}_${unit}`] = { low: Math.min(a[field], b[field]), high: Math.max(a[field], b[field]) };
+    }
+  }
+  return ranges;
+}
 
 function ratio(n: number | null, d: number | null) {
   return n !== null && d !== null && d > 0 ? n / d : null;
@@ -51,7 +84,9 @@ export function deriveMeasures(current: Snapshot, prior1: Snapshot, prior3: Snap
   chronological: Snapshot[]) {
   const staffOutsideAdvisory = current.staff === null || current.advisoryStaff === null ? null : current.staff - current.advisoryStaff;
   const averageAccount = ratio(current.aum, current.accounts);
-  const rate = fees?.method && averageAccount !== null
+  const feeRanges = twoReadingRanges(fees);
+  const ambiguous = !!(fees?.scenarios?.marginal && fees.scenarios.cliff);
+  const rate = !ambiguous && fees?.method && averageAccount !== null
     ? effectiveFee({ ...fees, method: fees.method, balance: averageAccount })?.rate_pct ?? null : null;
   const estimated = current.aum !== null && rate !== null ? current.aum * rate / 100 : null;
   const values: Partial<MeasureValues> = {
@@ -64,10 +99,10 @@ export function deriveMeasures(current: Snapshot, prior1: Snapshot, prior3: Snap
     individual_aum_share_pct: share(current.individualAum, current.hnwAum, current.aum),
     estimated_annual_fee_revenue: estimated,
     estimated_fee_revenue_per_staff: ratio(estimated, current.staff),
-    fee_1m_dollars: fees?.at1m?.dollars ?? null,
-    fee_1m_pct: fees?.at1m?.rate_pct ?? null,
-    fee_5m_dollars: fees?.at5m?.dollars ?? null,
-    fee_5m_pct: fees?.at5m?.rate_pct ?? null,
+    fee_1m_dollars: (!ambiguous ? fees?.at1m : null)?.dollars ?? null,
+    fee_1m_pct: (!ambiguous ? fees?.at1m : null)?.rate_pct ?? null,
+    fee_5m_dollars: (!ambiguous ? fees?.at5m : null)?.dollars ?? null,
+    fee_5m_pct: (!ambiguous ? fees?.at5m : null)?.rate_pct ?? null,
   };
   for (const [i, input] of growthInputs.entries()) {
     const name = growthNames[i]!;
@@ -89,11 +124,11 @@ export function deriveMeasures(current: Snapshot, prior1: Snapshot, prior3: Snap
     if (values[measure] !== null) return [];
     const feeMeasure = /^(?:fee_|estimated_)/.test(measure);
     const period = measure.endsWith("_growth_1y_pct") ? prior1 : measure.endsWith("_growth_3y_pct") ? prior3 : null;
-    const reason = feeMeasure && !fees ? "no usable fee extraction" :
+    const reason = measure in feeRanges ? "two published tier interpretations" : feeMeasure && !fees ? "no usable fee extraction" :
       !feeMeasure && !current.filingDate ? "no verified current filing" :
       period && !period.filingDate ? "no verified prior filing" :
       feeMeasure ? "fee schedule or account basis unavailable" : "input missing or denominator not positive";
     return [[measure, reason]];
   }));
-  return { values: values as MeasureValues, flags, jumps, gapReasons };
+  return { values: values as MeasureValues, flags, jumps, gapReasons, feeRanges };
 }

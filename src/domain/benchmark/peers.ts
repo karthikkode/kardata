@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MEASURES, type Measure, type MeasureValues } from "./measures.js";
+import { MEASURES, type FeeMeasure, type FeeRanges, type Measure, type MeasureValues } from "./measures.js";
 
 export const peerConfig = z.object({
   aumBandStarts: z.array(z.number().finite().nonnegative()).min(2).refine(
@@ -11,7 +11,7 @@ export const peerConfig = z.object({
 }).refine(config => config.institutionalShareMax < config.individualShareMin, "mix thresholds must be distinct");
 
 export type PeerConfig = z.infer<typeof peerConfig>;
-type PeerFirm = { id: string; staff: number | null; aum: number | null; values: MeasureValues };
+type PeerFirm = { id: string; staff: number | null; aum: number | null; values: MeasureValues; feeRanges?: FeeRanges };
 type PeerGroup = { mix: string; bands: number[]; members: PeerFirm[] };
 
 function bandFor(aum: number, config: PeerConfig) {
@@ -62,15 +62,30 @@ function quantile(sorted: number[], p: number) {
   return sorted[lo]! + (sorted[hi]! - sorted[lo]!) * (position - lo);
 }
 
+function rangePercentile(sorted: number[], value: number) {
+  const boundary = (inclusive: boolean) => {
+    let lo = 0;
+    let hi = sorted.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (sorted[mid]! < value || (inclusive && sorted[mid] === value)) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo;
+  };
+  return (boundary(false) + boundary(true)) / (2 * sorted.length) * 100;
+}
+
 export function peerStatistics(firms: PeerFirm[], config: PeerConfig) {
   const groups = groupPeers(firms, config);
-  const memberGroups = new Map<string, { key: string; size: number; percentiles: Partial<Record<Measure, number>> }>();
+  const memberGroups = new Map<string, { key: string; size: number; percentiles: Partial<Record<Measure, number>>;
+    feeRangePercentiles: FeeRanges }>();
   const summaries = [];
   for (const group of groups) {
     const key = group.mix === "solo" ? "solo" : `${group.mix}:${group.bands.join("+")}`;
     const size = group.members.length;
     const comparisonAvailable = size >= config.minimumGroupSize;
-    for (const firm of group.members) memberGroups.set(firm.id, { key, size, percentiles: {} });
+    for (const firm of group.members) memberGroups.set(firm.id, { key, size, percentiles: {}, feeRangePercentiles: {} });
     for (const measure of MEASURES) {
       const values = group.members.flatMap(firm => {
         const value = firm.values[measure];
@@ -82,7 +97,16 @@ export function peerStatistics(firms: PeerFirm[], config: PeerConfig) {
         q1: comparisonAvailable ? quantile(sorted, 0.25) : null, median: comparisonAvailable ? quantile(sorted, 0.5) : null,
         q3: comparisonAvailable ? quantile(sorted, 0.75) : null, comparisonAvailable,
       });
-      if (!comparisonAvailable) continue;
+      if (!comparisonAvailable || !sorted.length) continue;
+      if (measure.startsWith("fee_")) {
+        const feeMeasure = measure as FeeMeasure;
+        for (const firm of group.members) {
+          const range = firm.feeRanges?.[feeMeasure];
+          if (range) memberGroups.get(firm.id)!.feeRangePercentiles[feeMeasure] = {
+            low: rangePercentile(sorted, range.low), high: rangePercentile(sorted, range.high),
+          };
+        }
+      }
       for (let first = 0; first < values.length;) {
         let end = first + 1;
         while (end < values.length && values[end]!.value === values[first]!.value) end++;

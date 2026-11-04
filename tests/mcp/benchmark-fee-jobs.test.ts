@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, expect, it } from "vitest";
 import { benchmarkFeeJobs, companies, riaStepRuns, sectorCompanies, sectors } from "../../src/db/schema.js";
 import { createBenchmarkFeeWorker } from "../../src/domain/benchmark/fee-jobs.js";
@@ -168,4 +168,42 @@ it("stops at the retry threshold and requires an explicit list of distinct activ
     status: "paused", reason: "retry_threshold", finished: 2, pending: 18,
   });
   expect((await tool("benchmark_fees_resume", { jobId })).isError).toBe(true);
+});
+
+it("requires an exclusive full-run opt-in and resumes only the eligible cohort with paged results", async () => {
+  const { sectorId, companyIds } = await fixture(true);
+  expect((await tool("benchmark_fees_run", { sectorId, fullRun: false })).isError).toBe(true);
+  expect((await tool("benchmark_fees_run", { sectorId, fullRun: true, pilot: true })).isError).toBe(true);
+  expect((await tool("benchmark_fees_run", { sectorId, fullRun: true, companyIds })).isError).toBe(true);
+  const requestId = randomUUID();
+  const input = { sectorId, fullRun: true, concurrency: 2, requestId };
+  const { jobId } = await data("benchmark_fees_run", input);
+  expect(await data("benchmark_fees_run", { ...input, requestId: randomUUID() })).toMatchObject({ jobId, selected: 21 });
+  const first = companyIds[1]!;
+  const toRemove = companyIds[2]!;
+  const worker = createBenchmarkFeeWorker(handle.db, async (_db, wave) => {
+    expect(wave.companyIds).toEqual([first, toRemove]);
+    await wave.onResult(result(first));
+    return "quota";
+  });
+  await worker.tick();
+  expect(await data("benchmark_fees_status", { jobId, limit: 1 })).toMatchObject({
+    status: "paused", fullRun: true, selected: 21, eligibleSelected: 21, finished: 1,
+    results: [result(first)], nextOffset: 1,
+  });
+  await handle.db.update(sectorCompanies).set({ eligibility: "ineligible" }).where(and(
+    eq(sectorCompanies.sectorId, sectorId), eq(sectorCompanies.companyId, toRemove)));
+  await data("benchmark_fees_resume", { jobId });
+  const resumed = createBenchmarkFeeWorker(handle.db, async (_db, wave) => {
+    expect(wave.companyIds).not.toContain(first);
+    expect(wave.companyIds).not.toContain(toRemove);
+    expect(wave.companyIds).not.toContain(companyIds[0]);
+    for (const id of wave.companyIds) await wave.onResult(result(id));
+    return null;
+  });
+  await resumed.tick();
+  expect(await data("benchmark_fees_status", { jobId, offset: 1, limit: 1 })).toMatchObject({
+    status: "completed", finished: 21, nextOffset: 2,
+    results: [{ companyId: toRemove, outcome: "gap", reason: "company no longer active and eligible" }],
+  });
 });

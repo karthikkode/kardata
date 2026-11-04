@@ -27,6 +27,7 @@ describe("migrations on kardata_test", () => {
     expect(names.sort()).toEqual([
       "apollo_contacts",
       "area_statuses",
+      "benchmark_fee_job_results",
       "benchmark_fee_jobs",
       "blobs",
       "bulk_job_items",
