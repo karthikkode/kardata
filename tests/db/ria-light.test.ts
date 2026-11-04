@@ -5,7 +5,7 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { DbHandle } from "../../src/db/client.js";
 import { companies, documents, factsCurrent, records, researchRuns, sources } from "../../src/db/schema.js";
-import { createFirmDataStep, setPrivateHostsForTests, brochureStep, setBrochureBasesForTests, createOpsReadStep, createContactsStep, signalsStep } from "../../src/domain/ria-steps/handlers.js";
+import { createBrochureStep, createFirmDataStep, setPrivateHostsForTests, brochureStep, setBrochureBasesForTests, createOpsReadStep, createContactsStep, signalsStep } from "../../src/domain/ria-steps/handlers.js";
 import { addFacts } from "../../src/domain/research/facts.js";
 import { saveDocument } from "../../src/domain/research/documents.js";
 import { storeBlob } from "../../src/domain/research/sources.js";
@@ -216,6 +216,36 @@ describe("brochure step (B4)", () => {
     const docs = await handle.db.select().from(documents).where(eq(documents.companyId, companyId));
     expect(docs.length).toBeGreaterThan(0);
   });
+});
+
+it("checks SEC brochure covers, retains the firm and wrap, and attaches visual reviews to the original PDF page", async () => {
+  const { loadBrochureEvidence, saveBrochurePageReview } = await import("../../src/domain/benchmark/brochure-review.js");
+  const roster = [
+    { brochureVersionID: 1, brochureName: "Fixture surname", dateSubmitted: "03/31/2026" },
+    { brochureVersionID: 2, brochureName: "Disclosure", dateSubmitted: "03/31/2026" },
+    { brochureVersionID: 3, brochureName: "Wrap", dateSubmitted: "03/31/2026" },
+  ];
+  site.routes.set("/search/firm/900001", (_req, res) => sendJson(res, { hits: { hits: [{ _source: {
+    iacontent: JSON.stringify({ brochures: { brochuredetails: roster } }),
+  } }] } }));
+  site.routes.set("/IAPD/Content/Common/crd_iapd_Brochure.aspx", (req, res) => {
+    const version = new URL(req.url!, site.baseUrl).searchParams.get("BRCHR_VRSN_ID");
+    const cover = version === "1" ? "Form ADV Part 2B Brochure Supplement" :
+      version === "2" ? "Form ADV Part 2A Firm Brochure" : "Form ADV Part 2A Appendix 1";
+    res.writeHead(200, { "content-type": "application/pdf" });
+    res.end(fakePdf([cover, "Operating details and price disclosures."]));
+  });
+  const companyId = await makeCompany();
+  expect(await createBrochureStep(false, true)(handle.db, randomUUID(), companyId)).toMatchObject({ status: "done" });
+  const review = await loadBrochureEvidence(handle.db, companyId);
+  expect(review.firmFound).toBe(true);
+  expect(review.passages.map(p => p.kind).sort()).toEqual(["firm", "wrap"]);
+  const sourceId = review.passages.find(p => p.kind === "firm")!.sourceId;
+  await expect(saveBrochurePageReview(handle.db, { companyId, sourceId, page: 2, text: "no such page" })).rejects.toThrow(/outside/);
+  await saveBrochurePageReview(handle.db, { companyId, sourceId, page: 1, text: "Form ADV Part 2A Firm Brochure\nVerified table layout." });
+  expect((await loadBrochureEvidence(handle.db, companyId)).passages).toContainEqual(expect.objectContaining({
+    sourceId, page: 1, text: expect.stringContaining("Verified table layout."),
+  }));
 });
 
 describe("fees step (B5)", () => {

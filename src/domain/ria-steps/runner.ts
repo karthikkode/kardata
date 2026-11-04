@@ -21,6 +21,10 @@ export interface StepResult {
   cached?: boolean;
 }
 
+export class RiaStepInterrupted extends Error {
+  constructor(readonly reason: "pause" | "quota") { super(reason); }
+}
+
 export type StepHandler = (db: Db, sectorId: string, companyId: string) => Promise<StepResult>;
 export type StepHandlers = Partial<Record<RiaStep, StepHandler>>;
 
@@ -111,6 +115,7 @@ export async function runRiaStep(
           outcome[result.status] += 1;
           outcome.tokensUsed += result.tokensUsed ?? 0;
         } catch (err) {
+          if (err instanceof RiaStepInterrupted) { outcome.stopped = err.reason; return; }
           let deepest = "step error";
           let cur: unknown = err;
           for (let i = 0; i < 5 && cur instanceof Error; i++) { deepest = cur.message; cur = (cur as { cause?: unknown }).cause; }

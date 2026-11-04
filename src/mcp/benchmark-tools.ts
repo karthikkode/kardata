@@ -5,6 +5,7 @@ import { computeBenchmark } from "../domain/benchmark/compute.js";
 import { runWebsiteSoftware } from "../domain/benchmark/website.js";
 import { benchmarkReport } from "../domain/benchmark/report.js";
 import { importBrochureArchive } from "../domain/benchmark/brochure-archive.js";
+import { saveBrochurePageReview } from "../domain/benchmark/brochure-review.js";
 import { runBenchmarkFees } from "../domain/benchmark/fees.js";
 import { ensureEvidenceLibrary } from "../domain/evidence-library.js";
 import { importSchedules } from "../domain/sec-adv/schedules.js";
@@ -46,7 +47,7 @@ export function registerBenchmarkTools(server: McpServer, db: Db, auth: AuthCont
   }));
 
   registerTool(server, db, auth, "benchmark_fees_run", {
-    description: "Extract dated, quoted ADV Item 5 fees in a bounded batch. Pilot stops when mean retries exceed one.",
+    description: "Review dated ADV brochure pages, including fee schedules and prose, in a bounded batch. Pilot stops when mean retries exceed one.",
     inputSchema: {
       sectorId: z.string().uuid(), companyIds: z.array(z.string().uuid()).max(200).optional(), afterCompanyId: z.string().uuid().optional(),
       limit: z.number().int().min(1).max(200).optional(), concurrency: z.number().int().min(1).max(16).optional(),
@@ -57,8 +58,18 @@ export function registerBenchmarkTools(server: McpServer, db: Db, auth: AuthCont
     return { summary: `${data.results.length} fee results${data.stopped ? `, stopped: ${data.stopped}` : ""}`, data };
   }));
 
+  registerTool(server, db, auth, "benchmark_brochure_page_review", {
+    description: "Save a verbatim transcription after visually reviewing a physical page of the stored original PDF. Use for scanned pages or tables with damaged reading order.",
+    inputSchema: {
+      companyId: z.string().uuid(), sourceId: z.string().uuid(), page: z.number().int().positive(),
+      text: z.string().trim().min(1).max(32_000),
+    },
+  }, async input => wrap(async () => ({
+    summary: "Saved visually reviewed page", data: await saveBrochurePageReview(db, input),
+  })));
+
   registerTool(server, db, auth, "sec_adv_brochures_import", {
-    description: "Read Item 5 from local current Part 2A ZIP entries identified by an official mapping. Dry run by default.",
+    description: "Retain current Part 2A PDFs from local ZIP entries identified by an official mapping. Dry run by default.",
     inputSchema: {
       sectorId: z.string().uuid(), path: z.string(), sourceUrl: secUrl, mappingUrl: secUrl,
       entries: z.array(z.object({ crd: z.string(), member: z.string(), filedOn: z.string() })).min(1).max(200),

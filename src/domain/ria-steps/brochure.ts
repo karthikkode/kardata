@@ -137,3 +137,21 @@ export function brochureDate(text: string): string | null {
   if (month < 1 || month > 12 || day < 1 || day > 31 || year < 2000 || year > 2100) return null;
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
+
+export type BrochureKind = "firm" | "wrap" | "supplement" | "unknown";
+export const FEE_BROCHURE_PATH_PREFIX = "financials/fee-review-brochure-";
+
+/** The cover controls classification. A roster label is only a fallback. */
+export function brochureKind(cover: string, label = ""): BrochureKind {
+  const header = cover.slice(0, 4000);
+  const match = /\b(part\s*2\s*b|brochure supplement|part\s*2\s*a\s*[,–—-]?\s*appendix\s*1|wrap fee program brochure|part\s*2\s*a|firm brochure)\b/i.exec(header)?.[0];
+  if (match) {
+    if (/2\s*b|supplement/i.test(match)) return "supplement";
+    if (/appendix|wrap/i.test(match)) return "wrap";
+    return "firm";
+  }
+  if (/\b(?:2\s*b|supplement)\b/i.test(label)) return "supplement";
+  if (/\bwrap\b/i.test(label)) return "wrap";
+  if (/\b(?:2\s*a|firm brochure)\b/i.test(label)) return "firm";
+  return "unknown";
+}

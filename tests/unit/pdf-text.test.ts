@@ -1,11 +1,11 @@
 import { beforeEach, expect, it, vi } from "vitest";
 const mocks=vi.hoisted(()=>({getDocument:vi.fn(),destroy:vi.fn(),read:vi.fn()}));
 vi.mock("pdfjs-dist/legacy/build/pdf.mjs",()=>({getDocument:mocks.getDocument}));
-import { pdfText, pdfTextAndItems, pdfPageText } from "../../src/lib/sec/pdf-text.js";
+import { pdfText, pdfTextAndItems, pdfPageText, pdfReviewPages } from "../../src/lib/sec/pdf-text.js";
 beforeEach(()=>{vi.clearAllMocks();mocks.destroy.mockResolvedValue(undefined);});
 function fixture(pages:string[]) {
   mocks.read.mockImplementation(async(p:number)=>({items:[{str:pages[p-1],transform:[1,0,0,1,72,700-p]}]}));
-  mocks.getDocument.mockReturnValue({promise:Promise.resolve({numPages:pages.length,getPage:async(p:number)=>({getTextContent:()=>mocks.read(p)})}),destroy:mocks.destroy});
+  mocks.getDocument.mockReturnValue({promise:Promise.resolve({numPages:pages.length,getPage:async(p:number)=>({getTextContent:()=>mocks.read(p),cleanup:()=>undefined})}),destroy:mocks.destroy});
 }
 it("builds filing text and positioned fields from one PDF load and one read per page",async()=>{
   fixture(["Synthetic officer", "Chief Compliance Officer"]);
@@ -40,4 +40,14 @@ it("releases resources when an explicitly requested page cannot be extracted",as
   fixture(["page"]);mocks.read.mockRejectedValueOnce(new Error("broken page"));
   await expect(pdfPageText(Buffer.from("fixture"),1)).rejects.toThrow("broken page");
   expect(mocks.destroy).toHaveBeenCalledTimes(1);
+});
+
+it("reads every physical page and keeps displaced table cells in row order", async () => {
+  fixture(["", ""]);
+  mocks.read.mockResolvedValueOnce({ items: [
+    { str: "0.75%", transform: [1, 0, 0, 1, 350, 699] },
+    { str: "Next $2M", transform: [1, 0, 0, 1, 100, 700] },
+  ] });
+  expect(await pdfReviewPages(Buffer.from("fixture"))).toEqual(["Next $2M  0.75%", ""]);
+  expect(mocks.read).toHaveBeenCalledTimes(2);
 });

@@ -152,22 +152,25 @@ it("writes sourced fee terms and reports extraction retries without a live provi
     companyId: company.id, text: quote, url: "https://www.sec.gov/fixture", via: "browser", passages: [quote],
   });
   await data("document_save", {
-    companyId: company.id, path: "financials/brochure-item-5.md", title: "Part 2A brochure (2026-03-31)",
+    companyId: company.id, path: "financials/brochure-full-text.md", title: "Part 2A brochure (2026-03-31)",
     content: quote, sourceIds: [sourceId],
   });
   const { createFeeStep } = await import("../../src/domain/benchmark/fees.js");
   const telemetry: Parameters<Parameters<typeof createFeeStep>[1]>[0][] = [];
   let attempts = 0;
-  const step = createFeeStep(async () => {
+  const step = createFeeStep(async ({ prompt }) => {
     attempts++;
     if (attempts === 1) throw new Error("temporary fixture failure");
+    const ref = /--- Excerpt (.+?), filed/.exec(prompt)?.[1];
     return { raw: "", usage: { inputTokens: 120, outputTokens: 20, calls: 1, cachedTokens: 0, reasoningTokens: 0 },
-      json: { types: null, tier_method: null, minimum_annual_fee: null, minimum_account_size: null,
-        billing_cadence: null, billing_timing: null, value_basis: null, negotiable: null, household_grouping: null,
-        proration: null, termination_refund: null, tiers: [{ from: 0, to: null, rate_pct: 1, quote }] } };
+      json: { schedules: [{
+        name: "Standard", category: "standard", pricing: "annual_aum", scope: { ref, quote },
+        method: null, methodEvidence: null, blocksExact: false, conditions: [], terms: [],
+        tiers: [{ from: 0, to: null, rate_pct: 1, from_inclusive: null, to_inclusive: null, evidence: { ref, quote } }],
+      }], terms: [], findings: [], inspect: [], gaps: [] } };
   }, row => telemetry.push(row));
   expect(await step(handle.db, sectorId, company.id)).toMatchObject({ status: "done" });
-  expect(telemetry).toMatchObject([{ attempts: 2, retries: 1, inputTokens: 120, outputTokens: 20, unmeteredAttempts: 1 }]);
+  expect(telemetry).toMatchObject([{ attempts: 3, retries: 1, inputTokens: 240, outputTokens: 40, unmeteredAttempts: 1 }]);
   const feeFacts = await handle.db.select().from(facts).where(eq(facts.companyId, company.id));
   expect(feeFacts.find(row => row.key === "firm.fee_schedule")).toMatchObject({
     asOf: "2026-03-31", quote, sourceIds: [sourceId],

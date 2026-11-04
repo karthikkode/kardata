@@ -69,3 +69,31 @@ export async function pdfTextItems(body: Buffer): Promise<PdfTextItem[]> {
 export function pdfTextAndItems(body: Buffer): Promise<{ text: string; items: PdfTextItem[] }> {
   return readPdf(body, true, true);
 }
+
+/** Physical pages in reading order, keeping adjacent table cells on the same line. */
+export async function pdfReviewPages(body: Buffer): Promise<string[]> {
+  const task = getDocument({ data: new Uint8Array(body), useSystemFonts: true });
+  try {
+    const doc = await task.promise;
+    const pages: string[] = [];
+    for (let p = 1; p <= doc.numPages; p++) {
+      const page = await doc.getPage(p);
+      const content = await page.getTextContent();
+      const cells = content.items.flatMap(item => "str" in item && item.str.trim()
+        ? [{ x: item.transform[4] as number, y: item.transform[5] as number, text: item.str }] : []);
+      cells.sort((a, b) => b.y - a.y);
+      const rows: (typeof cells)[] = [];
+      for (const cell of cells) {
+        const row = rows.at(-1);
+        if (row && row[0]!.y - cell.y <= 2) row.push(cell);
+        else rows.push([cell]);
+      }
+      pages.push(rows.map(row => row.sort((a, b) => a.x - b.x)
+        .map(cell => cell.text).join("  ")).join("\n").replace(/\u0000/g, ""));
+      page.cleanup();
+    }
+    return pages;
+  } finally {
+    await task.destroy();
+  }
+}

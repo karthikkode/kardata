@@ -3,18 +3,19 @@ import { createReadStream } from "node:fs";
 import { pipeline } from "node:stream/promises";
 import { and, eq } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
-import { documents } from "../../db/schema.js";
+import { documents, sources } from "../../db/schema.js";
 import { getImportDirs } from "../../lib/env.js";
 import { openZipEntry, zipMembers } from "../../lib/sec/archive.js";
 import { pdfText } from "../../lib/sec/pdf-text.js";
 import { DomainError } from "../errors.js";
 import { checkImportPaths } from "../imports.js";
+import { storeBlob } from "../research/sources.js";
 import { saveDocument } from "../research/documents.js";
 import { isValidDateString } from "../research/validate.js";
-import { splitBrochureItems } from "../ria-steps/brochure.js";
+import { brochureKind, splitBrochureItems } from "../ria-steps/brochure.js";
 import { canonicalFile, companyFileEvidence, lockEvidence } from "../sec-adv/evidence.js";
 import { activeMembers, normalizeCrd } from "../sec-adv/snapshot.js";
-import { ITEM_5_PATH } from "./fees.js";
+import { ITEM_5_PATH } from "./brochure-review.js";
 
 const COLLECTOR = "sec_adv_brochure_archive";
 const PDF_LIMIT = 25 * 1024 * 1024;
@@ -61,29 +62,39 @@ export async function importBrochureArchive(db: Db, input: {
       }
       return Buffer.concat(buffers);
     };
+    let pdf: Buffer;
     let text: string;
     try {
-      const pdf = await (inflate ? pipeline(stream, inflate, extract) : pipeline(stream, extract));
-      text = splitBrochureItems(await extractPdf(pdf))["5"] ?? "";
+      pdf = await (inflate ? pipeline(stream, inflate, extract) : pipeline(stream, extract));
+      const full = await extractPdf(pdf);
+      if (brochureKind(full) === "supplement") {
+        gaps.push({ companyId: row.companyId, reason: "archive member is a Part 2B supplement" });
+        continue;
+      }
+      text = splitBrochureItems(full)["5"] ?? "";
     } catch {
       gaps.push({ companyId: row.companyId, reason: "archive brochure PDF could not be read" });
       continue;
     }
-    if (!text) {
-      gaps.push({ companyId: row.companyId, reason: "archive brochure has no usable Item 5" });
-      continue;
-    }
+
     written += await db.transaction(async tx => {
       await lockEvidence(tx, `company:${row.companyId}:fees`);
       const [current] = await tx.select().from(documents).where(and(
         eq(documents.companyId, row.companyId), eq(documents.path, ITEM_5_PATH), eq(documents.isCurrent, true),
       ));
-      const contentMd = `Filed ${row.filedOn}\n\n${text}`;
+      const contentMd = `Filed ${row.filedOn}\nPDF source: ${input.sourceUrl} — ${row.member}\n\n${text || "PDF retained for page review. No Item 5 section was extracted."}`;
       const currentDate = current?.title.match(/\b\d{4}-\d\d-\d\d\b/)?.[0];
-      if (currentDate && (currentDate > row.filedOn || (currentDate === row.filedOn && (current?.contentMd === text || current?.contentMd === contentMd)))) return 0;
+      const sha256 = createHash("sha256").update(pdf).digest("hex");
+      if (currentDate && currentDate > row.filedOn) return 0;
+      if (currentDate === row.filedOn && current?.sourceIds?.length) {
+        const [existing] = await tx.select({ digest: sources.blobSha256 }).from(sources).where(eq(sources.id, current.sourceIds[0]!));
+        if (existing?.digest === sha256) return 0;
+      }
       const evidence = await companyFileEvidence(tx, file, row.companyId, {
         member: row.member, mappingUrl: input.mappingUrl, filedOn: row.filedOn,
       });
+      await storeBlob(tx, "application/pdf", pdf);
+      await tx.update(sources).set({ blobSha256: sha256 }).where(eq(sources.id, evidence.id));
       await saveDocument(tx, { companyId: row.companyId, runId: evidence.runId, path: ITEM_5_PATH,
         title: `Part 2A brochure Item 5 (${row.filedOn})`, contentMd, sourceIds: [evidence.id], createdBy: COLLECTOR });
       return 1;

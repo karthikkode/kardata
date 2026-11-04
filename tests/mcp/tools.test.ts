@@ -152,6 +152,7 @@ const EXPECTED_TOOLS = [
   "sec_adv_schedules_import",
   "sec_adv_brochures_import",
   "benchmark_fees_run",
+  "benchmark_brochure_page_review",
   "benchmark_compute",
   "benchmark_report",
   "website_software_collect",
