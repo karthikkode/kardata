@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
 import { imports, riaStepRuns, sectorCompanies, type RiaStep } from "../../db/schema.js";
-import { RIA_STEPS } from "../../db/schema.js";
+import { STEP_NAMES } from "../../db/schema.js";
 
 export type StepOutcome = "done" | "gap" | "failed";
 
@@ -73,7 +73,7 @@ export async function riaStatus(db: Db, sectorId: string, companyIds?: string[])
   const eligibleSet = new Set(eligibleIds);
   const rows = await db.select().from(riaStepRuns).where(eq(riaStepRuns.sectorId, sectorId));
   const steps = {} as RiaStatusView["steps"];
-  for (const step of RIA_STEPS) {
+  for (const step of STEP_NAMES) {
     const mine = rows.filter((r) => r.step === step && eligibleSet.has(r.companyId));
     const gapReasons: Record<string, number> = {};
     const failedReasons: Record<string, number> = {};

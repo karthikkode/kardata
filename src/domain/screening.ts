@@ -1,3 +1,4 @@
+import { prospectMembership, requireProspectSector } from "./evidence-library.js";
 import { randomUUID } from "node:crypto";
 import { and, count, desc, eq, gt, inArray, isNull, sql, type SQL } from "drizzle-orm";
 import type { Db } from "../db/client.js";
@@ -447,7 +448,7 @@ export async function screenCompanies(
 
   const e = effectiveCompanies(db);
   const verification = verificationFilterFor(options);
-  const conds: SQL[] = [eq(sectorCompanies.sectorId, sectorId), isNull(sectorCompanies.removedAt)];
+  const conds: SQL[] = [eq(sectorCompanies.sectorId, sectorId), isNull(sectorCompanies.removedAt), prospectMembership()];
   criteria.forEach((criterion, index) => conds.push(criterionPredicate(e, criterion, index, verification)));
   const baseWhere = and(...conds);
   // Total stays stable across pages: it never sees the cursor condition.
@@ -603,7 +604,7 @@ export async function screenJobCompanyIds(
     throw new DomainError("invalid_input", `at most ${SCREEN_CRITERIA_MAX} criteria`);
   }
   const e = effectiveCompanies(db);
-  const conds: SQL[] = [eq(sectorCompanies.sectorId, sectorId), isNull(sectorCompanies.removedAt)];
+  const conds: SQL[] = [eq(sectorCompanies.sectorId, sectorId), isNull(sectorCompanies.removedAt), prospectMembership()];
   criteria.forEach((criterion, index) => conds.push(criterionPredicate(e, criterion, index, "all")));
   const orderBy = await sortOrderBy(db, e, options.sort ?? { field: "employees", order: "desc" });
   const rows = await db
@@ -647,6 +648,7 @@ function toShortlistView(row: typeof shortlists.$inferSelect): ShortlistView {
 
 /** Save (insert or replace by sector + name) a named company shortlist. */
 export async function saveShortlist(db: Db, input: ShortlistSaveInput): Promise<ShortlistView> {
+  await requireProspectSector(db, input.sectorId);
   const [sector] = await db.select({ id: sectors.id }).from(sectors).where(eq(sectors.id, input.sectorId));
   if (!sector) throw new DomainError("not_found", `sector not found: ${input.sectorId}`);
   const name = input.name?.trim() ?? "";
@@ -660,7 +662,7 @@ export async function saveShortlist(db: Db, input: ShortlistSaveInput): Promise<
     const members = await db
       .select({ companyId: sectorCompanies.companyId })
       .from(sectorCompanies)
-      .where(and(eq(sectorCompanies.sectorId, input.sectorId), inArray(sectorCompanies.companyId, unique)));
+      .where(and(eq(sectorCompanies.sectorId, input.sectorId), inArray(sectorCompanies.companyId, unique), prospectMembership()));
     const have = new Set(members.map((m) => m.companyId));
     const missing = unique.filter((id) => !have.has(id));
     if (missing.length > 0) {

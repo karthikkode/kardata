@@ -1,3 +1,4 @@
+import { requireProspectCompany } from "../evidence-library.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { and, desc, eq } from "drizzle-orm";
@@ -38,6 +39,7 @@ export interface ExportResult {
 }
 
 export async function exportCompany(db: Db, companyId: string): Promise<ExportResult> {
+  await requireProspectCompany(db, companyId);
   const [company] = await db
     .select({ id: companies.id, name: companies.name })
     .from(companies)

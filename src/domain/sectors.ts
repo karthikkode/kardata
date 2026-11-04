@@ -1,3 +1,4 @@
+import { prospectMembership, requireProspectSector } from "./evidence-library.js";
 import { randomUUID } from "node:crypto";
 import { and, asc, count, desc, eq, isNull, sql, type SQL } from "drizzle-orm";
 import { companies, imports, sectorCompanies, sectors, type Import } from "../db/schema.js";
@@ -170,6 +171,7 @@ export async function deleteSector(
   if (confirmName !== sector.name) {
     throw new DomainError("invalid_input", "confirm_name does not match the sector name");
   }
+  await requireProspectSector(db, id);
   await db.delete(sectors).where(eq(sectors.id, id));
   return { id, name: sector.name };
 }
@@ -189,6 +191,7 @@ export async function listSectors(db: Db): Promise<SectorSummary[]> {
     })
     .from(sectors)
     .leftJoin(sectorCompanies, eq(sectors.id, sectorCompanies.sectorId))
+    .where(eq(sectors.evidenceLibrary, false))
     .groupBy(sectors.id)
     .orderBy(asc(sectors.name));
   return rows.map((r) => ({
@@ -232,6 +235,7 @@ export function sectorCompaniesScope(sectorId: string): SQL {
     eq(sectorCompanies.sectorId, sectorId),
     eq(sectorCompanies.eligibility, "eligible"),
     isNull(sectorCompanies.removedAt),
+    prospectMembership(),
   )!;
 }
 

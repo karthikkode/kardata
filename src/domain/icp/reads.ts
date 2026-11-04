@@ -1,3 +1,4 @@
+import { requireProspectCompany, requireProspectSector } from "../evidence-library.js";
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
 import { companies, companyIcpChecks, sectorCompanies, type CompanyIcpCheck } from "../../db/schema.js";
@@ -57,6 +58,8 @@ export interface CompanyIcpView {
 }
 
 export async function companyIcpView(db: Db, companyId: string, sectorId: string): Promise<CompanyIcpView> {
+  await requireProspectCompany(db, companyId);
+  await requireProspectSector(db, sectorId);
   const [company] = await db.select({ id: companies.id }).from(companies).where(eq(companies.id, companyId));
   if (!company) throw new DomainError("not_found", `company not found: ${companyId}`);
   const [check, [count], truth] = await Promise.all([

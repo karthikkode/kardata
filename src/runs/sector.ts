@@ -1,3 +1,4 @@
+import { prospectMembership, requireProspectSector } from "../domain/evidence-library.js";
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../db/client.js";
@@ -73,6 +74,7 @@ export async function startSectorPreflight(
   db: Db,
   input: SectorPreflightStartInput,
 ): Promise<{ jobId: string; companies: number }> {
+  await requireProspectSector(db, input.sectorId);
   // No profile, no preflight (plain refusal, no fallback prompt).
   await getProfile(db, input.sectorId);
   const rerun = input.onlyLowConfidence === true || (input.eligibility?.length ?? 0) > 0;
@@ -84,7 +86,7 @@ export async function startSectorPreflight(
     .select({ companyId: sectorCompanies.companyId })
     .from(sectorCompanies)
     .innerJoin(companies, eq(companies.id, sectorCompanies.companyId))
-    .where(eq(sectorCompanies.sectorId, input.sectorId))
+    .where(and(eq(sectorCompanies.sectorId, input.sectorId), prospectMembership()))
     .orderBy(asc(companies.name));
   if (members.length === 0) {
     const [sector] = await db.select({ id: sectors.id }).from(sectors).where(eq(sectors.id, input.sectorId));
@@ -160,13 +162,14 @@ export interface SectorIcpStartInput {
  * resume, cancel, retry and auto-pause work as for a preflight job.
  */
 export async function startSectorIcp(db: Db, input: SectorIcpStartInput): Promise<{ jobId: string; companies: number }> {
+  await requireProspectSector(db, input.sectorId);
   const [sector] = await db.select({ id: sectors.id }).from(sectors).where(eq(sectors.id, input.sectorId));
   if (!sector) throw new DomainError("not_found", `sector not found: ${input.sectorId}`);
   const members = await db
     .select({ companyId: sectorCompanies.companyId })
     .from(sectorCompanies)
     .innerJoin(companies, eq(companies.id, sectorCompanies.companyId))
-    .where(eq(sectorCompanies.sectorId, input.sectorId))
+    .where(and(eq(sectorCompanies.sectorId, input.sectorId), prospectMembership()))
     .orderBy(asc(companies.name));
   const memberSet = new Set(members.map((m) => m.companyId));
   let companyIds: string[];

@@ -1,4 +1,5 @@
-import { and, asc, eq, inArray, like, or } from "drizzle-orm";
+import { SNAPSHOT_COLLECTOR } from "../sec-adv/evidence.js";
+import { and, asc, eq, inArray, like, ne, or } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
 import { companies, facts, factsCurrent, records, sectorCompanies, sectorPreflight, sources } from "../../db/schema.js";
 import { DomainError } from "../errors.js";
@@ -302,7 +303,7 @@ async function growthFact(db: Db, companyId: string): Promise<EvidenceFact | nul
   const history = await db
     .select()
     .from(facts)
-    .where(and(eq(facts.companyId, companyId), inArray(facts.key, ["firm.regulatory_aum", "financials.employees"])))
+    .where(and(eq(facts.companyId, companyId), ne(facts.createdBy, SNAPSHOT_COLLECTOR), inArray(facts.key, ["firm.regulatory_aum", "financials.employees"])))
     .orderBy(asc(facts.createdAt));
   const series = (key: string) =>
     history
@@ -357,6 +358,7 @@ export async function icpEvidence(db: Db, sectorId: string, companyId: string, n
       .where(
         and(
           eq(factsCurrent.companyId, companyId),
+          ne(factsCurrent.createdBy, SNAPSHOT_COLLECTOR),
           or(inArray(factsCurrent.key, factKeys), ...keyPrefixes.map((p) => like(factsCurrent.key, `${p}%`))),
         ),
       ),

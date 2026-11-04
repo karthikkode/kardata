@@ -39,6 +39,7 @@ export const sectors = pgTable(
   {
     id: uuid("id").primaryKey(),
     name: text("name").notNull(),
+    evidenceLibrary: boolean("evidence_library").notNull().default(false),
     description: text("description").notNull().default(""),
     profile: jsonb("profile").$type<Record<string, unknown> | null>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -59,6 +60,7 @@ export const companies = pgTable(
     apolloAccountId: text("apollo_account_id").unique("companies_apollo_account_id_key"),
     secCrd: text("sec_crd").unique("companies_sec_crd_key"),
     source: companySource("source").notNull(),
+    evidenceLibrary: boolean("evidence_library").notNull().default(false),
     domain: text("domain"),
     sharedDomain: boolean("shared_domain").notNull().default(false),
     name: text("name"),
@@ -1129,7 +1131,8 @@ export const apolloContacts = pgTable(
 export type ApolloContact = typeof apolloContacts.$inferSelect;
 
 export const RIA_STEPS = ["firm_data", "brochure", "ops_read", "contacts", "signals"] as const;
-export type RiaStep = (typeof RIA_STEPS)[number];
+export const STEP_NAMES = [...RIA_STEPS, "fee_schedule"] as const;
+export type RiaStep = (typeof STEP_NAMES)[number];
 export const RIA_STEP_STATUSES = ["done", "gap", "failed"] as const;
 
 /** Per-firm RIA pipeline step state (Stage 5.8): no row = pending. */
@@ -1143,11 +1146,12 @@ export const riaStepRuns = pgTable(
     companyId: uuid("company_id")
       .notNull()
       .references(() => companies.id, { onDelete: "cascade" }),
-    step: text("step", { enum: RIA_STEPS }).notNull(),
+    step: text("step", { enum: STEP_NAMES }).notNull(),
     status: text("status", { enum: RIA_STEP_STATUSES }).notNull(),
     reason: text("reason"),
     inputHash: text("input_hash"),
     tokensUsed: integer("tokens_used"),
+    telemetry: jsonb("telemetry").$type<Record<string, unknown>>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()

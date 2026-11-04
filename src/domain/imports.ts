@@ -269,6 +269,7 @@ export async function importCsv(
   }
   const sector = await db.query.sectors.findFirst({ where: eq(sectors.id, sectorId) });
   if (!sector) throw new DomainError("not_found", `sector not found: ${sectorId}`);
+  if (sector.evidenceLibrary) throw new DomainError("invalid_input", "cannot import companies into the evidence library");
   await checkImportPaths(paths, opts.importDirs ?? getImportDirs());
   const results: FileImportResult[] = [];
   for (const path of paths) {
@@ -542,6 +543,7 @@ export async function importSec(
 ): Promise<FileImportResult> {
   const sector = await db.query.sectors.findFirst({ where: eq(sectors.id, sectorId) });
   if (!sector) throw new DomainError("not_found", `sector not found: ${sectorId}`);
+  if (sector.evidenceLibrary) throw new DomainError("invalid_input", "cannot import companies into the evidence library");
   await checkImportPaths([path], opts.importDirs ?? getImportDirs(), SEC_MAX_FILE_BYTES);
   return db.transaction((tx) => importSecOneFile(tx, sectorId, path));
 }

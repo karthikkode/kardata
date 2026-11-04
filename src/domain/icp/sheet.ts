@@ -1,5 +1,6 @@
+import { SNAPSHOT_COLLECTOR } from "../sec-adv/evidence.js";
 import { FULL_BROCHURE_PATH } from "../ria-steps/brochure.js";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, ne } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
 import { companies, companyIcpChecks, documents, facts, factsCurrent, records, riaStepRuns, RIA_STEPS, type CompanyIcpCheck } from "../../db/schema.js";
 import { sectorSheetRows, type SheetRow } from "../tiering.js";
@@ -282,10 +283,10 @@ export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRo
       .from(companies).where(inArray(companies.id, ids))) companyById.set(row.id, row);
     for (const row of await db.select({ companyId: records.companyId, data: records.data }).from(records)
       .where(and(inArray(records.companyId, ids), eq(records.type, "leader"))).orderBy(records.createdAt, records.id)) append(leadersById, row.companyId, row);
-    for (const row of await db.select().from(factsCurrent).where(and(inArray(factsCurrent.companyId, ids),
+    for (const row of await db.select().from(factsCurrent).where(and(inArray(factsCurrent.companyId, ids), ne(factsCurrent.createdBy, SNAPSHOT_COLLECTOR),
       inArray(factsCurrent.key, ["firm.regulatory_aum", "financials.employees", "ria.fee_schedule", "firm.fee_schedule", "firm.custodians", "ria.custodians_named"])))) append(factsById, row.companyId, row);
     for (const row of await db.select({ companyId: facts.companyId, key: facts.key, valueNum: facts.valueNum, asOf: facts.asOf }).from(facts)
-      .where(and(inArray(facts.companyId, ids), inArray(facts.key, ["firm.regulatory_aum", "financials.employees"])))) append(historyById, row.companyId, row);
+      .where(and(inArray(facts.companyId, ids), ne(facts.createdBy, SNAPSHOT_COLLECTOR), inArray(facts.key, ["firm.regulatory_aum", "financials.employees"])))) append(historyById, row.companyId, row);
     for (const row of await db.select({ companyId: documents.companyId, title: documents.title, path: documents.path }).from(documents)
       .where(and(inArray(documents.companyId, ids), eq(documents.isCurrent, true), inArray(documents.path, ["financials/brochure-item-5.md", FULL_BROCHURE_PATH])))) append(brochuresById, row.companyId, row);
     for (const row of await db.select().from(riaStepRuns).where(and(eq(riaStepRuns.sectorId, sectorId), inArray(riaStepRuns.companyId, ids), inArray(riaStepRuns.step, [...RIA_STEPS])))) append(stepsById, row.companyId, row);

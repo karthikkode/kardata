@@ -1,5 +1,6 @@
+import { SNAPSHOT_COLLECTOR } from "../sec-adv/evidence.js";
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
 import {
   companies,
@@ -199,7 +200,7 @@ export async function loadRiaFacts(db: Db, companyId: string): Promise<{ facts: 
   const rows = await db
     .select()
     .from(factsCurrent)
-    .where(and(eq(factsCurrent.companyId, companyId), inArray(factsCurrent.key, [...RIA_FACT_KEYS])));
+    .where(and(eq(factsCurrent.companyId, companyId), ne(factsCurrent.createdBy, SNAPSHOT_COLLECTOR), inArray(factsCurrent.key, [...RIA_FACT_KEYS])));
   const byKey = new Map(rows.map((r) => [r.key, r]));
   const num = (key: string): number | null => {
     const row = byKey.get(key);

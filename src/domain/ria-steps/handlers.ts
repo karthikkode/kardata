@@ -1,5 +1,6 @@
+import { SNAPSHOT_COLLECTOR } from "../sec-adv/evidence.js";
 import { createHash, randomUUID } from "node:crypto";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, ne } from "drizzle-orm";
 import { load } from "cheerio";
 import type { Db } from "../../db/client.js";
 import { companies, documents, facts, factsCurrent, records, researchRuns, sectorCompanies } from "../../db/schema.js";
@@ -718,7 +719,7 @@ async function heavyThresholds(db: Db, sectorId: string, group: string | null): 
     const rows = await db
       .select({ companyId: factsCurrent.companyId, key: factsCurrent.key, valueNum: factsCurrent.valueNum })
       .from(factsCurrent)
-      .where(and(inArray(factsCurrent.companyId, ids), inArray(factsCurrent.key, ["firm.accounts", "firm.client_total", "financials.employees"])));
+      .where(and(inArray(factsCurrent.companyId, ids), ne(factsCurrent.createdBy, SNAPSHOT_COLLECTOR), inArray(factsCurrent.key, ["firm.accounts", "firm.client_total", "financials.employees"])));
     for (const r of rows) {
       const slot = per.get(r.companyId) ?? {};
       const n = r.valueNum === null || r.valueNum === undefined ? undefined : Number(r.valueNum);
@@ -742,7 +743,7 @@ async function heavyThresholds(db: Db, sectorId: string, group: string | null): 
 }
 
 export const signalsStep: StepHandler = async (db, sectorId, companyId) => {
-  const rows = await db.select().from(factsCurrent).where(eq(factsCurrent.companyId, companyId));
+  const rows = await db.select().from(factsCurrent).where(and(eq(factsCurrent.companyId, companyId), ne(factsCurrent.createdBy, SNAPSHOT_COLLECTOR)));
   const byKey = new Map(rows.map((r) => [r.key, r]));
   const boolOf = (key: string): boolean => byKey.get(key)?.valueBool === true;
   const textOf = (key: string): string | null => {

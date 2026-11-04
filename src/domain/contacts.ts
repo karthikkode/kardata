@@ -1,3 +1,4 @@
+import { requireProspectCompany } from "./evidence-library.js";
 import { and, eq, inArray } from "drizzle-orm";
 import type { Db } from "../db/client.js";
 import {
@@ -135,13 +136,14 @@ async function resolveCompanyId(db: Db, input: { companyId?: string; domain?: st
   const hasDomain = input.domain !== undefined && input.domain !== "";
   if (hasId === hasDomain) throw new DomainError("invalid_input", "pass exactly one of companyId or domain");
   if (hasId) {
+    await requireProspectCompany(db, input.companyId!);
     const [row] = await db.select({ id: companies.id }).from(companies).where(eq(companies.id, input.companyId!));
     if (!row) throw new DomainError("not_found", `company not found: ${input.companyId}`);
     return row.id;
   }
   const domain = normalizeDomain(input.domain);
   if (!domain) throw new DomainError("invalid_input", "domain is empty after normalization");
-  const rows = await db.select({ id: companies.id }).from(companies).where(eq(companies.domain, domain));
+  const rows = await db.select({ id: companies.id }).from(companies).where(and(eq(companies.domain, domain), eq(companies.evidenceLibrary, false)));
   if (rows.length === 0) throw new DomainError("not_found", `no company with domain ${domain}`);
   if (rows.length > 1) throw new DomainError("invalid_input", `${rows.length} companies share ${domain}; pass companyId`);
   return rows[0]!.id;
@@ -242,6 +244,7 @@ export interface CompanyContacts {
 }
 
 export async function companyContacts(db: Db, companyId: string): Promise<CompanyContacts> {
+  await requireProspectCompany(db, companyId);
   const rows = await db
     .select({
       status: companyContactStatuses.status,

@@ -1,3 +1,4 @@
+import { requireProspectCompany, requireProspectSector } from "../domain/evidence-library.js";
 import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "../db/client.js";
@@ -99,6 +100,8 @@ export interface StartCompanyJobInput {
 }
 
 export async function startCompanyJob(db: Db, input: StartCompanyJobInput): Promise<{ jobId: string }> {
+  await requireProspectCompany(db, input.companyId);
+  if (input.sectorId) await requireProspectSector(db, input.sectorId);
   const [company] = await db
     .select({ id: companies.id })
     .from(companies)

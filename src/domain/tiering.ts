@@ -1,4 +1,6 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { SNAPSHOT_COLLECTOR } from "./sec-adv/evidence.js";
+import { requireProspectCompany, requireProspectSector } from "./evidence-library.js";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import type { Db } from "../db/client.js";
 import {
   companies,
@@ -340,6 +342,8 @@ export interface VerdictInput {
 export async function recordVerdicts(db: Db, verdicts: VerdictInput[]): Promise<{ recorded: number }> {
   let recorded = 0;
   for (const v of verdicts) {
+    await requireProspectCompany(db, v.companyId);
+    await requireProspectSector(db, v.sectorId);
     const [company] = await db.select({ id: companies.id }).from(companies).where(eq(companies.id, v.companyId));
     if (!company) throw new DomainError("not_found", `company not found: ${v.companyId}`);
     await db
@@ -440,6 +444,8 @@ function riaRevenueTruth(companyId: string, groupSplitAum: number, aum: number |
 }
 
 export async function companyRevenueTruth(db: Db, companyId: string, sectorId: string): Promise<RevenueTruth & { companyId: string }> {
+  await requireProspectCompany(db, companyId);
+  await requireProspectSector(db, sectorId);
   const [company] = await db.select({ id: companies.id }).from(companies).where(eq(companies.id, companyId));
   if (!company) throw new DomainError("not_found", `company not found: ${companyId}`);
   const profile = await getProfileOrNull(db, sectorId);
@@ -450,6 +456,7 @@ export async function companyRevenueTruth(db: Db, companyId: string, sectorId: s
     .where(
       and(
         eq(factsCurrent.companyId, companyId),
+        ne(factsCurrent.createdBy, SNAPSHOT_COLLECTOR),
         inArray(factsCurrent.key, [
           "financials.revenue_estimate",
           "financials.employees",
@@ -518,7 +525,7 @@ export async function companyRevenueTruth(db: Db, companyId: string, sectorId: s
     const [aumRow] = await db
       .select()
       .from(factsCurrent)
-      .where(and(eq(factsCurrent.companyId, companyId), eq(factsCurrent.key, "firm.regulatory_aum")));
+      .where(and(eq(factsCurrent.companyId, companyId), ne(factsCurrent.createdBy, SNAPSHOT_COLLECTOR), eq(factsCurrent.key, "firm.regulatory_aum")));
     const aum = aumRow ? factAmount(aumRow) : null;
     return riaRevenueTruth(companyId, profile.ria.groupSplitAum, aum, staffCandidates, verdict);
   }
@@ -557,6 +564,7 @@ function csvCell(value: string | number): string {
 
 /** ICP accepted rows for the outreach sheet: one block per tier, layer then score. */
 export async function sectorSheetRows(db: Db, sectorId: string): Promise<SheetRow[]> {
+  await requireProspectSector(db, sectorId);
   const members = await db
     .select({
       companyId: sectorCompanies.companyId,
@@ -574,7 +582,7 @@ export async function sectorSheetRows(db: Db, sectorId: string): Promise<SheetRo
   if (profile?.playbook === "ria" && profile.ria) {
     for (let offset = 0; offset < members.length; offset += 500) {
       const ids = members.slice(offset, offset + 500).map((m) => m.companyId);
-      const current = await db.select().from(factsCurrent).where(and(inArray(factsCurrent.companyId, ids),
+      const current = await db.select().from(factsCurrent).where(and(inArray(factsCurrent.companyId, ids), ne(factsCurrent.createdBy, SNAPSHOT_COLLECTOR),
         inArray(factsCurrent.key, ["firm.regulatory_aum", "financials.employees"])));
       const verdicts = await db.select().from(companyVerdicts).where(and(eq(companyVerdicts.sectorId, sectorId), inArray(companyVerdicts.companyId, ids)));
       const verdictById = new Map(verdicts.map((v) => [v.companyId, v]));

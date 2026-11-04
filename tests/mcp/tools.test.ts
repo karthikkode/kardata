@@ -147,6 +147,14 @@ const EXPECTED_TOOLS = [
   "pipeline_start",
   "sector_preflight_concurrency_get",
   "sector_preflight_concurrency_set",
+  "evidence_library_ensure",
+  "sec_adv_snapshot_import",
+  "sec_adv_schedules_import",
+  "sec_adv_brochures_import",
+  "benchmark_fees_run",
+  "benchmark_compute",
+  "benchmark_report",
+  "website_software_collect",
 ];
 
 interface ToolResult {

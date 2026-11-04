@@ -230,6 +230,12 @@ export function parseSecCsv(text: string): SecParseResult {
   return { rows, skipped };
 }
 
+/** SEC files are normally UTF-8, with older releases using Windows-1252. */
+export function decodeSecCsv(buffer: Buffer): string {
+  const utf8 = buffer.toString("utf8");
+  return utf8.includes("\ufffd") ? new TextDecoder("windows-1252").decode(buffer) : utf8;
+}
+
 /** Extract the single CSV from the SEC ZIP (stored or deflated entry). */
 export function extractSecCsv(zip: Buffer): { csvName: string; text: string } {
   if (zip.length < 22 || zip.readUInt32LE(0) !== 0x04034b50) {
@@ -262,8 +268,8 @@ export function extractSecCsv(zip: Buffer): { csvName: string; text: string } {
     const lExtra = zip.readUInt16LE(localOffset + 28);
     const start = localOffset + 30 + lName + lExtra;
     const data = zip.subarray(start, start + compSize);
-    if (method === 0) return { csvName: name, text: data.toString("utf8") };
-    if (method === 8) return { csvName: name, text: inflateRawSync(data).toString("utf8") };
+    if (method === 0) return { csvName: name, text: decodeSecCsv(data) };
+    if (method === 8) return { csvName: name, text: decodeSecCsv(inflateRawSync(data)) };
     throw new SecFileError(`unsupported ZIP compression method ${method}`);
   }
   throw new SecFileError("ZIP holds no CSV file");
