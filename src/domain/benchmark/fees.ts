@@ -2,11 +2,10 @@ import { createHash, randomUUID } from "node:crypto";
 import { setTimeout as sleep } from "node:timers/promises";
 import { and, eq } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
-import { facts, riaStepRuns, sources } from "../../db/schema.js";
+import { facts, sources } from "../../db/schema.js";
 import { CodexCallError } from "../../harness/codex-extract.js";
 import type { ExtractorCall } from "../../runs/extract.js";
 import { getOrCreateManualRun } from "../../runs/queue.js";
-import { DomainError } from "../errors.js";
 import { parseQuotaExhaustion } from "../quota/breaker.js";
 import { addFacts, type AddFactItem } from "../research/facts.js";
 import { upsertRecords } from "../research/records.js";
@@ -15,12 +14,11 @@ import { riaExtractorCall, riaProviderGate, withRiaProvider } from "../ria-steps
 import { riaStepPaused, RiaStepInterrupted, runRiaStep, type StepHandler } from "../ria-steps/runner.js";
 import { stepState } from "../ria-steps/status.js";
 import { lockEvidence } from "../sec-adv/evidence.js";
-import { activeMembers } from "../sec-adv/snapshot.js";
 import { FEE_SCHEMA, feeReviewResponse } from "./fee-extraction.js";
-import { loadBrochureEvidence, reviewBrochures } from "./brochure-review.js";
+import { loadBrochureEvidence, needsWrapFiling, reviewBrochures } from "./brochure-review.js";
 
 export const FEE_COLLECTOR = "benchmark_fee_schedule";
-export const FEE_VERSION = "adv-2a-v2";
+export const FEE_VERSION = "adv-2a-v3";
 const fetchFeeBrochures = createBrochureStep(false, true);
 const ATTEMPTS = 3;
 
@@ -36,6 +34,8 @@ export interface FeeMetrics {
   reason?: string;
   classification?: string;
   reviewedPages?: number;
+  readMode?: "item_5" | "full_fallback";
+  scheduleDrops?: number;
   models?: string[];
 }
 
@@ -52,7 +52,7 @@ export function createFeeStep(call: ExtractorCall, observe: (metrics: FeeMetrics
     try {
       let evidence = await loadBrochureEvidence(db, companyId);
       let reason = "no usable dated fee brochure";
-      if (!evidence.firmFound || !evidence.passages.length) {
+      if (!evidence.firmFound || !evidence.passages.length || needsWrapFiling(evidence.item5, evidence.passages)) {
         let fetched = await fetchBrochure(db, sectorId, companyId);
         if (/fetch error.*HTTP 503/i.test(fetched.reason ?? "")) {
           await sleep(30_000);
@@ -105,6 +105,8 @@ export function createFeeStep(call: ExtractorCall, observe: (metrics: FeeMetrics
       if (extraction) {
         metrics.classification = extraction.classification;
         metrics.reviewedPages = extraction.coverage.reviewedPages;
+        metrics.readMode = extraction.readMode;
+        metrics.scheduleDrops = extraction.drops.length;
       } else if (evidence.gaps.length) reason = evidence.gaps.join("; ");
       const usableFees = extraction && extraction.classification !== "no_grounded_schedule";
       if (extraction && !usableFees) reason = ["No grounded fee terms in the reviewed brochure", ...extraction.coverage.gaps].join("; ");
@@ -171,45 +173,44 @@ export function feePilotSummary(results: FeeMetrics[], cohortSize: number, elaps
   };
 }
 
-export async function runBenchmarkFees(db: Db, input: {
-  sectorId: string; companyIds?: string[]; afterCompanyId?: string; limit?: number; concurrency?: number; pilot?: boolean;
-}) {
-  const cohort = await activeMembers(db, input.sectorId);
-  const wanted = input.companyIds && new Set(input.companyIds);
-  const limit = input.limit ?? 100;
-  const selected = wanted ? cohort.filter(row => wanted.has(row.id)) :
-    cohort.filter(row => !input.afterCompanyId || row.id > input.afterCompanyId).slice(0, limit);
-  if (wanted && wanted.size !== selected.length) throw new DomainError("invalid_input", "selected companies must be active sector members");
-  if (input.pilot && (!wanted || selected.length < 20 || selected.length > 30)) throw new DomainError("invalid_input", "select 20–30 firms for a pilot");
-  const concurrency = input.concurrency ?? 4;
-  const started = performance.now();
-  const results: FeeMetrics[] = [];
+export async function runBenchmarkFeeWave(db: Db, input: {
+  jobId: string;
+  sectorId: string;
+  companyIds: string[];
+  shouldContinue: () => boolean;
+  onResult: (result: FeeMetrics) => Promise<void>;
+}): Promise<"pause" | "quota" | null> {
   const extract = riaExtractorCall(db);
-  const handler = createFeeStep(async request => {
-    if (await riaStepPaused(db)) throw new RiaStepInterrupted("pause");
-    const gate = await riaProviderGate(db);
-    if (!gate.available) throw new RiaStepInterrupted("quota");
-    return withRiaProvider(gate.provider, () => extract(request));
-  }, row => results.push(row));
-  let stopped: "pause" | "quota" | "retry_threshold" | null = null;
-  let nextCompanyId: string | null = null;
-  for (let i = 0; i < selected.length; i += concurrency) {
-    const ids = selected.slice(i, i + concurrency).map(row => row.id);
-    const offset = results.length;
-    const result = await runRiaStep(db, { sectorId: input.sectorId, companyIds: ids, step: "fee_schedule", concurrency, skipDone: false },
-      { fee_schedule: handler });
-    for (const metrics of results.slice(offset)) {
-      if (metrics.outcome === "cached" || metrics.outcome === "interrupted") continue;
-      await db.update(riaStepRuns).set({ telemetry: { ...metrics } }).where(and(
-        eq(riaStepRuns.sectorId, input.sectorId), eq(riaStepRuns.companyId, metrics.companyId), eq(riaStepRuns.step, "fee_schedule"),
-      ));
+  const work = input.companyIds.map(async companyId => {
+    if (!input.shouldContinue()) return "pause" as const;
+    let metrics: FeeMetrics | undefined;
+    const handler = createFeeStep(async request => {
+      if (!input.shouldContinue() || await riaStepPaused(db)) throw new RiaStepInterrupted("pause");
+      const gate = await riaProviderGate(db);
+      if (!gate.available) throw new RiaStepInterrupted("quota");
+      return withRiaProvider(gate.provider, () => extract(request));
+    }, row => { metrics = row; });
+    const result = await runRiaStep(db, {
+      sectorId: input.sectorId, companyIds: [companyId], step: "fee_schedule",
+      telemetry: (_id, stopped) => {
+        if (!metrics) return undefined;
+        if (stopped === "quota" && metrics.outcome === "failed") metrics.outcome = "interrupted";
+        return { ...metrics, feeJobId: input.jobId };
+      },
+    }, { fee_schedule: handler });
+    if (metrics) await input.onResult(metrics);
+    else if (!result.stopped) {
+      throw new Error("fee worker did not produce a result");
     }
-    stopped = result.stopped;
-    if (input.pilot && feePilotSummary(results, cohort.length, performance.now() - started).meanRetries > 1) stopped ??= "retry_threshold";
-    if (stopped) break;
-    nextCompanyId = ids.at(-1) ?? null;
+    return result.stopped;
+  });
+  // Drain all concurrent handlers before releasing the job lease, even if
+  // persisting one result failed.
+  const results = await Promise.allSettled(work);
+  let stopped: "pause" | "quota" | null = null;
+  for (const result of results) {
+    if (result.status === "rejected") throw result.reason;
+    stopped ??= result.value;
   }
-  const elapsedMs = Math.round(performance.now() - started);
-  return { results, stopped, nextCompanyId, concurrency, elapsedMs,
-    summary: feePilotSummary(results, cohort.length, elapsedMs) };
+  return stopped;
 }

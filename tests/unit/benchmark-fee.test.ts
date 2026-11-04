@@ -11,7 +11,7 @@ it("computes marginal and cliff fees, exact boundaries, open tiers, and minimums
   expect(effectiveFee({ tiers, method: "marginal", balance: 1_000_000, minimumAnnualFee: 15_000 })?.dollars).toBe(15_000);
   expect(effectiveFee({ tiers, method: "cliff", balance: 1_000_000, minimumAccountSize: 2_000_000 })).toBeNull();
   expect(effectiveFee({ tiers: [{ from: 0, to: null, rate_pct: 0.5 }], method: "cliff", balance: 1_000_000 })?.dollars).toBe(5_000);
-  expect(effectiveFee({ tiers: [tiers[0]!, { ...tiers[1]!, from: 2_000_000 }], method: "marginal", balance: 1_000_000 })).toBeNull();
+  expect(effectiveFee({ tiers: [tiers[0]!, { ...tiers[1]!, from: 2_000_000 }], method: "marginal", balance: 1_000_000 })?.dollars).toBe(10_000);
 });
 
 const fullBalance = "The applicable annual rate is charged on the entire account balance.";
@@ -49,7 +49,7 @@ it("retains independent program prices, scope, qualitative terms, and original p
   expect(fees.coverage.gaps).toContain("Unsupported term: minimum_annual_fee");
 });
 
-it("preserves conditional amounts and withholds affected or incompletely reviewed scenarios", () => {
+it("preserves posted scenarios and conditional minimums across unrelated review gaps", () => {
   const review = groundFeeReview({ ...response,
     schedules: [{ ...schedule, terms: [
       { field: "minimum_annual_fee", value: "conditional", amount: 12_000, condition: "conditional", evidence: cite(minimum) },
@@ -57,7 +57,8 @@ it("preserves conditional amounts and withholds affected or incompletely reviewe
   }, [passage]);
   const fees = summarizeFeeReview(review, [], { complete: true, gaps: [] });
   expect(fees).toMatchObject({ classification: "partial_comparable", at1m: null, at5m: { dollars: 50_000 }, method: null });
-  expect(summarizeFeeReview(review, [], { complete: false, gaps: ["missing page"] }).at5m).toBeNull();
+  expect(summarizeFeeReview(review, [], { complete: false, gaps: ["missing page"] }).at5m?.dollars).toBe(50_000);
+  expect(fees.scenarios?.cliff).toMatchObject({ at1m: { dollars: 10_000 }, at5m: { dollars: 50_000 } });
 });
 
 it("withholds ambiguous, unsupported, and wrap-only peer fees while retaining evidence", () => {
@@ -68,7 +69,7 @@ it("withholds ambiguous, unsupported, and wrap-only peer fees while retaining ev
   for (const result of [wrapOnly, unsupported]) expect(summarizeFeeReview(result, [], { complete: true, gaps: [] }).at1m).toBeNull();
   const competing = groundFeeReview({ ...raw, schedules: [schedule, { ...schedule, name: "Other", scope: cite(wrap) }] }, [passage]);
   expect(summarizeFeeReview(competing, [], { complete: true, gaps: [] }).schedules).toHaveLength(2);
-  expect(summarizeFeeReview(competing, [], { complete: true, gaps: [] }).at1m).toBeNull();
+  expect(summarizeFeeReview(competing, [], { complete: true, gaps: [] }).at1m?.dollars).toBe(10_000);
 });
 
 it("stores quoted ranges and caps without making them exact scenarios", () => {
@@ -91,28 +92,79 @@ it("uses explicit whole-balance wording and retains tiers when the method is unk
   ] };
   const ground = (value: unknown) => summarizeFeeReview(groundFeeReview({ ...response, schedules: [value] }, [{ ...passage, text }]), [],
     { complete: true, gaps: [] });
-  expect(ground(raw)).toMatchObject({ classification: "tiers_unresolved", at1m: null });
+  expect(ground(raw)).toMatchObject({ classification: "primary_scenarios", at1m: null });
   expect(ground({ ...raw, method: "cliff", methodEvidence: cite(fullBalance) }).at1m?.dollars).toBe(5_000);
   expect(effectiveFee({ tiers: [raw.tiers[0]!], method: "cliff", balance: 1_000_000 })).toBeNull();
 });
 
-it("reads beyond the former Item 5 cap and sends independent review to requested evidence", async () => {
-  const { reviewBrochures } = await import("../../src/domain/benchmark/brochure-review.js");
-  const long = { ...passage, ref: "p8", page: 8, text: "Fund services and conditions. ".repeat(1250) };
-  const late = { ...passage, ref: "p9", page: 9, text: "A later section describes outsourced account setup and reconciliation." };
+it("reads Item 5 by page without sending later sections to the provider", async () => {
+  const { feeItemPassages, reviewBrochures } = await import("../../src/domain/benchmark/brochure-review.js");
+  const item = { ...passage, text: ["Item 5 Fees and Compensation", passage.text,
+    "Item 6 Performance-Based Fees", "Unrelated material to exclude."].join("\n") };
+  const other = { ...passage, ref: "p8", page: 8, text: "Unrelated risk disclosures." };
+  const item5 = feeItemPassages([item, other]);
+  expect(item5).toMatchObject([{ page: 7, ref: "p7-item5" }]);
   const prompts: string[] = [];
-  const result = await reviewBrochures([passage, long, late], { complete: true, gaps: [] }, async prompt => {
+  const result = await reviewBrochures([item, other], { complete: true, gaps: [], item5 }, async prompt => {
     prompts.push(prompt);
-    const provided = (p: Passage) => prompt.includes(`--- Excerpt ${p.ref},`);
-    return { ...response, schedules: provided(passage) || prompt.includes("Independently reconcile") ? [schedule] : [],
-      inspect: provided(late) ? ["p9"] : [],
-      findings: provided(late) ? [{ topic: "operations", interpretation: "outsourced setup", evidence: cite(late.text, "p9") }] : [],
-    };
+    return { ...response, schedules: [{ ...schedule, scope: cite(standard, "p7-item5"),
+      tiers: [{ ...schedule.tiers[0], evidence: cite(flat, "p7-item5") }] }] };
   });
-  expect(prompts.length).toBeGreaterThan(2);
-  expect(prompts.some(prompt => prompt.includes("Independently reconcile") && prompt.includes(late.text))).toBe(true);
-  expect(result.findings).toMatchObject([{ evidence: { page: 9 }, topic: "operations" }]);
-  expect(result.at5m?.dollars).toBe(50_000);
+  expect(prompts).toHaveLength(1);
+  expect(prompts[0]).not.toMatch(/Unrelated/);
+  expect(result).toMatchObject({ readMode: "item_5", at5m: { dollars: 50_000 }, drops: [] });
+});
+
+it("expands only on an appendix reference and retains an omitted first-pass schedule", async () => {
+  const { reviewBrochures } = await import("../../src/domain/benchmark/brochure-review.js");
+  const item = { ...passage, text: passage.text + "\nSee Appendix A for wrap program pricing." };
+  const appendix = { ...passage, ref: "p8", page: 8, text: "Appendix A. The wrap fee is 0.75% of managed assets." };
+  const prompts: string[] = [];
+  const result = await reviewBrochures([item, appendix], { complete: true, gaps: [], item5: [item] }, async prompt => {
+    prompts.push(prompt);
+    if (!prompt.includes("explicit edits only")) return { ...response, schedules: [schedule] };
+    return { ...response, schedules: [{ ...schedule, category: "program", name: "Wrap",
+      scope: cite("Appendix A.", "p8"), tiers: [{ ...schedule.tiers[0], rate_pct: 0.75,
+        evidence: cite("The wrap fee is 0.75% of managed assets.", "p8") }] }] };
+  });
+  expect(prompts).toHaveLength(2);
+  expect(prompts[0]).not.toContain(appendix.text);
+  expect(prompts[1]).toContain(appendix.text);
+  expect(result).toMatchObject({ readMode: "full_fallback", drops: [], at5m: { dollars: 50_000 },
+    schedules: [{ role: "primary" }, { role: "scoped", at5m: { dollars: 37_500 } }] });
+});
+
+it("accepts only cited physical-page drops, logging every accepted reason", async () => {
+  const { reconcileFeeReviews } = await import("../../src/domain/benchmark/brochure-review.js");
+  const text = "The prior 1% illustration has been withdrawn and is not a fee schedule.";
+  const physical = { ...passage, ref: "p8", page: 8, text };
+  const initial = groundFeeReview({ ...response, schedules: [schedule] }, [passage]);
+  const decision = { candidate: "s1", action: "drop", replacement: null, reason: "The illustration was withdrawn.", evidence: cite(text, "p8") };
+  const revise = (page: Passage, raw: unknown) => reconcileFeeReviews([initial], [
+    groundFeeReview({ ...response, schedules: [], decisions: [raw] }, [page]),
+  ]);
+  expect(revise({ ...physical, page: null }, decision).review.schedules).toHaveLength(1);
+  expect(revise({ ...physical, sourceId: "another-filing" }, decision).drops).toEqual([]);
+  expect(revise(physical, { ...decision, evidence: cite("invented contradiction", "p8") }).review.schedules).toHaveLength(1);
+  expect(revise(physical, decision)).toMatchObject({ review: { schedules: [] },
+    drops: [{ schedule: "Standard", reason: decision.reason, evidence: { page: 8, quote: text } }] });
+});
+
+it("corrects a grounded candidate without reintroducing an unsupported replacement", async () => {
+  const { reconcileFeeReviews } = await import("../../src/domain/benchmark/brochure-review.js");
+  const quote = "The amended annual fee for standard individual investment management is 0.8%.";
+  const amendment = { ...passage, ref: "p8", page: 8, text: quote };
+  const initial = groundFeeReview({ ...response, schedules: [schedule] }, [passage]);
+  const edit = { candidate: "s1", action: "correct", replacement: 0, reason: "Amended fee replaces the earlier rate.", evidence: cite(quote, "p8") };
+  const replacement = { ...schedule, scope: cite(quote, "p8"),
+    tiers: [{ ...schedule.tiers[0], rate_pct: 0.8, evidence: cite(quote, "p8") }] };
+  const apply = (candidate: unknown) => reconcileFeeReviews([initial], [
+    groundFeeReview({ ...response, schedules: [candidate], decisions: [edit] }, [amendment]),
+  ]);
+  expect(apply(replacement)).toMatchObject({ review: { schedules: [{ tiers: [{ rate_pct: 0.8 }] }] },
+    drops: [], corrections: [{ candidate: "s1", reason: edit.reason, evidence: { page: 8 } }] });
+  expect(apply({ ...replacement, tiers: [] })).toMatchObject({ review: { schedules: [{ tiers: [{ rate_pct: 1 }] }] },
+    drops: [], corrections: [] });
 });
 
 it("includes failed firms and unmetered attempts in the pilot result", () => {

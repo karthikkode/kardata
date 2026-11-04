@@ -61,7 +61,10 @@ const inFlight = new WeakMap<Db, Map<string, Promise<void>>>();
 
 export async function runRiaStep(
   db: Db,
-  input: { sectorId: string; step: RiaStep; companyIds?: string[]; limit?: number; concurrency?: number; skipDone?: boolean },
+  input: {
+    sectorId: string; step: RiaStep; companyIds?: string[]; limit?: number; concurrency?: number; skipDone?: boolean;
+    telemetry?: (companyId: string, stopped: RunStepOutcome["stopped"]) => Record<string, unknown> | undefined;
+  },
   handlers: StepHandlers,
 ): Promise<RunStepOutcome> {
   const handler = handlers[input.step];
@@ -111,7 +114,8 @@ export async function runRiaStep(
           const work = () => handler(db, input.sectorId, companyId);
           const result = await (provider ? withRiaProvider(provider.provider, work) : work());
           if (result.cached) { outcome.skippedDone += 1; return; }
-          await recordStep(db, { sectorId: input.sectorId, companyId, step: input.step, ...result });
+          await recordStep(db, { sectorId: input.sectorId, companyId, step: input.step, ...result,
+            telemetry: input.telemetry?.(companyId, null) });
           outcome[result.status] += 1;
           outcome.tokensUsed += result.tokensUsed ?? 0;
         } catch (err) {
@@ -125,7 +129,8 @@ export async function runRiaStep(
             outcome.stopped = "quota";
             await quotaBreakerSet(db, { trippedAt: new Date().toISOString(), resumeAt: quota.resumeAt?.toISOString() ?? null, estimated: false, jobIds: [], error: deepest.slice(0, 600) });
           }
-          await recordStep(db, { sectorId: input.sectorId, companyId, step: input.step, status: "failed", reason: deepest.slice(0, 300) });
+          await recordStep(db, { sectorId: input.sectorId, companyId, step: input.step, status: "failed", reason: deepest.slice(0, 300),
+            telemetry: input.telemetry?.(companyId, outcome.stopped) });
           outcome.failed += 1;
         }
       };

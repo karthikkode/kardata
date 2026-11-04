@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { sql } from "drizzle-orm";
 import { createDb, type Db } from "./db/client.js";
+import { createBenchmarkFeeWorker } from "./domain/benchmark/fee-jobs.js";
 import { createAgentRunner } from "./runs/agent-runner.js";
 import { createCompanyRunner, realCompanyDeps } from "./runs/company.js";
 import { buildStagePromptForRun } from "./runs/prompt.js";
@@ -247,8 +248,11 @@ async function main(): Promise<void> {
   await sectorRunner.start();
   const quotaMonitor = createQuotaMonitor(db, {});
   quotaMonitor.start();
+  const feeWorker = createBenchmarkFeeWorker(db);
+  feeWorker.start();
   process.on("SIGTERM", () => {
     void (async () => {
+      feeWorker.stop();
       quotaMonitor.stop();
       await sectorRunner.stop();
       await companyRunner.stop();

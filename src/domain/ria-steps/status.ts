@@ -8,7 +8,7 @@ export type StepOutcome = "done" | "gap" | "failed";
 
 export async function recordStep(
   db: Db,
-  input: { sectorId: string; companyId: string; step: RiaStep; status: StepOutcome; reason?: string | null; inputHash?: string | null; tokensUsed?: number | null },
+  input: { sectorId: string; companyId: string; step: RiaStep; status: StepOutcome; reason?: string | null; inputHash?: string | null; tokensUsed?: number | null; telemetry?: Record<string, unknown> },
 ): Promise<void> {
   await db
     .insert(riaStepRuns)
@@ -21,6 +21,7 @@ export async function recordStep(
       reason: input.reason ?? null,
       inputHash: input.inputHash ?? null,
       tokensUsed: input.tokensUsed ?? null,
+      telemetry: input.telemetry,
     })
     .onConflictDoUpdate({
       target: [riaStepRuns.sectorId, riaStepRuns.companyId, riaStepRuns.step],
@@ -29,6 +30,7 @@ export async function recordStep(
         reason: input.reason ?? null,
         inputHash: input.inputHash ?? null,
         tokensUsed: input.tokensUsed ?? null,
+        telemetry: input.telemetry,
         updatedAt: new Date(),
       },
     });

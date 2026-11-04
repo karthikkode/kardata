@@ -302,6 +302,13 @@
       "when": 1793750500000,
       "tag": "0042_step_telemetry",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1793814500000,
+      "tag": "0043_benchmark_fee_jobs",
+      "breakpoints": true
     }
   ]
 }

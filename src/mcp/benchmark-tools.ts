@@ -6,7 +6,7 @@ import { runWebsiteSoftware } from "../domain/benchmark/website.js";
 import { benchmarkReport } from "../domain/benchmark/report.js";
 import { importBrochureArchive } from "../domain/benchmark/brochure-archive.js";
 import { saveBrochurePageReview } from "../domain/benchmark/brochure-review.js";
-import { runBenchmarkFees } from "../domain/benchmark/fees.js";
+import { benchmarkFeeJobStatus, enqueueBenchmarkFeeJob, resumeBenchmarkFeeJob } from "../domain/benchmark/fee-jobs.js";
 import { ensureEvidenceLibrary } from "../domain/evidence-library.js";
 import { importSchedules } from "../domain/sec-adv/schedules.js";
 import { importSnapshot } from "../domain/sec-adv/snapshot.js";
@@ -47,15 +47,32 @@ export function registerBenchmarkTools(server: McpServer, db: Db, auth: AuthCont
   }));
 
   registerTool(server, db, auth, "benchmark_fees_run", {
-    description: "Review dated ADV brochure pages, including fee schedules and prose, in a bounded batch. Pilot stops when mean retries exceed one.",
+    description: "Queue a background review of 20–30 named firms. Returns a job ID immediately. Pilot pauses when mean retries exceed one.",
     inputSchema: {
-      sectorId: z.string().uuid(), companyIds: z.array(z.string().uuid()).max(200).optional(), afterCompanyId: z.string().uuid().optional(),
-      limit: z.number().int().min(1).max(200).optional(), concurrency: z.number().int().min(1).max(16).optional(),
-      pilot: z.boolean().optional(),
+      sectorId: z.string().uuid(), companyIds: z.array(z.string().uuid()).min(20).max(30),
+      concurrency: z.number().int().min(1).max(16).optional(), pilot: z.literal(true).optional(),
+      requestId: z.string().uuid().optional().describe("Optional idempotency ID for safely retrying the request"),
     },
   }, async input => wrap(async () => {
-    const data = await runBenchmarkFees(db, input);
-    return { summary: `${data.results.length} fee results${data.stopped ? `, stopped: ${data.stopped}` : ""}`, data };
+    const data = await enqueueBenchmarkFeeJob(db, input);
+    return { summary: `Fee job ${data.jobId}: ${data.status} (${data.selected} firms)`, data };
+  }));
+
+  registerTool(server, db, auth, "benchmark_fees_status", {
+    description: "Read a background fee job's current state, completed counts, per-firm telemetry, and eligible-cohort projection.",
+    inputSchema: { jobId: z.string().uuid() },
+    annotations: { readOnlyHint: true },
+  }, async ({ jobId }) => wrap(async () => {
+    const data = await benchmarkFeeJobStatus(db, jobId);
+    return { summary: `Fee job ${jobId}: ${data.status} (${data.finished}/${data.selected} finished)`, data };
+  }));
+
+  registerTool(server, db, auth, "benchmark_fees_resume", {
+    description: "Resume pending firms in a fee job paused for provider quota or an operator pause, or interrupted by an execution error.",
+    inputSchema: { jobId: z.string().uuid() },
+  }, async ({ jobId }) => wrap(async () => {
+    const data = await resumeBenchmarkFeeJob(db, jobId);
+    return { summary: `Fee job ${jobId}: ${data.status}`, data };
   }));
 
   registerTool(server, db, auth, "benchmark_brochure_page_review", {
