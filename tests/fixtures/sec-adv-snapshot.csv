@@ -1,0 +1,6 @@
+Organization CRD#,SEC#,Firm Type,Legal Name,Primary Business Name,Main Office State,Latest ADV Filing Date,5A,5B(1),5F(2)(c),5F(2)(f),1I,5H,5D(a)(1),5D(b)(1),5D(c)(1),5D(d)(1),5D(e)(1),5D(f)(1),5D(g)(1),5D(h)(1),5D(i)(1),5D(j)(1),5D(k)(1),5D(l)(1),5D(m)(1),5D(n)(1),5D(a)(2),5D(a)(3),5D(b)(3),11
+910001,801-91001,Registered,Fixture Alpha,Fixture Alpha,WA,09/01/2026,4,2,100000000,20,N,1-10,30,0,0,0,0,0,0,0,0,0,0,0,0,0,,90000000,0,N
+910002,801-91002,Registered,Fixture Bravo,Fixture Bravo,WA,09/01/2026,4,2,100000000,20,N,1-10,15,0,0,0,0,0,0,0,0,0,0,0,0,0,,90000000,0,N
+910003,801-91003,Registered,Fixture Charlie,Fixture Charlie,WA,09/01/2026,4,2,100000000,20,N,1-10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,Fewer than 5 clients,90000000,0,N
+910004,801-91004,Registered,Fixture Duplicate,Fixture Duplicate,WA,09/01/2026,4,2,100000000,20,N,1-10,22,0,0,0,0,0,0,0,0,0,0,0,0,0,,90000000,0,N
+910005,801-91005,Registered,Fixture Duplicate,Fixture Duplicate,WA,09/01/2026,4,2,100000000,20,N,1-10,23,0,0,0,0,0,0,0,0,0,0,0,0,0,,90000000,0,N

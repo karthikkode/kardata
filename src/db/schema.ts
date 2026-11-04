@@ -39,6 +39,7 @@ export const sectors = pgTable(
   {
     id: uuid("id").primaryKey(),
     name: text("name").notNull(),
+    evidenceLibrary: boolean("evidence_library").notNull().default(false),
     description: text("description").notNull().default(""),
     profile: jsonb("profile").$type<Record<string, unknown> | null>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -59,6 +60,7 @@ export const companies = pgTable(
     apolloAccountId: text("apollo_account_id").unique("companies_apollo_account_id_key"),
     secCrd: text("sec_crd").unique("companies_sec_crd_key"),
     source: companySource("source").notNull(),
+    evidenceLibrary: boolean("evidence_library").notNull().default(false),
     domain: text("domain"),
     sharedDomain: boolean("shared_domain").notNull().default(false),
     name: text("name"),

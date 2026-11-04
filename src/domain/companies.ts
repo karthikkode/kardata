@@ -1,3 +1,4 @@
+import { prospectMembership, requireProspectSector, requireProspectCompany } from "./evidence-library.js";
 import { randomUUID } from "node:crypto";
 import { and, count, eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
 import { companies, sectorCompanies, sectors, type Company } from "../db/schema.js";
@@ -333,6 +334,7 @@ export async function addCompany(
   const insert = validatedInsert(input);
   return db.transaction(async (tx) => {
     const sector = await requireSector(tx, sectorId);
+    await requireProspectSector(tx, sectorId);
     let possibleDuplicates: PossibleDuplicate[] = [];
     if (insert.domain) {
       possibleDuplicates = await tx
@@ -370,6 +372,8 @@ export async function addCompanyToSector(
 ): Promise<{ sectorId: string; companyId: string; revived: boolean }> {
   return db.transaction(async (tx) => {
     await requireSector(tx, sectorId);
+    await requireProspectSector(tx, sectorId);
+    await requireProspectCompany(tx, companyId);
     const company = await tx.query.companies.findFirst({ where: eq(companies.id, companyId) });
     if (!company) throw new DomainError("not_found", `company not found: ${companyId}`);
     const existing = await tx.query.sectorCompanies.findFirst({
@@ -578,7 +582,7 @@ export async function listCompanies(
   }
 
   const e = effectiveCompanies(db);
-  const conds: SQL[] = [eq(sectorCompanies.sectorId, sectorId)];
+  const conds: SQL[] = [eq(sectorCompanies.sectorId, sectorId), prospectMembership()];
   if (!includeRemoved) conds.push(isNull(sectorCompanies.removedAt));
   const query = search.trim();
   if (query !== "") {
@@ -700,7 +704,7 @@ export interface Facets {
 export async function facets(db: Db, sectorId: string): Promise<Facets> {
   await requireSector(db, sectorId);
   const e = effectiveCompanies(db);
-  const live = and(eq(sectorCompanies.sectorId, sectorId), isNull(sectorCompanies.removedAt));
+  const live = and(eq(sectorCompanies.sectorId, sectorId), isNull(sectorCompanies.removedAt), prospectMembership());
 
   const countryRows = await db
     .select({
