@@ -295,6 +295,13 @@
       "when": 1793750400000,
       "tag": "0041_evidence_library",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1793750500000,
+      "tag": "0042_step_telemetry",
+      "breakpoints": true
     }
   ]
 }

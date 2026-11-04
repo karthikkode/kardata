@@ -1131,7 +1131,8 @@ export const apolloContacts = pgTable(
 export type ApolloContact = typeof apolloContacts.$inferSelect;
 
 export const RIA_STEPS = ["firm_data", "brochure", "ops_read", "contacts", "signals"] as const;
-export type RiaStep = (typeof RIA_STEPS)[number];
+export const STEP_NAMES = [...RIA_STEPS, "fee_schedule"] as const;
+export type RiaStep = (typeof STEP_NAMES)[number];
 export const RIA_STEP_STATUSES = ["done", "gap", "failed"] as const;
 
 /** Per-firm RIA pipeline step state (Stage 5.8): no row = pending. */
@@ -1145,11 +1146,12 @@ export const riaStepRuns = pgTable(
     companyId: uuid("company_id")
       .notNull()
       .references(() => companies.id, { onDelete: "cascade" }),
-    step: text("step", { enum: RIA_STEPS }).notNull(),
+    step: text("step", { enum: STEP_NAMES }).notNull(),
     status: text("status", { enum: RIA_STEP_STATUSES }).notNull(),
     reason: text("reason"),
     inputHash: text("input_hash"),
     tokensUsed: integer("tokens_used"),
+    telemetry: jsonb("telemetry").$type<Record<string, unknown>>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()

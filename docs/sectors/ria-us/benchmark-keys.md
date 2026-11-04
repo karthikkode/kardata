@@ -24,3 +24,5 @@ Use the registry’s existing `firm` and `financials` keys where definitions mat
 SEC history ZIP part 1 contains the IA Base A/B, A/B ownership, and D 1.F and 1.I tables. Part 2 contains D 5.K.(3) and 7.A. Join by filing ID and use data through December 31, 2024. Registered-adviser monthly releases for September 2023–2025 are XLSX. The supplied October 2026 ZIP contains `ia09012026.csv`.
 
 Schedule records are `sec_adv_owner` (A/B ownership and officer status) and `sec_adv_schedules` (D 1.F/1.I offices and URLs, 5.K.(3)/7.A custodians). Custodian shares use reported 5.K.(3)(g) dollars divided by 5F total AUM less 5D(3)(d–f). Counts cover reported records. Historical schedule data stops in 2024.
+
+Part 2A Item 5 uses `firm.fee_schedule` with extraction/input qualifiers, `fee_schedule.status`, and the `fee_schedule_terms` record. Tier rates are annual percentage points and balances, minimums, and calculated fees are USD. The record retains dated quotes and uses null for unstated terms. Scenario fees apply the disclosed marginal or cliff schedule and applicable minimum.

@@ -48,7 +48,7 @@ export async function zipMembers(path: string): Promise<Member[]> {
   }
 }
 
-export async function forEachZipCsv(path: string, member: Member, visit: (row: Record<string, string>) => void, required: string[] = []) {
+export async function openZipEntry(path: string, member: Member) {
   const file = await open(path, "r");
   let start: number;
   try {
@@ -62,6 +62,11 @@ export async function forEachZipCsv(path: string, member: Member, visit: (row: R
   }
   if (!member.size || (member.method !== 0 && member.method !== 8)) throw new SecFileError("empty or unsupported ZIP member");
   const input = createReadStream(path, { start, end: start + member.size - 1 });
+  return { input, inflate: member.method === 8 ? createInflateRaw() : null };
+}
+
+export async function forEachZipCsv(path: string, member: Member, visit: (row: Record<string, string>) => void, required: string[] = []) {
+  const { input, inflate } = await openZipEntry(path, member);
   const parser = parse({
     bom: true, skip_empty_lines: true, max_record_size: 1024 * 1024,
     columns: (headers: string[]) => {
@@ -85,6 +90,6 @@ export async function forEachZipCsv(path: string, member: Member, visit: (row: R
       visit(row);
     }
   };
-  if (member.method === 8) await pipeline(input, createInflateRaw(), parser, consume);
+  if (inflate) await pipeline(input, inflate, parser, consume);
   else await pipeline(input, parser, consume);
 }

@@ -24,7 +24,7 @@ export interface StepResult {
 export type StepHandler = (db: Db, sectorId: string, companyId: string) => Promise<StepResult>;
 export type StepHandlers = Partial<Record<RiaStep, StepHandler>>;
 
-export const AI_STEPS: ReadonlySet<RiaStep> = new Set(["ops_read", "contacts"]);
+export const AI_STEPS: ReadonlySet<RiaStep> = new Set(["ops_read", "contacts", "fee_schedule"]);
 
 const PAUSE_KEY = "ria_step_paused";
 
