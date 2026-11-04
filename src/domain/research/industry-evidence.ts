@@ -57,12 +57,10 @@ export function articleText(html: string, transcript = false) {
     ?? $("time[datetime]").first().attr("datetime") ?? null;
   const canonical = $("link[rel='canonical']").attr("href") ?? null;
   const body = $(".pf-content,.ArticleBase-BodyContent,.entry-content,article,main").first();
-  const headings = body.find("h2,h3,h4,h5,p").filter((_, el) =>
-    /^.{0,40}\btranscript\s*[:.!]?$/i.test(compact($(el).text())),
-  );
-  const transcriptHeading = headings.toArray().find((el) => {
+  const transcriptHeading = body.find("h2,h3,h4,h5,p").toArray().find((el) => {
     const label = compact($(el).text());
-    return /^full transcript\b|^episode transcript\b|^(?!.*show\s*notes).*\btranscript\s*[:.!]?$/i.test(label);
+    return /^(?:full |episode )?transcript(?:\s*[:.!].{0,80})?$/i.test(label)
+      || /^(?!.*(?:show\s*notes|download|print)).{1,38}\btranscript\s*[:.!]?$/i.test(label);
   });
   const root = transcript && transcriptHeading ? $(transcriptHeading).nextAll() : body.find("p,li,h2,h3,h4");
   const blocks: string[] = [];

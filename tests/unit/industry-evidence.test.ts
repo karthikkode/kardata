@@ -6,7 +6,7 @@ import {
 describe("industry evidence", () => {
   it("extracts the transcript and carries a section timestamp into the quoted evidence", () => {
     const item = articleText(`<article><h1>Episode</h1><p>Executive summary</p>
-      <h2 id="full-transcript">Full Transcript:</h2><h2>Improving operations [08:40]</h2>
+      <h2 id="full-transcript">Full Transcript: Episode Subtitle</h2><h2>Improving operations [08:40]</h2>
       <p>Guest: Manual onboarding was difficult for our team.</p>
       <p>We implemented Acme Tools and reduced the effort by 40 percent.</p><p>We manage $170 million of AUM.</p>
       <aside>Unrelated advertisement</aside></article>`, true);

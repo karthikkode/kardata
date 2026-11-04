@@ -41,7 +41,7 @@ async function readItem(dir: string, name: string): Promise<Item | null> {
   if (receipt.group === "reddit") throw new Error("Reddit text must be loaded from sanitized RSS entries");
   if (receipt.group.startsWith("sec-")) {
     if (raw.subarray(0, 5).toString() !== "%PDF-") throw new Error("Expected PDF bytes");
-    const { stdout } = await exec("pdftotext", ["-layout", path, "-"], { maxBuffer: 2 * 1024 * 1024 });
+    const { stdout } = await exec("pdftotext", [path, "-"], { maxBuffer: 2 * 1024 * 1024 });
     const text = stdout.trim().replace(/\f/g, "\n\n");
     const title = text.split("\n").filter((line) => line.trim().length > 6).slice(0, 2).map((line) => line.trim()).join(" ");
     return { group: receipt.group, url, text, title: title || receipt.key, published: null };
