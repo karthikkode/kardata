@@ -1,6 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Db } from "../db/client.js";
+import { computeBenchmark } from "../domain/benchmark/compute.js";
+import { benchmarkReport } from "../domain/benchmark/report.js";
 import { importBrochureArchive } from "../domain/benchmark/brochure-archive.js";
 import { runBenchmarkFees } from "../domain/benchmark/fees.js";
 import { ensureEvidenceLibrary } from "../domain/evidence-library.js";
@@ -64,5 +66,27 @@ export function registerBenchmarkTools(server: McpServer, db: Db, auth: AuthCont
   }, async input => wrap(async () => {
     const data = await importBrochureArchive(db, input);
     return { summary: `${data.written}/${data.matched} archived brochures written`, data };
+  }));
+
+  registerTool(server, db, auth, "benchmark_compute", {
+    description: "Calculate company measures and reproducible peer groups from explicit verified snapshot months.",
+    inputSchema: {
+      sectorId: z.string().uuid(), formulaVersion: z.string().min(1).max(64),
+      snapshots: z.object({ current: z.string(), prior1: z.string(), prior2: z.string().optional(), prior3: z.string() }),
+    },
+  }, async input => wrap(async () => {
+    const data = await computeBenchmark(db, input);
+    return { summary: `${data.written} firm benchmarks written, revision ${data.revision}`, data };
+  }));
+
+  registerTool(server, db, auth, "benchmark_report", {
+    description: "Read aggregate field coverage and paged ID-only match exceptions for a benchmark cohort.",
+    inputSchema: {
+      sectorId: z.string().uuid(), snapshot: z.string().optional(), revision: z.string().optional(),
+      offset: z.number().int().nonnegative().optional(), limit: z.number().int().min(1).max(500).optional(),
+    },
+  }, async input => wrap(async () => {
+    const data = await benchmarkReport(db, input);
+    return { summary: `Coverage for ${data.cohort} active companies`, data };
   }));
 }

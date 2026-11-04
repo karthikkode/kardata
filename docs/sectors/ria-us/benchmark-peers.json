@@ -1,0 +1,7 @@
+{
+  "aumBandStarts": [0, 100000000, 250000000, 500000000, 1000000000, 3000000000, 10000000000],
+  "individualShareMin": 0.6666666666666666,
+  "institutionalShareMax": 0.3333333333333333,
+  "soloStaffMax": 1,
+  "minimumGroupSize": 20
+}

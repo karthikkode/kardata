@@ -251,6 +251,17 @@ export async function importSnapshot(db: Db, input: {
       return writeSnapshotFacts(tx, { evidence, raw: match.row.raw, date: date!, snapshot }, definitions);
     });
   }
+  if (!selected) {
+    const diagnostic = {
+      unmatched, ambiguous,
+      missingFilingDate: matches.filter(match => match.method !== "name_state" && !snapshotDate(match.row)).map(match => match.companyId),
+    };
+    const json = JSON.stringify(diagnostic);
+    await db.update(sources).set({
+      details: sql`jsonb_set(${sources.details}, '{matchReports}',
+        coalesce(${sources.details}->'matchReports', '{}'::jsonb) || jsonb_build_object(${input.sectorId}::text, ${json}::jsonb))`,
+    }).where(and(eq(sources.id, file.id), sql`${sources.details}->'matchReports'->${input.sectorId}::text is distinct from ${json}::jsonb`));
+  }
   return { counts, candidates, written, unmatched, ambiguous, sourceId: file.id };
 }
 

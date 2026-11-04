@@ -174,3 +174,40 @@ it("writes sourced fee terms and reports extraction retries without a live provi
     valueJson: { at1m: { dollars: 10_000, rate_pct: 1 }, at5m: { dollars: 50_000, rate_pct: 1 } },
   });
 });
+
+it("computes and reports a reproducible benchmark from verified snapshot facts", async () => {
+  await data("evidence_library_ensure");
+  const { sector } = await data<{ sector: { id: string } }>("sector_create", { name: "ria-us" });
+  const sectorId = sector.id;
+  const companyId = randomUUID();
+  const missing = randomUUID();
+  await handle.db.insert(companies).values([
+    { id: companyId, source: "sec", name: "Fixture Alpha", secCrd: "910001" },
+    { id: missing, source: "sec", name: "Fixture Missing", secCrd: "910006" },
+  ]);
+  await handle.db.insert(sectorCompanies).values([companyId, missing].map(id => ({ companyId: id, sectorId, addedVia: "sec" as const })));
+  const dirs = process.env.KARDATA_IMPORT_DIRS;
+  process.env.KARDATA_IMPORT_DIRS = fixtureImportDirs().join(",");
+  try {
+    await data("sec_adv_snapshot_import", { sectorId, path: join(fixtureImportDirs()[0]!, "sec-adv-snapshot.csv"),
+      snapshotDate: "2026-09-02", sourceUrl: "https://www.sec.gov/example-snapshot.zip", dryRun: false });
+    const args = { sectorId, formulaVersion: "fixture-v1", snapshots: { current: "2026-09", prior1: "2025-09", prior3: "2023-09" } };
+    const { revision } = await data<{ revision: string }>("benchmark_compute", args);
+    expect(await data("benchmark_compute", args)).toMatchObject({ written: 0, revision });
+    const measures = await handle.db.select().from(facts).where(eq(facts.key, "benchmark.measures"));
+    expect(measures).toHaveLength(2);
+    expect(measures.find(row => row.companyId === companyId)).toMatchObject({
+      qualifiers: { formula: "fixture-v1", revision, snapshot: "2026-09" },
+      valueJson: { values: { clients_per_staff: 7.5, accounts_per_staff: 5, aum_growth_3y_pct: null } },
+    });
+    expect(await data("benchmark_report", { sectorId, revision, limit: 1 })).toMatchObject({
+      cohort: 2, matchCounts: { crd: 1, unmatched: 1 }, diagnosticsComplete: true,
+      exceptions: [{ companyId: missing, status: "unmatched" }],
+      coverage: { "2026-09": { "firm.client_total": { value: 1, missing: 1, notStated: 0 } } },
+      benchmark: { revision, measures: { clients_per_staff: { value: 1, missing: 1 } } },
+    });
+  } finally {
+    if (dirs === undefined) delete process.env.KARDATA_IMPORT_DIRS;
+    else process.env.KARDATA_IMPORT_DIRS = dirs;
+  }
+});
