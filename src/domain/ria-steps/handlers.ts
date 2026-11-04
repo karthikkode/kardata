@@ -19,7 +19,7 @@ import { recordVerdicts } from "../tiering.js";
 import { custodianCountNames } from "./custodians.js";
 import { storedOrFetch } from "./stored-source.js";
 import { stepState } from "./status.js";
-import { splitBrochureItems, FULL_BROCHURE_PATH, FULL_BROCHURE_CAP, FULL_BROCHURE_GAP } from "./brochure.js";
+import { splitBrochureItems, FULL_BROCHURE_PATH, FULL_BROCHURE_CAP, FULL_BROCHURE_GAP, brochureKind, FEE_BROCHURE_PATH_PREFIX } from "./brochure.js";
 import type { StepHandler, StepResult } from "./runner.js";
 import { dockerExtractorCall, type ExtractorCall } from "../../runs/extract.js";
 
@@ -111,10 +111,10 @@ export interface BrochureChoice {
   dateSubmitted: string; // ISO yyyy-mm-dd
 }
 
-export function parseBrochureChoice(iacontent: unknown): { exempt: boolean; choice: BrochureChoice | null } {
+function brochureRoster(iacontent: unknown): { exempt: boolean; details: BrochureChoice[] } {
   const brochures = (iacontent as { brochures?: { part2ExemptFlag?: string; brochuredetails?: unknown[] } } | null)?.brochures;
-  if (!brochures) return { exempt: false, choice: null };
-  if ((brochures.part2ExemptFlag ?? "").trim().toUpperCase() === "Y") return { exempt: true, choice: null };
+  if (!brochures) return { exempt: false, details: [] };
+  if ((brochures.part2ExemptFlag ?? "").trim().toUpperCase() === "Y") return { exempt: true, details: [] };
   const details = (brochures.brochuredetails ?? [])
     .map((d) => {
       const o = d as { brochureVersionID?: number; brochureName?: string; dateSubmitted?: string };
@@ -124,7 +124,12 @@ export function parseBrochureChoice(iacontent: unknown): { exempt: boolean; choi
       return { versionId: o.brochureVersionID, name: o.brochureName ?? "", dateSubmitted: iso };
     })
     .filter((d): d is BrochureChoice => d !== null);
-  if (details.length === 0) return { exempt: false, choice: null };
+  return { exempt: false, details };
+}
+
+export function parseBrochureChoice(iacontent: unknown): { exempt: boolean; choice: BrochureChoice | null } {
+  const { exempt, details } = brochureRoster(iacontent);
+  if (!details.length) return { exempt, choice: null };
   // Prefer the firm brochure (Part 2A) over 2B supplements and wrap-fee
   // program brochures when both kinds are filed.
   const firm = details.filter((d) => !/2b|wrap/i.test(d.name));
@@ -133,7 +138,7 @@ export function parseBrochureChoice(iacontent: unknown): { exempt: boolean; choi
   return { exempt: false, choice };
 }
 
-export function createBrochureStep(preferStoredSources = false): StepHandler {
+export function createBrochureStep(preferStoredSources = false, feeReview = false): StepHandler {
  const fetchSource = preferStoredSources ? storedOrFetch : fetchUrl;
  return async (db, _sectorId, companyId) => {
   const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
@@ -161,6 +166,7 @@ export function createBrochureStep(preferStoredSources = false): StepHandler {
       return finish({ status: "gap", reason: `brochure lookup fetch error (HTTP ${lookup.source.httpStatus ?? lookup.source.status})`, inputHash: crd });
     }
     let choice: BrochureChoice | null = null;
+    let roster: BrochureChoice[] = [];
     try {
       const parsed = JSON.parse(lookup.text) as { hits?: { hits?: { _source?: { iacontent?: string } }[] } };
       const iacontent = parsed.hits?.hits?.[0]?._source?.iacontent;
@@ -168,10 +174,52 @@ export function createBrochureStep(preferStoredSources = false): StepHandler {
       const result = parseBrochureChoice(inner);
       if (result.exempt) return finish({ status: "gap", reason: "exempt from Part 2 brochure", inputHash: crd });
       choice = result.choice;
+      if (feeReview) roster = brochureRoster(inner).details;
     } catch {
       return finish({ status: "gap", reason: "brochure lookup unreadable (invalid IAPD response)", inputHash: crd });
     }
     if (!choice) return finish({ status: "gap", reason: "no brochure filed", inputHash: crd });
+
+    if (feeReview) {
+      // Inspect the latest filed version of each named brochure. Titles can
+      // be a person's name, so a Part 2B cover can disqualify a roster entry.
+      const latest = new Map<string, BrochureChoice>();
+      for (const entry of roster.sort((a, b) => b.dateSubmitted.localeCompare(a.dateSubmitted) || b.versionId - a.versionId)) {
+        if (brochureKind("", entry.name) === "supplement") continue;
+        const key = entry.name.trim().toLowerCase() || String(entry.versionId);
+        if (!latest.has(key)) latest.set(key, entry);
+      }
+      let stored = 0;
+      const failures: string[] = [];
+      for (const entry of latest.values()) {
+        const path = `${FEE_BROCHURE_PATH_PREFIX}${entry.versionId}.md`;
+        const [existing] = await db.select({ id: documents.id }).from(documents).where(and(
+          eq(documents.companyId, companyId), eq(documents.path, path), eq(documents.isCurrent, true),
+        ));
+        if (existing) { stored++; continue; }
+        const pdf = await fetchSource(db, {
+          companyId, runId, collector: "ria_brochure",
+          url: `${iapdFilesBase}/IAPD/Content/Common/crd_iapd_Brochure.aspx?BRCHR_VRSN_ID=${entry.versionId}`,
+          userAgent: SEC_UA, accept: "application/pdf", maxBytes: 25 * 1024 * 1024, privateHostAllowlist: privateHosts,
+        });
+        if (pdf.source.status !== "ok" || !pdf.body) {
+          failures.push(`brochure fetch error (HTTP ${pdf.source.httpStatus ?? pdf.source.status})`);
+          if (pdf.source.httpStatus === 503 || pdf.source.httpStatus === 429) break;
+          continue;
+        }
+        const text = await pdfText(pdf.body).catch(() => "");
+        const kind = brochureKind(text, entry.name);
+        if (kind === "supplement") continue;
+        await saveDocument(db, {
+          companyId, runId, path, sourceIds: [pdf.source.id], createdBy: "collector:ria_brochure",
+          title: `SEC brochure ${kind} (${entry.dateSubmitted}, v${entry.versionId})`,
+          contentMd: text.slice(0, FULL_BROCHURE_CAP) || "PDF retained for page review. No text was extracted.",
+        });
+        stored++;
+      }
+      if (failures.length) return finish({ status: "gap", reason: [...new Set(failures)].join("; ") });
+      return finish(stored ? { status: "done" } : { status: "gap", reason: "no firm or program brochure filed" });
+    }
 
     const [full] = await db.select().from(documents).where(and(eq(documents.companyId, companyId), eq(documents.path, FULL_BROCHURE_PATH), eq(documents.isCurrent, true)));
     if (full?.title.includes(`v${choice.versionId})`)) {

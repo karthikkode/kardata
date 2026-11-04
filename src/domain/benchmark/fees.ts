@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { setTimeout as sleep } from "node:timers/promises";
 import { and, eq } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
-import { documents, facts, riaStepRuns, sources } from "../../db/schema.js";
+import { facts, riaStepRuns, sources } from "../../db/schema.js";
 import { CodexCallError } from "../../harness/codex-extract.js";
 import type { ExtractorCall } from "../../runs/extract.js";
 import { getOrCreateManualRun } from "../../runs/queue.js";
@@ -10,20 +10,18 @@ import { DomainError } from "../errors.js";
 import { parseQuotaExhaustion } from "../quota/breaker.js";
 import { addFacts, type AddFactItem } from "../research/facts.js";
 import { upsertRecords } from "../research/records.js";
-import { isValidDateString } from "../research/validate.js";
-import { splitBrochureItems, FULL_BROCHURE_PATH } from "../ria-steps/brochure.js";
-import { brochureStep } from "../ria-steps/handlers.js";
-import { riaExtractorCall } from "../ria-steps/provider.js";
-import { runRiaStep, type StepHandler } from "../ria-steps/runner.js";
+import { createBrochureStep } from "../ria-steps/handlers.js";
+import { riaExtractorCall, riaProviderGate, withRiaProvider } from "../ria-steps/provider.js";
+import { riaStepPaused, RiaStepInterrupted, runRiaStep, type StepHandler } from "../ria-steps/runner.js";
 import { stepState } from "../ria-steps/status.js";
 import { lockEvidence } from "../sec-adv/evidence.js";
 import { activeMembers } from "../sec-adv/snapshot.js";
-import { FEE_SCHEMA, feePrompt, groundFeeExtraction } from "./fee-extraction.js";
+import { FEE_SCHEMA, feeReviewResponse } from "./fee-extraction.js";
+import { loadBrochureEvidence, reviewBrochures } from "./brochure-review.js";
 
 export const FEE_COLLECTOR = "benchmark_fee_schedule";
-export const FEE_VERSION = "adv-2a-v1";
-export const ITEM_5_PATH = "financials/brochure-item-5.md";
-const ITEM_CAP = 30_000;
+export const FEE_VERSION = "adv-2a-v2";
+const fetchFeeBrochures = createBrochureStep(false, true);
 const ATTEMPTS = 3;
 
 export interface FeeMetrics {
@@ -34,103 +32,103 @@ export interface FeeMetrics {
   elapsedMs: number;
   inputTokens: number | null;
   outputTokens: number | null;
-  outcome: "done" | "gap" | "failed" | "cached";
+  outcome: "done" | "gap" | "failed" | "cached" | "interrupted";
   reason?: string;
-}
-
-export async function currentItem5(db: Db, companyId: string) {
-  const read = async (path: string) => (await db.select().from(documents).where(and(
-    eq(documents.companyId, companyId), eq(documents.path, path), eq(documents.isCurrent, true),
-  )))[0];
-  const item = await read(ITEM_5_PATH);
-  const full = await read(FULL_BROCHURE_PATH);
-  const candidates = [item, full].flatMap(doc => {
-    const date = doc?.title.match(/\b\d{4}-\d\d-\d\d\b/)?.[0];
-    return doc && date && isValidDateString(date) ? [{ doc, date }] : [];
-  }).sort((a, b) => b.date.localeCompare(a.date) || b.doc.createdAt.valueOf() - a.doc.createdAt.valueOf());
-  for (const { doc, date } of candidates) {
-    const text = doc.path === FULL_BROCHURE_PATH ? splitBrochureItems(doc.contentMd ?? "")["5"] ?? "" : doc.contentMd ?? "";
-    if (text.trim().length >= 40 && text.length <= ITEM_CAP &&
-        !/\.{6,}/.test(text.slice(0, 300)) && doc.sourceIds?.length) {
-      return { id: doc.id, text, date, sourceIds: doc.sourceIds };
-    }
-  }
-  return null;
+  classification?: string;
+  reviewedPages?: number;
+  models?: string[];
 }
 
 function terminalProviderError(error: unknown) {
-  return (error instanceof CodexCallError && error.kind !== "execution") ||
+  return error instanceof RiaStepInterrupted || (error instanceof CodexCallError && error.kind !== "execution") ||
     parseQuotaExhaustion(error instanceof Error ? error.message : String(error)).exhausted;
 }
 
-export function createFeeStep(call: ExtractorCall, observe: (metrics: FeeMetrics) => void, fetchBrochure: StepHandler = brochureStep): StepHandler {
+export function createFeeStep(call: ExtractorCall, observe: (metrics: FeeMetrics) => void, fetchBrochure: StepHandler = fetchFeeBrochures): StepHandler {
   return async (db, sectorId, companyId) => {
     const started = performance.now();
     const metrics: FeeMetrics = { companyId, elapsedMs: 0, attempts: 0, retries: 0, unmeteredAttempts: 0,
       inputTokens: null, outputTokens: null, outcome: "failed" };
     try {
-      let item = await currentItem5(db, companyId);
-      let reason = "no usable dated Item 5";
-      if (!item) {
+      let evidence = await loadBrochureEvidence(db, companyId);
+      let reason = "no usable dated fee brochure";
+      if (!evidence.firmFound || !evidence.passages.length) {
         let fetched = await fetchBrochure(db, sectorId, companyId);
         if (/fetch error.*HTTP 503/i.test(fetched.reason ?? "")) {
           await sleep(30_000);
           fetched = await fetchBrochure(db, sectorId, companyId);
         }
-        item = await currentItem5(db, companyId);
+        evidence = await loadBrochureEvidence(db, companyId);
         if (fetched.reason) reason = fetched.reason;
-        if (!item && /fetch error.*(?:HTTP 429|HTTP 5\d\d|timeout|fetch failed|network)/i.test(reason)) throw new Error(reason);
+        if (/fetch error.*(?:HTTP 429|HTTP 5\d\d|timeout|fetch failed|network)/i.test(reason)) throw new Error(reason);
+        if (fetched.status === "gap") {
+          evidence.gaps.push(reason);
+          if (/fetch error|unreadable/i.test(reason)) evidence.complete = false;
+        }
       }
-      const inputHash = createHash("sha256").update(`${FEE_VERSION}:${item?.id ?? reason}`).digest("hex");
+      const inputHash = createHash("sha256").update(JSON.stringify({
+        version: FEE_VERSION, documents: evidence.passages.map(passage => [passage.documentId, passage.sourceId, passage.page]),
+        gaps: evidence.gaps, reason,
+      })).digest("hex");
       const prior = await stepState(db, sectorId, companyId, "fee_schedule");
       if (prior?.inputHash === inputHash && prior.status !== "failed") {
         metrics.outcome = "cached";
         return { status: prior.status, inputHash, cached: true };
       }
       const runId = await getOrCreateManualRun(db, companyId);
-      let result: ReturnType<typeof groundFeeExtraction> | null = null;
-      if (item) {
-        const prompt = feePrompt(item.text);
-        for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
-          metrics.attempts = attempt;
+      const extraction = evidence.passages.length ? await reviewBrochures(evidence.passages, evidence, async prompt => {
+        for (let attempt = 1; ; attempt++) {
+          metrics.attempts++;
+          if (attempt > 1) metrics.retries++;
           let metered = false;
           try {
             const extracted = await call({ runId, area: "fee_schedule", prompt, schema: FEE_SCHEMA });
             if (extracted.usage) {
               metered = true;
               metrics.inputTokens = (metrics.inputTokens ?? 0) + extracted.usage.inputTokens + extracted.usage.cachedTokens;
+              if (extracted.usage.model) metrics.models = [...new Set([...(metrics.models ?? []), extracted.usage.model])];
               metrics.outputTokens = (metrics.outputTokens ?? 0) + extracted.usage.outputTokens;
             }
-            result = groundFeeExtraction(extracted.json, item.text);
-            break;
+            return feeReviewResponse.parse(extracted.json);
           } catch (error) {
+            if (error instanceof RiaStepInterrupted) {
+              metrics.attempts--;
+              if (attempt > 1) metrics.retries--;
+              metered = true;
+            }
             if (terminalProviderError(error) || attempt === ATTEMPTS) throw error;
           } finally {
             if (!metered) metrics.unmeteredAttempts++;
           }
         }
-      }
-      const extraction = result;
-      const status = extraction ? "available" : "unavailable";
+      }) : null;
+      if (extraction) {
+        metrics.classification = extraction.classification;
+        metrics.reviewedPages = extraction.coverage.reviewedPages;
+      } else if (evidence.gaps.length) reason = evidence.gaps.join("; ");
+      const usableFees = extraction && extraction.classification !== "no_grounded_schedule";
+      if (extraction && !usableFees) reason = ["No grounded fee terms in the reviewed brochure", ...extraction.coverage.gaps].join("; ");
+      const status = usableFees ? "available" : "unavailable";
       await db.transaction(async tx => {
         await lockEvidence(tx, `company:${companyId}:fees`);
         const [existing] = await tx.select({ id: facts.id }).from(facts).where(and(eq(facts.companyId, companyId),
           eq(facts.key, "fee_schedule.status"), eq(facts.createdBy, FEE_COLLECTOR),
           eq(facts.qualifiers, { extraction: FEE_VERSION, input: inputHash })));
         if (existing) return;
-        const sourceIds = item ? item.sourceIds : (await tx.insert(sources).values({
+        const sourceIds = evidence.sourceIds.length ? evidence.sourceIds : (await tx.insert(sources).values({
           id: randomUUID(), runId, companyId, url: "kardata:benchmark/fee-extraction",
           finalUrl: "kardata:benchmark/fee-extraction", collector: FEE_COLLECTOR, status: "not_found", error: reason,
         }).returning({ id: sources.id })).map(row => row.id);
-        const common = { qualifiers: { extraction: FEE_VERSION, input: inputHash }, asOf: item?.date ?? null, sourceIds };
-        const factsToWrite: AddFactItem[] = [{ ...common, key: "fee_schedule.status", value: status, note: extraction ? null : reason }];
-        if (extraction && item) {
-          factsToWrite.push({ ...common, key: "firm.fee_schedule", value: extraction,
-            quote: extraction.tierQuotes[0] ?? null, quoteSourceId: extraction.tierQuotes.length ? sourceIds[0] : null,
+        const common = { qualifiers: { extraction: FEE_VERSION, input: inputHash }, asOf: extraction?.benchmarkScope?.date ?? evidence.date ?? null, sourceIds };
+        const factsToWrite: AddFactItem[] = [{ ...common, key: "fee_schedule.status", value: status, note: usableFees ? null : reason }];
+        if (extraction) {
+          const { preliminary, ...summary } = extraction;
+          factsToWrite.push({ ...common, key: "firm.fee_schedule", value: summary,
+            quote: extraction.tierQuotes[0] ?? null, quoteSourceId: extraction.tierQuotes.length ? extraction.benchmarkScope?.sourceId : null,
             note: extraction.formula });
           const saved = await upsertRecords(tx, { companyId, runId, createdBy: FEE_COLLECTOR, records: [{
             type: "fee_schedule_terms", naturalKey: ["input_hash"], sourceIds,
-            data: { input_hash: inputHash, brochure_date: item.date, extraction },
+            data: { input_hash: inputHash, brochure_date: evidence.date, extraction: summary, preliminary },
           }] });
           if (!saved[0]?.ok) throw new Error("could not save grounded fee terms");
         }
@@ -138,14 +136,14 @@ export function createFeeStep(call: ExtractorCall, observe: (metrics: FeeMetrics
         const failure = saved.find(row => !row.ok);
         if (failure && !failure.ok) throw new Error(failure.error);
       });
-      metrics.outcome = extraction ? "done" : "gap";
-      if (!extraction) metrics.reason = reason;
+      metrics.outcome = usableFees ? "done" : "gap";
+      if (!usableFees) metrics.reason = reason;
       return { status: metrics.outcome, reason: metrics.reason, inputHash, tokensUsed: metrics.inputTokens };
     } catch (error) {
+      if (error instanceof RiaStepInterrupted) metrics.outcome = "interrupted";
       metrics.reason = (error instanceof Error ? error.message : String(error)).slice(0, 300);
       throw error;
     } finally {
-      metrics.retries = Math.max(metrics.attempts - 1, 0);
       metrics.elapsedMs = Math.round(performance.now() - started);
       observe(metrics);
     }
@@ -153,14 +151,18 @@ export function createFeeStep(call: ExtractorCall, observe: (metrics: FeeMetrics
 }
 
 export function feePilotSummary(results: FeeMetrics[], cohortSize: number, elapsedMs: number) {
-  const measured = results.filter(row => row.outcome !== "cached");
+  const measured = results.filter(row => row.outcome !== "cached" && row.outcome !== "interrupted");
   const retries = measured.reduce((sum, row) => sum + row.retries, 0);
   const input = measured.reduce((sum, row) => sum + (row.inputTokens ?? 0), 0);
   const output = measured.reduce((sum, row) => sum + (row.outputTokens ?? 0), 0);
   const size = measured.length;
   const missingTokenReports = measured.reduce((sum, row) => sum + row.unmeteredAttempts, 0);
+  const classifications: Record<string, number> = {};
+  for (const row of measured) {
+    if (row.classification) classifications[row.classification] = (classifications[row.classification] ?? 0) + 1;
+  }
   return {
-    measured: size, meanRetries: size ? retries / size : 0,
+    measured: size, classifications, interrupted: results.filter(row => row.outcome === "interrupted").length, meanRetries: size ? retries / size : 0,
     gaps: measured.filter(row => row.outcome === "gap").length, failures: measured.filter(row => row.outcome === "failed").length,
     missingTokenReports,
     projected: size ? { companies: cohortSize, inputTokens: Math.ceil(input * cohortSize / size),
@@ -182,7 +184,13 @@ export async function runBenchmarkFees(db: Db, input: {
   const concurrency = input.concurrency ?? 4;
   const started = performance.now();
   const results: FeeMetrics[] = [];
-  const handler = createFeeStep(riaExtractorCall(db), row => results.push(row));
+  const extract = riaExtractorCall(db);
+  const handler = createFeeStep(async request => {
+    if (await riaStepPaused(db)) throw new RiaStepInterrupted("pause");
+    const gate = await riaProviderGate(db);
+    if (!gate.available) throw new RiaStepInterrupted("quota");
+    return withRiaProvider(gate.provider, () => extract(request));
+  }, row => results.push(row));
   let stopped: "pause" | "quota" | "retry_threshold" | null = null;
   let nextCompanyId: string | null = null;
   for (let i = 0; i < selected.length; i += concurrency) {
@@ -191,7 +199,7 @@ export async function runBenchmarkFees(db: Db, input: {
     const result = await runRiaStep(db, { sectorId: input.sectorId, companyIds: ids, step: "fee_schedule", concurrency, skipDone: false },
       { fee_schedule: handler });
     for (const metrics of results.slice(offset)) {
-      if (metrics.outcome === "cached") continue;
+      if (metrics.outcome === "cached" || metrics.outcome === "interrupted") continue;
       await db.update(riaStepRuns).set({ telemetry: { ...metrics } }).where(and(
         eq(riaStepRuns.sectorId, input.sectorId), eq(riaStepRuns.companyId, metrics.companyId), eq(riaStepRuns.step, "fee_schedule"),
       ));
