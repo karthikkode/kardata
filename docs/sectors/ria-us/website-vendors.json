@@ -1,0 +1,23 @@
+{
+  "excludedHosts": ["linkedin.com", "youtube.com", "youtu.be", "facebook.com", "instagram.com", "x.com", "twitter.com"],
+  "vendors": [
+    { "host": "orionadvisor.com", "vendor": "Orion", "category": "portal", "loginOnly": true },
+    { "host": "orionclient.com", "vendor": "Orion", "category": "portal" },
+    { "host": "bdreporting.com", "vendor": "Black Diamond", "category": "portal" },
+    { "host": "addepar.com", "vendor": "Addepar", "category": "portal", "loginOnly": true },
+    { "host": "emaplan.com", "vendor": "eMoney", "category": "portal" },
+    { "host": "schwab.com", "vendor": "Schwab", "category": "custodian", "loginOnly": true },
+    { "host": "fidelity.com", "vendor": "Fidelity", "category": "custodian", "loginOnly": true },
+    { "host": "wealthscapeinvestor.com", "vendor": "Fidelity", "category": "custodian" },
+    { "host": "client.envestnet.com", "vendor": "Envestnet", "category": "portal" },
+    { "host": "calendly.com", "vendor": "Calendly", "category": "scheduling" },
+    { "host": "acuityscheduling.com", "vendor": "Acuity Scheduling", "category": "scheduling" },
+    { "host": "cal.com", "vendor": "Cal.com", "category": "scheduling" },
+    { "host": "jotform.com", "vendor": "Jotform", "category": "form" },
+    { "host": "typeform.com", "vendor": "Typeform", "category": "form" },
+    { "host": "forms.office.com", "vendor": "Microsoft Forms", "category": "form" },
+    { "host": "forms.gle", "vendor": "Google Forms", "category": "form" },
+    { "host": "docusign.net", "vendor": "DocuSign", "category": "esign" },
+    { "host": "signnow.com", "vendor": "signNow", "category": "esign" }
+  ]
+}

@@ -394,3 +394,23 @@ describe("fetcher", () => {
     }
   });
 });
+
+it("blocks a strict site scan when robots.txt returns 403", async () => {
+  site.routes.set("/robots.txt", (_req, res) => sendText(res, "Forbidden", 403, "text/plain"));
+  site.routes.set("/", (_req, res) => sendText(res, "fixture homepage"));
+  const result = await fetchUrl(handle.db, req(`${site.baseUrl}/`, { strictRobots: true }));
+  expect(result.source).toMatchObject({ status: "blocked", httpStatus: 403 });
+  expect(site.hits.map(hit => hit.path)).toEqual(["/robots.txt"]);
+});
+
+it("checks strict redirect targets against robots without following cross-site or disallowed links", async () => {
+  site.routes.set("/robots.txt", (_req, res) => sendText(res, "User-agent: *\nDisallow: /private\n", 200, "text/plain"));
+  site.routes.set("/", (_req, res) => { res.writeHead(302, { Location: "/private" }); res.end(); });
+  site.routes.set("/other", (_req, res) => { res.writeHead(302, { Location: "https://vendor.example/login" }); res.end(); });
+  const options = { strictRobots: true, redirectHost: new URL(site.baseUrl).host };
+  for (const path of ["/", "/other"]) {
+    expect((await fetchUrl(handle.db, req(`${site.baseUrl}${path}`, options))).source.error)
+      .toBe("redirect outside the allowed site or path");
+  }
+  expect(site.hits.map(hit => hit.path)).toEqual(["/robots.txt", "/", "/other"]);
+});

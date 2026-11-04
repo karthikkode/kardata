@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Db } from "../db/client.js";
 import { computeBenchmark } from "../domain/benchmark/compute.js";
+import { runWebsiteSoftware } from "../domain/benchmark/website.js";
 import { benchmarkReport } from "../domain/benchmark/report.js";
 import { importBrochureArchive } from "../domain/benchmark/brochure-archive.js";
 import { runBenchmarkFees } from "../domain/benchmark/fees.js";
@@ -88,5 +89,17 @@ export function registerBenchmarkTools(server: McpServer, db: Db, auth: AuthCont
   }, async input => wrap(async () => {
     const data = await benchmarkReport(db, input);
     return { summary: `Coverage for ${data.cohort} active companies`, data };
+  }));
+
+  registerTool(server, db, auth, "website_software_collect", {
+    description: "Collect software link evidence from a firm's homepage and at most one client page.",
+    inputSchema: {
+      sectorId: z.string().uuid(), companyIds: z.array(z.string().uuid()).max(100).optional(),
+      afterCompanyId: z.string().uuid().optional(), limit: z.number().int().min(1).max(100).optional(),
+      concurrency: z.number().int().min(1).max(8).optional(),
+    },
+  }, async input => wrap(async () => {
+    const data = await runWebsiteSoftware(db, input);
+    return { summary: `${data.results.length} website results`, data };
   }));
 }

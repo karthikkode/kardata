@@ -1,4 +1,5 @@
 import { and, countDistinct, desc, eq, inArray, sql } from "drizzle-orm";
+import { WEBSITE_SCAN_TYPE } from "../../collect/collectors/website-software.js";
 import type { Db } from "../../db/client.js";
 import { facts, records, sources } from "../../db/schema.js";
 import { findEvidenceLibrary } from "../evidence-library.js";
@@ -106,11 +107,28 @@ export async function benchmarkReport(db: Db, input: {
       sql`${facts.qualifiers}->>'revision' = ${revision}`)) : [];
   const measuresCoverage = Object.fromEntries(MEASURES.map(key => [key, countsFor(measures.filter(row =>
     (row.value as { values: MeasureValues }).values[key] != null).length)]));
+  const websiteRows = await db.selectDistinctOn([records.companyId], { data: records.data }).from(records)
+    .where(and(eq(records.type, WEBSITE_SCAN_TYPE), inArray(records.companyId, companyIds)))
+    .orderBy(records.companyId, desc(records.updatedAt));
+  const categories = ["portal", "custodian", "scheduling", "form", "esign"];
+  const websiteStatuses: Record<string, number> = {};
+  const clientPageStatuses: Record<string, number> = {};
+  const categoryCoverage = new Map<string, number>();
+  for (const row of websiteRows) {
+    const result = row.data.result as { status: string; clientStatus: string | null; signals: { category: string }[] };
+    websiteStatuses[result.status] = (websiteStatuses[result.status] ?? 0) + 1;
+    if (result.clientStatus) clientPageStatuses[result.clientStatus] = (clientPageStatuses[result.clientStatus] ?? 0) + 1;
+    for (const category of new Set(result.signals.map(signal => signal.category))) {
+      categoryCoverage.set(category, (categoryCoverage.get(category) ?? 0) + 1);
+    }
+  }
   return {
     cohort: members.length, crdCoverage: members.filter(row => !!row.crd).length, snapshot: month ?? null, coverage,
     matchCounts, diagnosticsComplete: diagnostics !== undefined, exceptions: exceptions.slice(offset, offset + limit),
     nextOffset: offset + limit < exceptions.length ? offset + limit : null,
     fees: { available: currentFees.size, unavailable: statusRows.length - currentFees.size, fields: feeFields },
     schedules, benchmark: { revision: revision ?? null, measures: measuresCoverage },
+    website: { statuses: websiteStatuses, clientPageStatuses, missing: members.length - websiteRows.length,
+      fields: Object.fromEntries(categories.map(category => [category, countsFor(categoryCoverage.get(category) ?? 0)])) },
   };
 }

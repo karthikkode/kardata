@@ -274,6 +274,7 @@ interface RobotsEntry {
   rules: ReturnType<typeof robotsParser> | null;
   body: string;
   fetchedAt: number;
+  httpStatus?: number;
 }
 
 const robotsCache = new Map<string, RobotsEntry>();
@@ -305,6 +306,9 @@ export interface FetchOptions {
   userAgent?: string;
   // Extra request headers (e.g. Authorization). Never persisted to sources/events.
   headers?: Record<string, string>;
+  // A bounded site collector can restrict redirects and require reachable robots rules.
+  redirectHost?: string;
+  strictRobots?: boolean;
 }
 
 interface ResolvedFetchOptions {
@@ -315,6 +319,9 @@ interface ResolvedFetchOptions {
   privateHostAllowlist: string[];
   userAgent: string;
   headers: Record<string, string>;
+  redirectHost?: string;
+  strictRobots?: boolean;
+  redirectAllowed?: (url: URL) => boolean;
 }
 
 interface RawResponse {
@@ -354,6 +361,9 @@ async function performRequest(startUrl: string, opts: ResolvedFetchOptions): Pro
     }
     if (url.protocol !== "http:" && url.protocol !== "https:") {
       throw new FetchFailedError("redirect to non-http URL refused");
+    }
+    if (hop > 0 && ((opts.redirectHost && url.host !== opts.redirectHost) || opts.redirectAllowed?.(url) === false)) {
+      throw new FetchFailedError("redirect outside the allowed site or path");
     }
     await assertPublicHost(url.hostname, opts.privateHostAllowlist);
     let res: Response;
@@ -489,7 +499,7 @@ async function ensureRobots(
         blob: { body: res.body, contentType: res.contentType },
       });
     } else {
-      entry = { rules: null, body: "", fetchedAt: Date.now() };
+      entry = { rules: null, body: "", fetchedAt: Date.now(), httpStatus: res.status };
       await writeSource(db, {
         runId,
         companyId,
@@ -551,6 +561,8 @@ function resolveOptions(req: FetchRequest): ResolvedFetchOptions {
     privateHostAllowlist: req.privateHostAllowlist ?? [],
     userAgent: req.userAgent ?? userAgent(),
     headers: req.headers ?? {},
+    redirectHost: req.redirectHost,
+    strictRobots: req.strictRobots,
   };
 }
 
@@ -629,6 +641,14 @@ async function fetchUrlInner(db: Db, req: FetchRequest): Promise<FetchResult> {
       throw err;
     }
     throw err;
+  }
+  if (opts.strictRobots && !robots.rules && robots.httpStatus !== 404 && robots.httpStatus !== 410) {
+    const status = robots.httpStatus === 401 || robots.httpStatus === 403 ? "blocked" : "error";
+    const source = await writeSource(db, { ...base, status, httpStatus: robots.httpStatus, error: "robots.txt unavailable" });
+    return { source };
+  }
+  if (opts.strictRobots) {
+    opts.redirectAllowed = url => url.host === target.host && robots.rules?.isDisallowed(url.href, opts.userAgent) !== true;
   }
   if (robots.rules && robots.rules.isDisallowed(target.href, opts.userAgent) === true) {
     const source = await writeSource(db, { ...base, status: "robots_disallowed" });

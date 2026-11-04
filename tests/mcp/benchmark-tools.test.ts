@@ -211,3 +211,19 @@ it("computes and reports a reproducible benchmark from verified snapshot facts",
     else process.env.KARDATA_IMPORT_DIRS = dirs;
   }
 });
+
+it("records a missing website and returns the stored result on repeat", async () => {
+  await data("evidence_library_ensure");
+  const { sector } = await data<{ sector: { id: string } }>("sector_create", { name: "ria-us" });
+  const sectorId = sector.id;
+  const { company } = await data<{ company: { id: string } }>("company_add", { sectorId, name: "Synthetic firm without a site" });
+  expect(await data("website_software_collect", { sectorId })).toMatchObject({
+    results: [{ companyId: company.id, status: "missing_site", cached: false }],
+  });
+  expect(await data("website_software_collect", { sectorId })).toMatchObject({
+    results: [{ companyId: company.id, status: "missing_site", cached: true }],
+  });
+  expect(await data("benchmark_report", { sectorId })).toMatchObject({
+    website: { missing: 0, statuses: { missing_site: 1 }, fields: { portal: { value: 0, missing: 1 } } },
+  });
+});
