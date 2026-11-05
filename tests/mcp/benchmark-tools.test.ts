@@ -281,7 +281,7 @@ it("computes and reports a reproducible benchmark from verified snapshot facts",
   try {
     await data("sec_adv_snapshot_import", { sectorId, path: join(fixtureImportDirs()[0]!, "sec-adv-snapshot.csv"),
       snapshotDate: "2026-09-02", sourceUrl: "https://www.sec.gov/example-snapshot.zip", dryRun: false });
-    const args = { sectorId, formulaVersion: "fixture-v1", snapshots: { current: "2026-09", prior1: "2025-09", prior3: "2023-09" } };
+    const args = { sectorId, formulaVersion: "fixture-v1", snapshots: { current: "2026-09", prior1: "2025-10", prior3: "2023-09" } };
     const { revision } = await data<{ revision: string }>("benchmark_compute", args);
     expect(await data("benchmark_compute", args)).toMatchObject({ written: 0, revision });
     const measures = await handle.db.select().from(facts).where(eq(facts.key, "benchmark.measures"));
@@ -294,7 +294,9 @@ it("computes and reports a reproducible benchmark from verified snapshot facts",
       cohort: 2, matchCounts: { crd: 1, unmatched: 1 }, diagnosticsComplete: true,
       exceptions: [{ companyId: missing, status: "unmatched" }],
       coverage: { "2026-09": { "firm.client_total": { value: 1, missing: 1, notStated: 0 } } },
-      benchmark: { revision, measures: { clients_per_staff: { value: 1, missing: 1 } } },
+      benchmark: { revision, measures: { clients_per_staff: { value: 1, missing: 1 }, clients_growth_1y_pct: { value: 0 } },
+        growthWindows: { prior1: { months: 11 } },
+        measureLabels: { clients_growth_1y_pct: "Clients growth over 11 months (2025-10 to 2026-09)" } },
     });
   } finally {
     if (dirs === undefined) delete process.env.KARDATA_IMPORT_DIRS;

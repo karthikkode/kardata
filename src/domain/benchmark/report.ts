@@ -11,6 +11,7 @@ import { FEE_COLLECTOR } from "./fees.js";
 import { CLIENT_MEASURES, MEASURES, type ClientRanges, type MeasureValues } from "./measures.js";
 import { websiteCheckKey, websiteInputs } from "./website-input.js";
 import { sectorData } from "./sector-data.js";
+import { growthMeasureLabels, growthWindows } from "./windows.js";
 
 type Gap = { companyId: string; status: string; reason?: string };
 type SnapshotDiagnostics = { ambiguous: { companyId: string; reason: string }[];
@@ -123,6 +124,7 @@ export async function benchmarkReport(db: Db, input: {
     input.revision ? sql`${sources.details}->>'release' = ${input.revision}` : undefined))
     .orderBy(desc(sources.fetchedAt), desc(sources.id)).limit(1) : [];
   const revision = computation?.details?.release;
+  const windows = growthWindows(computation?.details?.snapshots);
   const measures = revision ? await db.select({ value: facts.valueJson }).from(facts)
     .where(and(eq(facts.createdBy, BENCHMARK_COLLECTOR), inArray(facts.companyId, companyIds),
       sql`${facts.qualifiers}->>'revision' = ${revision}`)) : [];
@@ -164,7 +166,8 @@ export async function benchmarkReport(db: Db, input: {
     matchCounts, diagnosticsComplete: diagnostics !== undefined, exceptions: exceptions.slice(offset, offset + limit),
     nextOffset: offset + limit < exceptions.length ? offset + limit : null,
     fees: { available: currentFees.size, unavailable: statusRows.length - currentFees.size, classifications: feeClassifications, fields: feeFields },
-    schedules, benchmark: { revision: revision ?? null, measures: measuresCoverage, clientRanges },
+    schedules, benchmark: { revision: revision ?? null, measures: measuresCoverage, clientRanges,
+      growthWindows: windows, measureLabels: growthMeasureLabels(windows) },
     website: { statuses: websiteStatuses, clientPageStatuses, missing: members.length - websiteRows.length,
       configured: vendorData !== null,
       uncheckedSharedDomain: [...sites.values()].filter(site => site.shared).length,
