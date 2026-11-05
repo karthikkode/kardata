@@ -4,7 +4,7 @@ import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
 import { sources } from "../../db/schema.js";
 import { getImportDirs } from "../../lib/env.js";
-import { forEachZipCsv, zipMembers } from "../../lib/sec/archive.js";
+import { forEachZipCsv, zipMembers, type ArchiveCsvReport } from "../../lib/sec/archive.js";
 import { parseMoneyField, parseSecDate } from "../../lib/sec/parse.js";
 import { DomainError } from "../errors.js";
 import { checkImportPaths } from "../imports.js";
@@ -181,29 +181,33 @@ export async function importSchedules(db: Db, input: {
   if (!base) throw new DomainError("file_error", "missing IA_ADV_Base_A in part 1");
   const filings = new Map<string, Filing>();
   const crds = new Set(byCrd.keys());
-  await forEachZipCsv(paths[0]!, base, row => selectFiling(filings, row, crds, cutoff), ["FilingID", "DateSubmitted", "1E1"]);
+  const parsing: ArchiveCsvReport[] = [];
+  parsing.push(await forEachZipCsv(paths[0]!, base, row => selectFiling(filings, row, crds, cutoff), ["FilingID", "DateSubmitted", "1E1"]));
   const byFiling = new Map([...filings.values()].map(filing => [filing.id, filing]));
   const baseB = member(0, "IA_ADV_Base_B");
-  if (input.snapshotDate && baseB) await forEachZipCsv(paths[0]!, baseB, row => {
+  if (input.snapshotDate && baseB) parsing.push(await forEachZipCsv(paths[0]!, baseB, row => {
     const filing = byFiling.get(row["FilingID"]!);
     if (filing) filing.baseB = row;
-  }, ["FilingID"]);
+  }, ["FilingID"]));
   const byTable = new Map<string, Partial<Record<Section, Row[]>>>();
   const missingTables: string[] = [];
   for (const table of TABLES) {
     const entry = member(table.part, table.name);
     if (!entry) { missingTables.push(table.name); continue; }
     if (input.snapshotDate) continue;
-    await forEachZipCsv(paths[table.part]!, entry, row => {
+    parsing.push(await forEachZipCsv(paths[table.part]!, entry, row => {
       const id = row["FilingID"] ?? row["Filing ID"];
       if (!id || !byFiling.has(id)) return;
       const tables = byTable.get(id) ?? {};
       (tables[table.section] ??= []).push(row);
       byTable.set(id, tables);
-    }, [...table.headers]);
+    }, [...table.headers]));
   }
-  const counts = { matched: filings.size, missing: selected.length - filings.size, missingTables, written: 0 };
+  const counts = { matched: filings.size, missing: selected.length - filings.size, missingTables, written: 0, parsing };
   if (input.dryRun !== false) return counts;
+  if (parsing.some(file => file.rejected > 0)) {
+    throw new DomainError("file_error", "archive contains rejected CSV rows; inspect the dry-run parsing report before importing");
+  }
   const urls = [input.part1Url, input.part2Url];
   const digests = await Promise.all(paths.map(fileDigest));
   const files = await db.transaction(async tx => {

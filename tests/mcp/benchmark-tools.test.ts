@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
+import { Readable } from "node:stream";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { and, eq, inArray, sql } from "drizzle-orm";
@@ -8,6 +9,7 @@ import { companies, facts, records, sectorCompanies, sources } from "../../src/d
 import { startServer } from "../../src/server.js";
 import { ensureMigrated, fixtureImportDirs, getTestDb, resetTestDb } from "../db.js";
 import * as websiteCollector from "../../src/collect/collectors/website-software.js";
+import * as archive from "../../src/lib/sec/archive.js";
 
 const handle = getTestDb();
 const token = "benchmark-test";
@@ -188,6 +190,52 @@ it("imports archived schedules for the latest qualifying filing and reuses its e
     });
     expect(await data("sec_adv_schedules_import", { ...args, dryRun: false })).toMatchObject({ written: 0 });
     expect(await handle.db.select().from(sources)).toHaveLength(4);
+  } finally {
+    if (dirs === undefined) delete process.env.KARDATA_IMPORT_DIRS;
+    else process.env.KARDATA_IMPORT_DIRS = dirs;
+  }
+});
+
+it.each([false, true])("reports tolerant/rejected archive rows through MCP before any writes (rejected=%s)", async rejected => {
+  const { sectorId } = await setup();
+  const companyId = randomUUID();
+  await handle.db.insert(companies).values({ id: companyId, name: "Synthetic archive firm", source: "sec", secCrd: "910001" });
+  await handle.db.insert(sectorCompanies).values({ companyId, sectorId, addedVia: "sec" });
+  const original = archive.forEachZipCsv;
+  // Substitute synthetic CSV bytes for one member; exercise the real stream parser and MCP/domain path.
+  vi.spyOn(archive, "forEachZipCsv").mockImplementation((path, member, visit, required) => {
+    if (!member.name.includes("IA_Schedule_D_7A_")) return original(path, member, visit, required);
+    const csv = 'FilingID,Legal Name,Custodian,Type\n11,"Fixture "Custodian, Bank" LLC",Y,Add\n' +
+      (rejected ? "11,Missing,Column\n" : "");
+    return archive.readArchiveCsv(Readable.from([csv]), member.name, visit, required);
+  });
+  const dirs = process.env.KARDATA_IMPORT_DIRS;
+  process.env.KARDATA_IMPORT_DIRS = fixtureImportDirs().join(",");
+  const args = { sectorId,
+    part1Path: join(fixtureImportDirs()[0]!, "sec-adv-history-a.zip"),
+    part2Path: join(fixtureImportDirs()[0]!, "sec-adv-history-b.zip"),
+    part1Url: "https://www.sec.gov/synthetic-a.zip", part2Url: "https://www.sec.gov/synthetic-b.zip" };
+  try {
+    const dry = await data<{ parsing: archive.ArchiveCsvReport[] }>("sec_adv_schedules_import", args);
+    expect(dry.parsing).toHaveLength(6);
+    expect(dry.parsing.find(file => file.file.includes("IA_Schedule_D_7A_"))).toMatchObject({
+      rows: rejected ? 2 : 1, accepted: 1, tolerant: 1, rejected: rejected ? 1 : 0,
+      rejections: rejected ? [{ line: 3, endLine: 3, expectedColumns: 4, actualColumns: 3 }] : [],
+    });
+    expect(await handle.db.select().from(sources)).toHaveLength(0);
+    const result = await call("sec_adv_schedules_import", { ...args, dryRun: false });
+    if (rejected) {
+      expect(result.isError).toBe(true);
+      expect(result.content).toEqual(expect.arrayContaining([expect.objectContaining({ text: expect.stringContaining("rejected CSV rows") })]));
+      expect(await handle.db.select().from(sources)).toHaveLength(0);
+      expect(await handle.db.select().from(records)).toHaveLength(0);
+    } else {
+      expect(result.isError).toBeUndefined();
+      const [record] = await handle.db.select().from(records).where(and(eq(records.companyId, companyId), eq(records.type, "sec_adv_schedules")));
+      expect(record?.data.custodians).toEqual(expect.arrayContaining([
+        expect.objectContaining({ name: 'Fixture "Custodian, Bank" LLC', sections: ["7.A"] }),
+      ]));
+    }
   } finally {
     if (dirs === undefined) delete process.env.KARDATA_IMPORT_DIRS;
     else process.env.KARDATA_IMPORT_DIRS = dirs;
