@@ -408,3 +408,71 @@ it.each([[1, true], [0.1, false], [3.01, false]] as const)("checks the %s percen
   expect(result.schedules[0]?.flags.includes("rate_review")).toBe(!eligible);
   expect(result.at1m?.dollars).toBe(eligible ? 40_000 : undefined);
 });
+
+it("keeps grandfathered and other date-restricted tables scoped with their eligibility citations", () => {
+  const grandfathered = "Clients who opened accounts before 2010 retain the previous fee schedule.";
+  const dated = "This table is available only to clients in the 2010 enrollment group.";
+  const restricted = [
+    { ...standard, name: "Legacy wealth management", category: "legacy", scope: quote(grandfathered) },
+    { ...standard, category: "cohort", scope: quote(dated) },
+  ];
+  const result = summarize(restricted, [grandfathered, dated]);
+  expect(result).toMatchObject({ primaryScheduleIndex: null, at1m: null, at5m: null });
+  expect(result.schedules).toMatchObject([
+    { role: "scoped", scopeType: "legacy", scope: { quote: grandfathered } },
+    { role: "scoped", scopeType: "cohort", scope: { quote: dated } },
+  ]);
+  expect(summarize([...restricted, standard], [grandfathered, dated]).primaryScheduleIndex).toBe(2);
+});
+
+it("applies a waivable annual minimum to standard fees at both balances", () => {
+  const rate = "The posted annual fee is 1%.";
+  const minimum = "Our annual minimum is $50,000. The adviser may make exceptions.";
+  const result = summarize([{ ...standard, tiers: [band(0, null, 1, rate)], terms: [{
+    field: "minimum_annual_fee", amount: 50_000, condition: "waivable", value: "Annual fee minimum", evidence: quote(minimum),
+  }] }], [rate, minimum]);
+  expect(result).toMatchObject({ at1m: { dollars: 50_000 }, at5m: { dollars: 50_000 }, minimumAnnualFee: 50_000,
+    terms: { minimum_annual_fee: [{ condition: "waivable" }] } });
+  expect(result.flags).not.toContain("rate_review");
+});
+
+it("withholds a balance below a waivable account minimum", () => {
+  const rate = "The posted annual fee is 1%.";
+  const minimum = "The minimum account size is $2,000,000, subject to discretionary waiver.";
+  const result = summarize([{ ...standard, tiers: [band(0, null, 1, rate)], terms: [{
+    field: "minimum_account_size", amount: 2_000_000, condition: "waivable", value: "Account minimum", evidence: quote(minimum),
+  }] }], [rate, minimum]);
+  expect(result).toMatchObject({ minimumAccountSize: 2_000_000, at1m: null, at5m: { dollars: 50_000 },
+    scenarios: { cliff: { at1m: null, at5m: { dollars: 50_000 } } } });
+  expect(result.schedules[0]?.scenarioGaps).toContain("a balance below the published account minimum requires a waiver");
+});
+
+it("keeps comparable fees when the brochure has no account minimum and reserves termination discretion", () => {
+  const rate = "The posted annual fee is 1%.";
+  const account = "There is no account minimum. We may close accounts too small to service.";
+  const result = summarize([{ ...standard, tiers: [band(0, null, 1, rate)], terms: [{
+    field: "minimum_account_size", amount: null, condition: "none", value: "No account minimum", evidence: quote(account),
+  }] }], [rate, account]);
+  expect(result).toMatchObject({ classification: "comparable", minimumAccountSize: null,
+    at1m: { dollars: 10_000 }, at5m: { dollars: 50_000 } });
+});
+
+it("keeps a platform-only price scoped, and a diversified portfolio table eligible for primary", () => {
+  const platform = "This 0.85% fee applies only to clients who use the online portfolio product.";
+  const diversified = "Standard diversified portfolios hold a mix of equities, bonds, and other investments.";
+  const bonds = "The 0.45% rate is for the single-asset bond mandate.";
+  const blend = "The fee for diversified portfolios is 1%.";
+  const result = summarize([
+    { ...standard, category: "product", scope: quote(platform), tiers: [band(0, null, 0.85, platform)] },
+    { ...standard, scope: quote(diversified), tiers: [band(0, null, 1, blend)] },
+    { ...standard, category: "product", scope: quote(bonds), tiers: [band(0, null, 0.45, bonds)] },
+  ], [platform, diversified, bonds, blend]);
+  expect(result).toMatchObject({ primaryScheduleIndex: 1, at1m: { dollars: 10_000 }, at5m: { dollars: 50_000 } });
+  expect(result.schedules).toMatchObject([
+    { role: "scoped", scopeType: "product", scope: { quote: platform }, at1m: { dollars: 8_500 } },
+    { role: "primary", scopeType: "standard" },
+    { role: "scoped", scopeType: "product" },
+  ]);
+  expect(summarize([{ ...standard, category: "product", scope: quote(platform),
+    tiers: [band(0, null, 0.85, platform)] }], [platform]).primaryScheduleIndex).toBeNull();
+});
