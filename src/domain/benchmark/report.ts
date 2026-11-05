@@ -73,12 +73,15 @@ export async function benchmarkReport(db: Db, input: {
   const terms = ["types", "tier_method", "minimum_annual_fee", "minimum_account_size", "billing_cadence",
     "billing_timing", "value_basis", "negotiable", "household_grouping", "proration", "termination_refund"];
   const feeFields = Object.fromEntries([...terms, "tiers", "at1m", "at5m", "primaryAt1m", "primaryAt5m"].map(field => [field, { value: 0, notStated: 0, missing: members.length }]));
-  const feeClassifications: Record<string, number> = {};
+  const reviewFailed = statusRows.filter(row => row.valueText === "review_failed").length;
+  const feeClassifications: Record<string, number> = reviewFailed ? { review_failed: reviewFailed } : {};
   for (const row of feeFacts) {
     if (!currentFees.has(row.companyId) || row.qualifiers.input !== currentFees.get(row.companyId)) continue;
-    const fee = row.valueJson as { classification?: string; coverage?: { complete: boolean }; schedules?: { tiers: unknown[]; method: string | null; terms: { field: string }[] }[]; terms: Record<string, unknown>; tiers: unknown[]; at1m: unknown; at5m: unknown;
+    const fee = row.valueJson as { classification?: string; coverage?: { complete: boolean; gaps?: string[] }; schedules?: { tiers: unknown[]; method: string | null; terms: { field: string }[] }[]; terms: Record<string, unknown>; tiers: unknown[]; at1m: unknown; at5m: unknown;
       scenarios?: Partial<Record<"marginal" | "cliff", { at1m: unknown; at5m: unknown }>> };
-    const classification = fee.classification ?? "legacy";
+    const historicalUncertain = fee.classification === "no_price" && fee.coverage?.gaps?.some(gap =>
+      ["Unsupported schedule scope", "Unsupported tier rate or boundary", "Unsupported fee rate bounds"].includes(gap));
+    const classification = historicalUncertain ? "review_failed" : fee.classification ?? "legacy";
     feeClassifications[classification] = (feeClassifications[classification] ?? 0) + 1;
     for (const field of terms) {
       const coverage = feeFields[field]!;

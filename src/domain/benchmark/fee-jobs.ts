@@ -147,6 +147,8 @@ function accumulate(previous: FeeMetrics | undefined, result: FeeMetrics): FeeMe
     ...result, attempts: previous.attempts + result.attempts, retries: previous.retries + result.retries,
     unmeteredAttempts: previous.unmeteredAttempts + result.unmeteredAttempts, elapsedMs: previous.elapsedMs + result.elapsedMs,
     inputTokens: sum(previous.inputTokens, result.inputTokens), outputTokens: sum(previous.outputTokens, result.outputTokens),
+    groundingRejections: previous.groundingRejections || result.groundingRejections
+      ? [...previous.groundingRejections ?? [], ...result.groundingRejections ?? []] : undefined,
     models: [...new Set([...(previous.models ?? []), ...(result.models ?? [])])],
   };
 }

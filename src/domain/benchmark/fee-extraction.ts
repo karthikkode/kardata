@@ -99,57 +99,87 @@ function supportedNumber(value: number, text: string, percentage = false) {
     Number(match[1]!.replace(/,/g, "")) * (percentage ? 1 : scales[match[2]?.toLowerCase() ?? ""] ?? 1) === value);
 }
 
-export function groundFeeReview(json: unknown, passages: Passage[]) {
+type Quote = z.infer<typeof evidence>;
+export type GroundingRejection = {
+  field: string;
+  excerptRef: string;
+  reason: string;
+  priced: boolean;
+  repair: "not_attempted" | "succeeded" | "failed";
+};
+type FailedQuote = Omit<GroundingRejection, "repair"> & { quote: string; sourceId?: string };
+const repairQuote = evidence.extend({ field: z.string() });
+export const feeRepairResponse = z.object({ replacements: z.array(repairQuote) });
+export const FEE_REPAIR_SCHEMA = JSON.stringify(obj({ replacements: array(obj({ field: str, ref: str, quote: str })) }));
+
+export function groundFeeReview(json: unknown, passages: Passage[], repairs: ReadonlyMap<string, Quote> = new Map()) {
   const raw = feeReviewResponse.parse(json);
   const byRef = new Map(passages.map(p => [p.ref, { ...p, normalized: normalizeForGrounding(p.text) }]));
   const issues: string[] = [];
-  const cite = (input: z.infer<typeof evidence>): Citation | null => {
-    const p = byRef.get(input.ref);
-    const needle = normalizeForGrounding(input.quote);
-    if (!p || needle.length < 2 || needle.length > 1600 || !p.normalized.includes(needle)) return null;
-    return { kind: p.kind, ref: p.ref, quote: input.quote, page: p.page, documentId: p.documentId, sourceId: p.sourceId, date: p.date };
+  const rejected: FailedQuote[] = [];
+  const reject = (field: string, input: Quote, reason: string, priced = false, sourceId?: string) => {
+    issues.push(reason);
+    rejected.push({ field, excerptRef: input.ref, quote: input.quote, reason, priced,
+      sourceId: sourceId ?? byRef.get(input.ref)?.sourceId });
   };
-  const groundedTerms = (items: z.infer<typeof term>[], sourceId?: string): FeeTerms => items.flatMap(item => {
-    const evidence = cite(item.evidence);
-    if (!evidence || (sourceId && evidence.sourceId !== sourceId) ||
-      (item.amount !== null && !supportedNumber(item.amount, item.evidence.quote))) {
-      issues.push(`Unsupported term: ${item.field}`);
+  const cite = (input: Quote, field: string, sourceId?: string): Citation | null => {
+    const replacement = repairs.get(field);
+    const quote = replacement ?? input;
+    const p = byRef.get(quote.ref);
+    const filing = sourceId ?? byRef.get(input.ref)?.sourceId;
+    const needle = normalizeForGrounding(quote.quote);
+    if (!p || (filing && p.sourceId !== filing) || needle.length < 2 || needle.length > 1600 || !p.normalized.includes(needle)) return null;
+    return { kind: p.kind, ref: p.ref, quote: quote.quote, page: p.page, documentId: p.documentId, sourceId: p.sourceId, date: p.date };
+  };
+  const groundedTerms = (items: z.infer<typeof term>[], prefix: string, sourceId?: string): FeeTerms => items.flatMap((item, index) => {
+    const field = `${prefix}.${index}.evidence`;
+    const evidence = cite(item.evidence, field, sourceId);
+    if (!evidence || (item.amount !== null && !supportedNumber(item.amount, evidence.quote))) {
+      reject(field, item.evidence, `Unsupported term: ${item.field}`, false, sourceId);
       return [];
     }
     return [{ ...item, evidence }];
   });
   const scheduleIndexes: number[] = [];
   const schedules = raw.schedules.flatMap((item, index) => {
-    const scope = cite(item.scope);
-    if (!scope) { issues.push("Unsupported schedule scope"); return []; }
-    const sameFiling = (value: z.infer<typeof evidence>) => {
-      const citation = cite(value);
-      return citation?.sourceId === scope.sourceId ? citation : null;
-    };
-    let methodEvidence = item.methodEvidence && sameFiling(item.methodEvidence);
-    const terms = groundedTerms(item.terms, scope.sourceId);
-    const conditions = item.conditions.flatMap(value => {
-      const evidence = sameFiling(value);
-      return evidence ? [evidence] : [];
-    });
+    const prefix = `schedules.${index}`;
+    const priced = item.tiers.length > 0 || !!item.rateBounds ||
+      (!["negotiated", "other"].includes(item.pricing) &&
+        [item.scope, ...item.conditions].some(citation => /\$\s*\d|\d\s*%/i.test(citation.quote)));
+    const citedScope = cite(item.scope, `${prefix}.scope`);
+    let sourceId = citedScope?.sourceId;
     const tiers: (Omit<z.infer<typeof tier>, "evidence"> & { evidence: Citation })[] = [];
     const invalidTierStarts: (number | null)[] = [];
-    for (const entry of item.tiers) {
-      const evidence = sameFiling(entry.evidence);
+    for (const [i, entry] of item.tiers.entries()) {
+      const field = `${prefix}.tiers.${i}.evidence`;
+      const evidence = cite(entry.evidence, field, sourceId);
+      const quote = evidence?.quote ?? "";
       const previous = tiers.at(-1);
       const adjacent = previous?.to != null && [0, 0.01, 1].includes(Math.round((entry.from - previous.to) * 100) / 100);
-      const increment = entry.to !== null && supportedNumber(entry.to - entry.from, entry.evidence.quote) &&
-        /\bnext\b/i.test(entry.evidence.quote);
-      if (!evidence || !supportedNumber(entry.rate_pct, entry.evidence.quote, true) ||
-        (entry.from !== 0 && !adjacent && !supportedNumber(entry.from, entry.evidence.quote)) ||
-        (entry.to !== null && !increment && !supportedNumber(entry.to, entry.evidence.quote))) {
-        issues.push("Unsupported tier rate or boundary");
-        const lowerGrounded = adjacent || (evidence && supportedNumber(entry.from, entry.evidence.quote));
+      const increment = entry.to !== null && supportedNumber(entry.to - entry.from, quote) && /\bnext\b/i.test(quote);
+      if (!evidence || !supportedNumber(entry.rate_pct, quote, true) ||
+        (entry.from !== 0 && !adjacent && !supportedNumber(entry.from, quote)) ||
+        (entry.to !== null && !increment && !supportedNumber(entry.to, quote))) {
+        reject(field, entry.evidence, "Unsupported tier rate or boundary", true, sourceId);
+        const lowerGrounded = adjacent || (evidence && supportedNumber(entry.from, quote));
         invalidTierStarts.push(entry.from === 0 || lowerGrounded ? entry.from : null);
         continue;
       }
+      sourceId ??= evidence.sourceId;
       tiers.push({ ...entry, evidence });
     }
+    const scope = citedScope ?? tiers[0]?.evidence;
+    if (!citedScope) reject(`${prefix}.scope`, item.scope, "Unsupported schedule scope", priced, sourceId);
+    const methodField = `${prefix}.methodEvidence`;
+    let methodEvidence = item.methodEvidence && cite(item.methodEvidence, methodField, sourceId);
+    if (item.methodEvidence && !methodEvidence) reject(methodField, item.methodEvidence, "Unsupported tier method citation", false, sourceId);
+    const terms = groundedTerms(item.terms, `${prefix}.terms`, sourceId);
+    const conditions = item.conditions.flatMap((value, index) => {
+      const field = `${prefix}.conditions.${index}`;
+      const evidence = cite(value, field, sourceId);
+      if (!evidence) reject(field, value, "Unsupported schedule condition", false, sourceId);
+      return evidence ? [evidence] : [];
+    });
     let method = methodEvidence ? item.method : null;
     if (tiers.length > 1) {
       const successive = tiers.find((row, i) => i > 0 && /\bnext\s+\$/i.test(row.evidence.quote));
@@ -169,43 +199,47 @@ export function groundFeeReview(json: unknown, passages: Passage[]) {
           const original = /\bthe\s+annual\s+fee\s+is\s+calculated\s+based\s+(?:up)?on\s+the\s+total\s+value\s+of\s+your\s+account\b/i.exec(passage.text)?.[0];
           if (original && normalizeForGrounding(original) === whole[0]) {
             method = "cliff";
-            methodEvidence = cite({ ref: last.ref, quote: original });
+            methodEvidence = { ...last, quote: original };
           }
         }
       }
     }
     if (!method && tiers.length === 1 && tiers[0]?.to === null) method = "cliff";
     const bounds = item.rateBounds;
-    const boundsCitation = bounds && sameFiling(bounds.evidence);
+    const boundsField = `${prefix}.rateBounds.evidence`;
+    const boundsCitation = bounds && cite(bounds.evidence, boundsField, sourceId);
     const values = bounds ? [bounds.lower_pct, bounds.upper_pct].filter((value): value is number => value !== null) : [];
     const rateBounds = bounds && boundsCitation && values.length && values.every(value => supportedNumber(value, boundsCitation.quote, true)) &&
       (bounds.lower_pct === null || bounds.upper_pct === null || bounds.lower_pct <= bounds.upper_pct)
       ? { ...bounds, evidence: boundsCitation } : null;
-    if (bounds && !rateBounds) issues.push("Unsupported fee rate bounds");
+    if (bounds && !rateBounds) reject(boundsField, bounds.evidence, "Unsupported fee rate bounds", true, sourceId);
+    if (!scope) return [];
     const blocked = item.blocksExact || conditions.length !== item.conditions.length ||
-      item.terms.some(term => term.amount !== null && !terms.some(value => value.evidence.ref === term.evidence.ref &&
-        value.evidence.quote === term.evidence.quote && value.field === term.field && value.amount === term.amount));
+      rejected.some(issue => issue.field.startsWith(`${prefix}.terms.`) &&
+        item.terms[Number(issue.field.split(".")[3])]?.amount != null);
     const category = item.category === "standard" && scope.kind !== "firm" ? (scope.kind === "wrap" ? "program" : "unclear") : item.category;
     scheduleIndexes.push(index);
-    return [{ ...item, category, scope, method, methodEvidence, tiers, invalidTierStarts, rateBounds, terms, conditions, blocksExact: blocked }];
+    return [{ ...item, category, scope, scopeUnverified: !citedScope, method, methodEvidence, tiers, invalidTierStarts, rateBounds, terms, conditions, blocksExact: blocked }];
   });
-  const terms = groundedTerms(raw.terms);
-  const findings = raw.findings.flatMap(item => {
-    const evidence = cite(item.evidence);
-    if (!evidence) { issues.push("Unsupported brochure finding"); return []; }
+  const terms = groundedTerms(raw.terms, "terms");
+  const findings = raw.findings.flatMap((item, index) => {
+    const field = `findings.${index}.evidence`;
+    const evidence = cite(item.evidence, field);
+    if (!evidence) { reject(field, item.evidence, "Unsupported brochure finding"); return []; }
     return [{ ...item, evidence }];
   });
-  const decisions = (raw.decisions ?? []).flatMap(edit => {
-    const evidence = cite(edit.evidence);
+  const decisions = (raw.decisions ?? []).flatMap((edit, index) => {
+    const field = `decisions.${index}.evidence`;
+    const evidence = cite(edit.evidence, field);
     if (!evidence || !edit.reason) {
-      issues.push("Unsupported fee schedule edit");
+      reject(field, edit.evidence, "Unsupported fee schedule edit");
       return [];
     }
     const replacement = edit.replacement === null ? null : scheduleIndexes.indexOf(edit.replacement);
     return [{ ...edit, replacement, evidence }];
   });
   return { schedules, terms, findings, issues, gaps: raw.gaps, inspect: raw.inspect,
-    needsFullDocument: raw.needsFullDocument ?? false, decisions };
+    needsFullDocument: raw.needsFullDocument ?? false, decisions, rejected };
 
 }
 
@@ -224,8 +258,9 @@ const mathTiers = (tiers: GroundedSchedule["tiers"]) => tiers.map(tier => ({
   from: tier.from, to: tier.to, rate_pct: tier.rate_pct, from_inclusive: tier.from_inclusive, to_inclusive: tier.to_inclusive,
 }));
 
-export function scopeType(schedule: Pick<GroundedSchedule, "name" | "category" | "scope">) {
+export function scopeType(schedule: Pick<GroundedSchedule, "name" | "category" | "scope"> & { scopeUnverified?: boolean }) {
   const { name, category, scope } = schedule;
+  if (schedule.scopeUnverified) return "unclear" as const;
   if (scope.kind === "wrap" || /^(?:optional\s+)?wrap(?: fee)?\b/i.test(name) ||
       /^(?:optional\s+)?wrap(?: fee)?\b/i.test(scope.quote)) return "wrap" as const;
   if (category === "fund" || /\bfunds?\b/i.test(name) ||
@@ -277,6 +312,7 @@ export function summarizeFeeReview(review: Review, preliminary: Review[], covera
     const tierMethodUnclear = priceBasis !== null && !schedule.method && tiers.length > 0;
     const conditionalMinimums = fee.conditional.length > 0 || account.conditional.length > 0;
     const flags = [
+      ...(schedule.scopeUnverified ? ["scope_unverified"] : []),
       ...(tierMethodUnclear ? ["tier_method_unclear"] : []),
       ...(conditionalMinimums ? ["conditional_minimum"] : []),
       ...(schedule.blocksExact || fee.unresolved || account.unresolved ? ["conditions_unresolved"] : []),
@@ -306,7 +342,7 @@ export function summarizeFeeReview(review: Review, preliminary: Review[], covera
       cliff: schedule.method === "cliff" || tierMethodUnclear ? scenariosFor("cliff") : null,
     };
     const comparable = (balance: number, posted: ReturnType<typeof effectiveFee>) => {
-      if (!posted || priceBasis !== "posted" || schedule.blocksExact ||
+      if (!posted || priceBasis !== "posted" || schedule.blocksExact || schedule.scopeUnverified ||
           account.conditional.some(term => term.amount === null || balance < term.amount) ||
           fee.conditional.some(term => term.amount === null || posted.dollars < term.amount)) return null;
       return posted;
@@ -332,7 +368,7 @@ export function summarizeFeeReview(review: Review, preliminary: Review[], covera
   const gaps = [...new Set([...coverage.gaps, ...review.gaps, ...review.issues, ...primaryScopeGap])];
   const hasScenario = (schedule: typeof schedules[number]) => Object.values(schedule.scenarios)
     .some(scenarios => scenarios?.at1m || scenarios?.at5m);
-  const noPrice = schedules.some(schedule => schedule.pricing === "negotiated") &&
+  const noPrice = !review.rejected.some(issue => issue.priced) && schedules.some(schedule => schedule.pricing === "negotiated") &&
     schedules.every(schedule => !schedule.tiers.length && !schedule.rateBounds);
   return {
     schedules, primaryScheduleIndex, findings: review.findings, preliminary, coverage: { ...coverage, gaps },
@@ -340,6 +376,7 @@ export function summarizeFeeReview(review: Review, preliminary: Review[], covera
       selected && hasScenario(selected) ? "primary_scenarios" :
       schedules.some(hasScenario) ? "program_only" :
       schedules.some(schedule => schedule.tiers.length) ? "tiers_unresolved" :
+      review.rejected.some(issue => issue.priced) && !schedules.some(schedule => schedule.rateBounds) ? "review_failed" :
       noPrice ? "no_price" :
       schedules.length || review.terms.length ? "terms_only" : "no_grounded_schedule",
     terms: termValues, benchmarkScope: selected?.scope ?? null, priceBasis: selected?.priceBasis ?? null,

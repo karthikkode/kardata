@@ -14,11 +14,11 @@ import { riaExtractorCall, riaProviderGate, withRiaProvider } from "../ria-steps
 import { riaStepPaused, RiaStepInterrupted, runRiaStep, type StepHandler } from "../ria-steps/runner.js";
 import { stepState } from "../ria-steps/status.js";
 import { lockEvidence } from "../sec-adv/evidence.js";
-import { FEE_SCHEMA, feeReviewResponse } from "./fee-extraction.js";
+import { FEE_REPAIR_SCHEMA, FEE_SCHEMA, feeRepairResponse, feeReviewResponse, type GroundingRejection } from "./fee-extraction.js";
 import { loadBrochureEvidence, needsWrapFiling, reviewBrochures } from "./brochure-review.js";
 
 export const FEE_COLLECTOR = "benchmark_fee_schedule";
-export const FEE_VERSION = "adv-2a-v4";
+export const FEE_VERSION = "adv-2a-v5";
 const fetchFeeBrochures = createBrochureStep(false, true);
 const ATTEMPTS = 3;
 
@@ -36,6 +36,7 @@ export interface FeeMetrics {
   reviewedPages?: number;
   readMode?: "item_5" | "full_fallback";
   scheduleDrops?: number;
+  groundingRejections?: GroundingRejection[];
   models?: string[];
 }
 
@@ -76,41 +77,47 @@ export function createFeeStep(call: ExtractorCall, observe: (metrics: FeeMetrics
         return { status: prior.status, inputHash, cached: true };
       }
       const runId = await getOrCreateManualRun(db, companyId);
-      const extraction = evidence.passages.length ? await reviewBrochures(evidence.passages, evidence, async prompt => {
+      const extraction = evidence.passages.length ? await reviewBrochures(evidence.passages, evidence, async (prompt, repair) => {
         for (let attempt = 1; ; attempt++) {
           metrics.attempts++;
           if (attempt > 1) metrics.retries++;
           let metered = false;
           try {
-            const extracted = await call({ runId, area: "fee_schedule", prompt, schema: FEE_SCHEMA });
+            const extracted = await call({ runId, area: "fee_schedule", prompt, schema: repair ? FEE_REPAIR_SCHEMA : FEE_SCHEMA });
             if (extracted.usage) {
               metered = true;
               metrics.inputTokens = (metrics.inputTokens ?? 0) + extracted.usage.inputTokens + extracted.usage.cachedTokens;
               if (extracted.usage.model) metrics.models = [...new Set([...(metrics.models ?? []), extracted.usage.model])];
               metrics.outputTokens = (metrics.outputTokens ?? 0) + extracted.usage.outputTokens;
             }
-            return feeReviewResponse.parse(extracted.json);
+            return (repair ? feeRepairResponse : feeReviewResponse).parse(extracted.json);
           } catch (error) {
             if (error instanceof RiaStepInterrupted) {
               metrics.attempts--;
               if (attempt > 1) metrics.retries--;
               metered = true;
             }
-            if (terminalProviderError(error) || attempt === ATTEMPTS) throw error;
+            if (terminalProviderError(error)) throw error;
+            if (repair) return { replacements: [] };
+            if (attempt === ATTEMPTS) throw error;
           } finally {
             if (!metered) metrics.unmeteredAttempts++;
           }
         }
-      }) : null;
+      }, events => { (metrics.groundingRejections ??= []).push(...events); }) : null;
       if (extraction) {
         metrics.classification = extraction.classification;
         metrics.reviewedPages = extraction.coverage.reviewedPages;
         metrics.readMode = extraction.readMode;
         metrics.scheduleDrops = extraction.drops.length;
       } else if (evidence.gaps.length) reason = evidence.gaps.join("; ");
-      const usableFees = extraction && extraction.classification !== "no_grounded_schedule";
-      if (extraction && !usableFees) reason = ["No grounded fee terms in the reviewed brochure", ...extraction.coverage.gaps].join("; ");
-      const status = usableFees ? "available" : "unavailable";
+      const reviewFailed = extraction?.classification === "review_failed";
+      const usableFees = extraction && !reviewFailed && extraction.classification !== "no_grounded_schedule";
+      if (extraction && !usableFees) reason = [
+        reviewFailed ? "Priced schedule evidence failed grounding" : "No grounded fee terms in the reviewed brochure",
+        ...extraction.coverage.gaps,
+      ].join("; ");
+      const status = usableFees ? "available" : reviewFailed ? "review_failed" : "unavailable";
       await db.transaction(async tx => {
         await lockEvidence(tx, `company:${companyId}:fees`);
         const [existing] = await tx.select({ id: facts.id }).from(facts).where(and(eq(facts.companyId, companyId),
@@ -130,7 +137,10 @@ export function createFeeStep(call: ExtractorCall, observe: (metrics: FeeMetrics
             note: extraction.formula });
           const saved = await upsertRecords(tx, { companyId, runId, createdBy: FEE_COLLECTOR, records: [{
             type: "fee_schedule_terms", naturalKey: ["input_hash"], sourceIds,
-            data: { input_hash: inputHash, brochure_date: evidence.date, extraction: summary, preliminary },
+            data: { input_hash: inputHash, brochure_date: evidence.date, extraction: summary, preliminary: preliminary.map(({ rejected, ...review }) => {
+              void rejected;
+              return review;
+            }) },
           }] });
           if (!saved[0]?.ok) throw new Error("could not save grounded fee terms");
         }
@@ -163,8 +173,17 @@ export function feePilotSummary(results: FeeMetrics[], cohortSize: number, elaps
   for (const row of measured) {
     if (row.classification) classifications[row.classification] = (classifications[row.classification] ?? 0) + 1;
   }
+  const rejections = results.flatMap(row => row.groundingRejections ?? []);
+  const grounding = {
+    firms: results.filter(row => row.groundingRejections?.length).length,
+    pricedFirms: results.filter(row => row.groundingRejections?.some(event => event.priced)).length,
+    rejections: rejections.length,
+    repaired: rejections.filter(event => event.repair === "succeeded").length,
+    failedRepairs: rejections.filter(event => event.repair === "failed").length,
+    notAttempted: rejections.filter(event => event.repair === "not_attempted").length,
+  };
   return {
-    measured: size, classifications, interrupted: results.filter(row => row.outcome === "interrupted").length, meanRetries: size ? retries / size : 0,
+    measured: size, classifications, grounding, interrupted: results.filter(row => row.outcome === "interrupted").length, meanRetries: size ? retries / size : 0,
     gaps: measured.filter(row => row.outcome === "gap").length, failures: measured.filter(row => row.outcome === "failed").length,
     missingTokenReports,
     projected: size ? { companies: cohortSize, inputTokens: Math.ceil(input * cohortSize / size),

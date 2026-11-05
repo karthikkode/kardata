@@ -196,3 +196,56 @@ it("makes one targeted read for pages missed by the fallback and reports any sti
     schedules: [{ role: "scoped", at1m: { dollars: 10_000 }, at5m: { dollars: 50_000 } }] });
   expect(result.coverage.gaps).toContain("Requested fee excerpts not supplied after bounded fallback: p14, p15");
 });
+
+it("repairs a rejected scope quote using the original OCR text and preserves both tier readings", async () => {
+  const { reviewBrochures } = await import("../../src/domain/benchmark/brochure-review.js");
+  const printedScope = "W ealt h Portfolio Management Fees";
+  const first = "$0 - $249,999 3.00%";
+  const second = "$250,000 - $999,999 2.00%";
+  const last = "$1,000,000 - AND UP 1.00%";
+  const item = { ...passage, text: [printedScope, first, second, last].join("\n") };
+  const proposal = { ...schedule, scope: cite("Wealth Portfolio Management Fees"), tiers: [
+    { from: 0, to: 249_999, rate_pct: 3, from_inclusive: true, to_inclusive: true, evidence: cite(first) },
+    { from: 250_000, to: 999_999, rate_pct: 2, from_inclusive: true, to_inclusive: true, evidence: cite(second) },
+    { from: 1_000_000, to: null, rate_pct: 1, from_inclusive: true, to_inclusive: null, evidence: cite(last) },
+  ] };
+  const calls: boolean[] = [];
+  const result = await reviewBrochures([item], { complete: true, gaps: [], item5: [item] }, async (prompt, repair) => {
+    calls.push(!!repair);
+    if (!repair) return { ...response, schedules: [proposal] };
+    expect(prompt).toContain("Wealth Portfolio Management Fees");
+    expect(prompt).toContain(printedScope);
+    return { replacements: [{ field: "schedules.0.scope", ...cite(printedScope) }] };
+  });
+  expect(calls).toEqual([false, true]);
+  expect(result).toMatchObject({ classification: "primary_scenarios", flags: ["tier_method_unclear"], scenarios: {
+    cliff: { at1m: { dollars: 10_000 }, at5m: { dollars: 50_000 } },
+    marginal: { at1m: { dollars: 22_499.98 }, at5m: { dollars: 62_499.98 } },
+  }, groundingRejections: [{ field: "read.1.schedules.0.scope", excerptRef: "p7", reason: "Unsupported schedule scope",
+    priced: true, repair: "succeeded" }] });
+});
+
+it("keeps grounded tiers as scope_unverified when the only repair fails", async () => {
+  const { reviewBrochures } = await import("../../src/domain/benchmark/brochure-review.js");
+  const result = await reviewBrochures([passage], { complete: true, gaps: [], item5: [passage] }, async (_prompt, repair) =>
+    repair ? { replacements: [{ field: "schedules.0.scope", ...cite("Still absent") }] } :
+      { ...response, schedules: [{ ...schedule, scope: cite("Missing scope") }] });
+  expect(result).toMatchObject({ classification: "program_only", primaryScheduleIndex: null, at1m: null,
+    schedules: [{ role: "scoped", flags: ["scope_unverified"], scope: { quote: flat }, at1m: null,
+      scenarios: { cliff: { at1m: { dollars: 10_000 }, at5m: { dollars: 50_000 } } } }],
+    groundingRejections: [{ priced: true, repair: "failed" }] });
+});
+
+it("records review_failed when an ungrounded price would otherwise yield no_price", async () => {
+  const { reviewBrochures } = await import("../../src/domain/benchmark/brochure-review.js");
+  const result = await reviewBrochures([passage], { complete: true, gaps: [], item5: [passage] }, async (_prompt, repair) =>
+    repair ? { replacements: [] } : { ...response, schedules: [
+      { ...schedule, scope: cite("Missing scope"), tiers: [{ ...schedule.tiers[0], rate_pct: 3 }] },
+      { ...schedule, name: "Consulting", scope: cite(wrap), pricing: "negotiated", tiers: [] },
+    ] });
+  expect(result).toMatchObject({ classification: "review_failed", schedules: [{ pricing: "negotiated" }],
+    groundingRejections: expect.arrayContaining([
+      { field: "read.1.schedules.0.tiers.0.evidence", excerptRef: "p7", reason: "Unsupported tier rate or boundary", priced: true, repair: "failed" },
+      { field: "read.1.schedules.0.scope", excerptRef: "p7", reason: "Unsupported schedule scope", priced: true, repair: "failed" },
+    ]) });
+});

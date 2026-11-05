@@ -68,10 +68,14 @@ it("returns a job ID, exposes per-firm progress and shares a single durable clai
   const landed = new Promise<void>(resolve => { markLanded = resolve; });
   const release = new Promise<void>(resolve => { releaseWave = resolve; });
   const reviewed: string[] = [];
+  const firstResult = result(input.companyIds[0]!, { groundingRejections: [{
+    field: "read.1.schedules.0.scope", excerptRef: "page-5", reason: "Unsupported schedule scope",
+    priced: true, repair: "succeeded",
+  }] });
   const worker = createBenchmarkFeeWorker(handle.db, async (_db, wave) => {
     for (const id of wave.companyIds) {
       reviewed.push(id);
-      await wave.onResult(result(id));
+      await wave.onResult(reviewed.length === 1 ? firstResult : result(id));
       if (reviewed.length === 1) {
         markLanded();
         await release;
@@ -85,7 +89,8 @@ it("returns a job ID, exposes per-firm progress and shares a single durable clai
   try {
     await contender.tick();
     expect(await data("benchmark_fees_status", { jobId: requestId })).toMatchObject({
-      status: "running", finished: 1, pending: 19, results: [result(input.companyIds[0]!)],
+      status: "running", finished: 1, pending: 19, results: [firstResult],
+      summary: { grounding: { firms: 1, pricedFirms: 1, rejections: 1, repaired: 1, failedRepairs: 0 } },
     });
   } finally {
     releaseWave();

@@ -60,7 +60,7 @@ export function registerBenchmarkTools(server: McpServer, db: Db, auth: AuthCont
   }));
 
   registerTool(server, db, auth, "benchmark_fees_status", {
-    description: "Read a background fee job's current state, completed counts, per-firm telemetry, and eligible-cohort projection.",
+    description: "Read a background fee job's current state, completed counts, per-firm telemetry including grounding repairs, and eligible-cohort projection.",
     inputSchema: { jobId: z.string().uuid(), offset: z.number().int().nonnegative().optional(), limit: z.number().int().min(1).max(200).optional() },
     annotations: { readOnlyHint: true },
   }, async ({ jobId, offset, limit }) => wrap(async () => {
