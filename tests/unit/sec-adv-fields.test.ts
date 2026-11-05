@@ -24,3 +24,20 @@ it("parses the same synthetic snapshot in a compressed SEC ZIP", () => {
   expect(parseSecCsv(file.text).rows).toHaveLength(5);
   expect(decodeSecCsv(Buffer.from([0x63, 0x61, 0x66, 0xe9]))).toBe("café");
 });
+
+it("does not infer clients from zero category AUM, even when category AUM reconciles", () => {
+  const raw = Object.fromEntries("abcdefghijklmn".split("").flatMap(letter => [
+    [`5D(${letter})(1)`, "0"], [`5D(${letter})(3)`, "0"],
+  ]));
+  raw["5D(a)(1)"] = "10";
+  raw["5D(a)(3)"] = "100";
+  raw["5F(2)(c)"] = "100";
+  // Advisory clients with no regulatory AUM still count (SEC Item 5.C/5.D FAQ).
+  raw["5D(b)(1)"] = "7";
+  const values = () => Object.fromEntries(snapshotValues(raw).map(item => [item.key, item.value]));
+  expect(values()["firm.client_total"]).toBe(17);
+  raw["5D(b)(1)"] = "";
+  expect(values()).not.toHaveProperty(["firm.client_total"]);
+  raw["5D(b)(3)"] = "50";
+  expect(values()).not.toHaveProperty(["firm.client_total"]);
+});
