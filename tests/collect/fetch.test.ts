@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import type { DbHandle } from "../../src/db/client.js";
 import {
@@ -63,6 +63,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.unstubAllGlobals();
   await site.close();
 });
 
@@ -71,6 +72,70 @@ afterAll(async () => {
 });
 
 describe("fetcher", () => {
+  it.each([
+    ["https://www.strip.example", "https://strip.example"],
+    ["https://add.example", "https://www.add.example"],
+    ["http://upgrade.example", "https://upgrade.example"],
+  ])("allows same-site robots and page redirects %s → %s", async (from, to) => {
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (raw: string) => {
+      calls.push(raw);
+      if (raw.startsWith(from + "/")) return new Response(null, { status: 301, headers: { location: raw.replace(from, to) } });
+      return new Response(raw.endsWith("robots.txt") ? "User-agent: *\nDisallow:\n" : "<p>ok</p>",
+        { headers: { "content-type": "text/html" } });
+    }));
+    const result = await fetchUrl(handle.db, req(from + "/", { redirectSite: from, strictRobots: true,
+      privateHostAllowlist: [new URL(from).hostname, new URL(to).hostname] }));
+    expect(result.source.status).toBe("ok");
+    expect(result.source.finalUrl).toBe(to + "/");
+    expect(calls).toContain(to + "/robots.txt");
+    expect(calls).toContain(to + "/");
+  });
+
+  it("obeys disallow rules returned after a robots redirect without fetching the page", async () => {
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (raw: string) => {
+      calls.push(raw);
+      return raw === "https://www.deny.example/robots.txt"
+        ? new Response(null, { status: 301, headers: { location: "https://deny.example/robots.txt" } })
+        : new Response("User-agent: *\nDisallow: /private\n");
+    }));
+    const result = await fetchUrl(handle.db, req("https://www.deny.example/private", {
+      redirectSite: "https://www.deny.example", strictRobots: true,
+      privateHostAllowlist: ["www.deny.example", "deny.example"],
+    }));
+    expect(result.source.status).toBe("robots_disallowed");
+    expect(calls).toEqual(["https://www.deny.example/robots.txt", "https://deny.example/robots.txt"]);
+  });
+
+  it("checks the destination robots rules before following a same-site page redirect", async () => {
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (raw: string) => {
+      calls.push(raw);
+      if (raw.endsWith("/robots.txt")) return new Response("User-agent: *\nDisallow: /private\n");
+      return new Response(null, { status: 302, headers: { location: "https://moved.example/private" } });
+    }));
+    const result = await fetchUrl(handle.db, req("https://www.moved.example/", {
+      redirectSite: "https://www.moved.example", strictRobots: true,
+      privateHostAllowlist: ["www.moved.example", "moved.example"],
+    }));
+    expect(result.source.error).toBe("redirect disallowed by robots.txt");
+    expect(calls).not.toContain("https://moved.example/private");
+  });
+
+  it.each(["/robots.txt", "/"])("refuses another domain when %s redirects", async path => {
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (raw: string) => {
+      calls.push(raw);
+      if (raw.endsWith("/robots.txt") && path !== "/robots.txt") return new Response("User-agent: *\nDisallow:\n");
+      return new Response(null, { status: 302, headers: { location: "https://different.example" + path } });
+    }));
+    const result = await fetchUrl(handle.db, req("https://bounded.example/", {
+      redirectSite: "https://bounded.example", strictRobots: true, privateHostAllowlist: ["bounded.example"],
+    }));
+    expect(result.source.status).toBe("error");
+    expect(calls.every(url => new URL(url).hostname === "bounded.example")).toBe(true);
+  });
   it("fetches a page, stores the blob, and writes source plus event", async () => {
     site.routes.set("/", (_req, res) => sendText(res, "<html><body>Hello</body></html>"));
     const result = await fetchUrl(handle.db, req(`${site.baseUrl}/`));
@@ -410,7 +475,7 @@ it("checks strict redirect targets against robots without following cross-site o
   const options = { strictRobots: true, redirectHost: new URL(site.baseUrl).host };
   for (const path of ["/", "/other"]) {
     expect((await fetchUrl(handle.db, req(`${site.baseUrl}${path}`, options))).source.error)
-      .toBe("redirect outside the allowed site or path");
+      .toBe(path === "/" ? "redirect disallowed by robots.txt" : "redirect outside the allowed site or path");
   }
   expect(site.hits.map(hit => hit.path)).toEqual(["/robots.txt", "/", "/other"]);
 });

@@ -2,6 +2,7 @@ import { load } from "cheerio";
 import { z } from "zod";
 import type { Db } from "../../db/client.js";
 import { fetchUrl, type FetchResult } from "../fetch.js";
+import { sameSiteRedirect } from "../same-site.js";
 
 const host = z.string().regex(/^[a-z\d-]+(?:\.[a-z\d-]+)+$/);
 export const websiteVendorConfig = z.object({
@@ -60,7 +61,7 @@ export function inspectWebsiteSoftware(html: string, page: string, config: Websi
     if (matched) {
       const signal = { vendor: matched.vendor, category: matched.category, url: target.href, page: base.href };
       signals.set(`${signal.vendor}|${signal.url}`, signal);
-    } else if (!clientPage && node.tagName === "a" && target.host === base.host && target.href !== base.href && isClient) {
+    } else if (!clientPage && node.tagName === "a" && sameSiteRedirect(base, target) && target.href !== base.href && isClient) {
       clientPage = target.href;
     }
   });
@@ -70,6 +71,7 @@ export function inspectWebsiteSoftware(html: string, page: string, config: Websi
 function pageFailure(page: FetchResult) {
   if (page.source.status !== "ok" || page.text === undefined) {
     if (page.source.status === "robots_disallowed") return "robots_disallowed";
+    if (page.source.error === "redirect disallowed by robots.txt") return "robots_disallowed";
     if (page.source.status === "blocked") return "blocked";
     if (page.source.error === "robots.txt unavailable") return "robots_unavailable";
     if (page.source.error === "redirect outside the allowed site or path") return "blocked_redirect";
@@ -86,7 +88,7 @@ export async function collectWebsiteSoftware(db: Db, input: {
   const request = (url: string) => fetchPage(db, {
     companyId: input.companyId, runId: input.runId, collector: WEBSITE_SOFTWARE_COLLECTOR,
     url, accept: "text/html,application/xhtml+xml", maxBytes: 2 * 1024 * 1024,
-    redirectHost: input.homepage.host, strictRobots: true,
+    redirectSite: input.homepage.href, strictRobots: true,
   });
   const home = await request(input.homepage.href);
   const pages = [home.source];

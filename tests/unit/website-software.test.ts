@@ -30,7 +30,7 @@ it("fetches one homepage and at most one linked client page, with evidence", asy
   const result = await collectWebsiteSoftware(db, { companyId: "company", runId: "run", homepage, config }, async (_db, request: FetchRequest) => {
     calls.push(request.url);
     expect(request.strictRobots).toBe(true);
-    expect(request.redirectHost).toBe("firm.example");
+    expect(request.redirectSite).toBe(homepage.href);
     return { source: { finalUrl: request.url, status: "ok" }, text: calls.length === 1 ? html :
       '<iframe src="https://forms.example/client"></iframe><a href="/login-3">Client login</a>', contentType: "text/html" } as FetchResult;
   });
