@@ -1,5 +1,5 @@
 import { and, countDistinct, desc, eq, inArray, sql } from "drizzle-orm";
-import { WEBSITE_SCAN_TYPE } from "../../collect/collectors/website-software.js";
+import { WEBSITE_SCAN_TYPE, websiteVendorConfig } from "../../collect/collectors/website-software.js";
 import type { Db } from "../../db/client.js";
 import { facts, records, sources } from "../../db/schema.js";
 import { findEvidenceLibrary } from "../evidence-library.js";
@@ -8,7 +8,10 @@ import { SNAPSHOT_FIELDS } from "../sec-adv/fields.js";
 import { activeMembers } from "../sec-adv/snapshot.js";
 import { BENCHMARK_COLLECTOR } from "./compute.js";
 import { FEE_COLLECTOR } from "./fees.js";
-import { MEASURES, type MeasureValues } from "./measures.js";
+import { CLIENT_MEASURES, MEASURES, type ClientRanges, type MeasureValues } from "./measures.js";
+import { websiteCheckKey, websiteInputs } from "./website-input.js";
+import { sectorData } from "./sector-data.js";
+import { growthMeasureLabels, growthWindows } from "./windows.js";
 
 type Gap = { companyId: string; status: string; reason?: string };
 type SnapshotDiagnostics = { ambiguous: { companyId: string; reason: string }[];
@@ -121,14 +124,31 @@ export async function benchmarkReport(db: Db, input: {
     input.revision ? sql`${sources.details}->>'release' = ${input.revision}` : undefined))
     .orderBy(desc(sources.fetchedAt), desc(sources.id)).limit(1) : [];
   const revision = computation?.details?.release;
+  const windows = growthWindows(computation?.details?.snapshots);
   const measures = revision ? await db.select({ value: facts.valueJson }).from(facts)
     .where(and(eq(facts.createdBy, BENCHMARK_COLLECTOR), inArray(facts.companyId, companyIds),
       sql`${facts.qualifiers}->>'revision' = ${revision}`)) : [];
   const measuresCoverage = Object.fromEntries(MEASURES.map(key => [key, countsFor(measures.filter(row =>
     (row.value as { values: MeasureValues }).values[key] != null).length)]));
-  const websiteRows = await db.selectDistinctOn([records.companyId], { data: records.data }).from(records)
+  const clientRanges = Object.fromEntries(CLIENT_MEASURES.map(key => {
+    const exact = measures.filter(row => (row.value as { values: MeasureValues }).values[key] != null).length;
+    const range = measures.filter(row => (row.value as { clientRanges?: ClientRanges }).clientRanges?.[key] != null).length;
+    return [key, { exact, range, missing: members.length - exact - range }];
+  }));
+  const vendorData = await sectorData(db, input.sectorId, "website-vendors.json", true);
+  const websiteConfig = websiteVendorConfig.parse(vendorData ?? { excludedHosts: [], vendors: [] });
+  const sites = await websiteInputs(db, companyIds, websiteConfig);
+  const websiteHistory = await db.select({ companyId: records.companyId, data: records.data }).from(records)
     .where(and(eq(records.type, WEBSITE_SCAN_TYPE), inArray(records.companyId, companyIds)))
-    .orderBy(records.companyId, desc(records.updatedAt));
+    .orderBy(desc(records.updatedAt), desc(records.id));
+  const currentWebsites = new Map<string, typeof websiteHistory[number]>();
+  for (const row of websiteHistory) {
+    const key = websiteCheckKey(websiteConfig, sites.get(row.companyId)!);
+    if (key !== null && !currentWebsites.has(row.companyId) && row.data.check_key === key) {
+      currentWebsites.set(row.companyId, row);
+    }
+  }
+  const websiteRows = [...currentWebsites.values()];
   const categories = ["portal", "custodian", "scheduling", "form", "esign"];
   const websiteStatuses: Record<string, number> = {};
   const clientPageStatuses: Record<string, number> = {};
@@ -146,8 +166,11 @@ export async function benchmarkReport(db: Db, input: {
     matchCounts, diagnosticsComplete: diagnostics !== undefined, exceptions: exceptions.slice(offset, offset + limit),
     nextOffset: offset + limit < exceptions.length ? offset + limit : null,
     fees: { available: currentFees.size, unavailable: statusRows.length - currentFees.size, classifications: feeClassifications, fields: feeFields },
-    schedules, benchmark: { revision: revision ?? null, measures: measuresCoverage },
+    schedules, benchmark: { revision: revision ?? null, measures: measuresCoverage, clientRanges,
+      growthWindows: windows, measureLabels: growthMeasureLabels(windows) },
     website: { statuses: websiteStatuses, clientPageStatuses, missing: members.length - websiteRows.length,
+      configured: vendorData !== null,
+      uncheckedSharedDomain: [...sites.values()].filter(site => site.shared).length,
       fields: Object.fromEntries(categories.map(category => [category, countsFor(categoryCoverage.get(category) ?? 0)])) },
   };
 }

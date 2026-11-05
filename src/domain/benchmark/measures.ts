@@ -6,6 +6,7 @@ export type Snapshot = {
   clients: number | null; accounts: number | null; staff: number | null; advisoryStaff: number | null;
   aum: number | null; individualClients: number | null; hnwClients: number | null;
   individualAum: number | null; hnwAum: number | null;
+  clientsLow?: number | null; clientsHigh?: number | null;
 };
 
 type FeeAmount = { dollars: number; rate_pct: number };
@@ -37,6 +38,7 @@ export function primaryPeerFees(value: unknown): Fees | null {
 export const EMPTY_SNAPSHOT: Snapshot = {
   filingDate: null, clients: null, accounts: null, staff: null, advisoryStaff: null, aum: null,
   individualClients: null, hnwClients: null, individualAum: null, hnwAum: null,
+  clientsLow: null, clientsHigh: null,
 };
 
 const growthInputs = ["clients", "accounts", "staff", "advisoryStaff", "aum"] as const;
@@ -51,6 +53,46 @@ export type Measure = (typeof MEASURES)[number];
 export type MeasureValues = Record<Measure, number | null>;
 export type FeeMeasure = Extract<Measure, `fee_${string}`>;
 export type FeeRanges = Partial<Record<FeeMeasure, { low: number; high: number }>>;
+export const CLIENT_MEASURES = ["clients_per_staff", "clients_per_non_advisory_staff", "aum_per_client",
+  "clients_growth_1y_pct", "clients_growth_3y_pct"] as const satisfies readonly Measure[];
+export type ClientMeasure = typeof CLIENT_MEASURES[number];
+export type ClientRanges = Partial<Record<ClientMeasure, { low: number; high: number }>>;
+
+function clientBounds(snapshot: Snapshot) {
+  if (snapshot.clients !== null && Number.isFinite(snapshot.clients) && snapshot.clients >= 0) {
+    return { low: snapshot.clients, high: snapshot.clients };
+  }
+  const low = snapshot.clientsLow;
+  const high = snapshot.clientsHigh;
+  return low != null && high != null && Number.isFinite(low) && Number.isFinite(high) && low >= 0 && high >= low
+    ? { low, high } : null;
+}
+
+function boundedClientMeasures(current: Snapshot, prior1: Snapshot, prior3: Snapshot, values: Partial<MeasureValues>) {
+  const ranges: ClientRanges = {};
+  const clients = clientBounds(current);
+  if (!clients) return ranges;
+  const denominators = {
+    clients_per_staff: current.staff,
+    clients_per_non_advisory_staff: current.staff === null || current.advisoryStaff === null ? null : current.staff - current.advisoryStaff,
+  };
+  for (const [key, denominator] of Object.entries(denominators)) {
+    const measure = key as keyof typeof denominators;
+    if (values[measure] === null && denominator !== null && denominator > 0) {
+      ranges[measure] = { low: clients.low / denominator, high: clients.high / denominator };
+    }
+  }
+  if (values.aum_per_client === null && current.aum !== null && current.aum >= 0 && clients.low > 0) {
+    ranges.aum_per_client = { low: current.aum / clients.high, high: current.aum / clients.low };
+  }
+  for (const [measure, previous] of [["clients_growth_1y_pct", prior1], ["clients_growth_3y_pct", prior3]] as const) {
+    const prior = clientBounds(previous);
+    if (values[measure] === null && prior && prior.low > 0) {
+      ranges[measure] = { low: (clients.low / prior.high - 1) * 100, high: (clients.high / prior.low - 1) * 100 };
+    }
+  }
+  return ranges;
+}
 
 function twoReadingRanges(fees: Fees | null): FeeRanges {
   const marginal = fees?.scenarios?.marginal;
@@ -126,15 +168,17 @@ export function deriveMeasures(current: Snapshot, prior1: Snapshot, prior3: Snap
     return snapshots.some((snapshot, j) => j > 0 && (growth(snapshot[input], snapshots[j - 1]![input]) ?? 0) > 300) ? [growthNames[i]!] : [];
   });
   if (jumps.length) flags.push("snapshot_jump_over_300_pct");
+  const clientRanges = boundedClientMeasures(current, prior1, prior3, values);
   const gapReasons = Object.fromEntries(MEASURES.flatMap(measure => {
     if (values[measure] !== null) return [];
     const feeMeasure = /^(?:fee_|estimated_)/.test(measure);
     const period = measure.endsWith("_growth_1y_pct") ? prior1 : measure.endsWith("_growth_3y_pct") ? prior3 : null;
-    const reason = measure in feeRanges ? "two published tier interpretations" : feeMeasure && !fees ? "no usable fee extraction" :
+    const reason = measure in clientRanges ? "client total bounded by hidden-category counts of 1–4" :
+      measure in feeRanges ? "two published tier interpretations" : feeMeasure && !fees ? "no usable fee extraction" :
       !feeMeasure && !current.filingDate ? "no verified current filing" :
       period && !period.filingDate ? "no verified prior filing" :
       feeMeasure ? "fee schedule or account basis unavailable" : "input missing or denominator not positive";
     return [[measure, reason]];
   }));
-  return { values: values as MeasureValues, flags, jumps, gapReasons, feeRanges };
+  return { values: values as MeasureValues, flags, jumps, gapReasons, feeRanges, clientRanges };
 }

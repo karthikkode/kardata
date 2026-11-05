@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { deriveMeasures, EMPTY_SNAPSHOT, primaryPeerFees, type Fees, type Snapshot } from "../../src/domain/benchmark/measures.js";
-import { peerStatistics, type PeerConfig } from "../../src/domain/benchmark/peers.js";
+import { groupPeers, peerStatistics, type PeerConfig } from "../../src/domain/benchmark/peers.js";
 
 const current: Snapshot = {
   filingDate: "2024-12-31", staff: 10, advisoryStaff: 4, clients: 60, accounts: 100,
@@ -36,7 +36,8 @@ it("derives operating ratios, historical growth, mix, and explicitly estimated f
 
 it("merges adjacent same-mix groups, separates solo firms, and assigns tied percentile ranks", () => {
   const make = (id: string, aum: number, clients: number, staff = 10, individualClients = clients) => {
-    const snapshot = { ...current, aum, clients, staff, individualClients, hnwClients: 0 };
+    const snapshot = { ...current, aum, clients, staff, individualClients, hnwClients: 0,
+      individualAum: aum * individualClients / clients, hnwAum: 0 };
     return { id, aum, staff, values: deriveMeasures(snapshot, prior, prior, null, "2026-11", [prior, snapshot]).values };
   };
   const report = peerStatistics([
@@ -50,6 +51,27 @@ it("merges adjacent same-mix groups, separates solo firms, and assigns tied perc
   expect(report.memberGroups.get("c")?.percentiles.clients_per_staff).toBeCloseTo(100 * 2.5 / 3);
   expect(report.memberGroups.get("solo")).toMatchObject({ key: "solo", size: 1, percentiles: {} });
   expect(report.summaries.find(row => row.mix === "mixed")?.median).toBeNull();
+});
+
+it("uses AUM mix at both thresholds, independent of client mix, and preserves solo and missing-data rules", () => {
+  const make = (id: string, share: number | null, staff = 10) => ({ id, aum: current.aum, staff,
+    values: { ...deriveMeasures(current, prior, prior, null, "2026-11", [current]).values,
+      individual_client_share_pct: 100, individual_aum_share_pct: share } });
+  const groups = groupPeers([make("institutional", config.institutionalShareMax * 100), make("mixed", 50),
+    make("individual", config.individualShareMin * 100), make("unknown", null), make("solo", null, 1)], config);
+  const mix = Object.fromEntries(groups.flatMap(g => g.members.map(f => [f.id, g.mix])));
+  expect(mix).toEqual({ institutional: "mostly_institutional", mixed: "mixed", individual: "mostly_individual", solo: "solo" });
+});
+
+it("merges small AUM-mix groups into the nearest occupied band, preferring the lower band on ties", () => {
+  const values = { ...deriveMeasures(current, prior, prior, null, "2026-11", [current]).values,
+    individual_aum_share_pct: 100 };
+  const firms = [50_000_000, 150_000_000, 300_000_000].flatMap((aum, band) =>
+    Array.from({ length: band === 1 ? 1 : 20 }, (_, i) => ({ id: `${band}-${i}`, aum, staff: 10, values })));
+  const groups = groupPeers(firms, { ...config, minimumGroupSize: 20 });
+  expect(groups.map(g => ({ bands: g.bands, size: g.members.length }))).toEqual([
+    { bands: [0, 1], size: 21 }, { bands: [2], size: 20 },
+  ]);
 });
 
 it("compares a two-reading interval against single-reading primary peers without adding it to the sample", () => {
@@ -89,4 +111,50 @@ it.each([[1, true], [0.1, false], [3.01, false]] as const)("checks a stored %s p
     schedules: [{ role: "primary", category: "standard", name: "Investment management",
       scope: { kind: "firm", quote: "Standard individual investment management." } }] };
   expect(primaryPeerFees(value)).toEqual(eligible ? value : null);
+});
+
+it("propagates client bounds through ratios, inverse denominators and both growth windows without creating exact values", () => {
+  const bounded = { ...current, clients: null, clientsLow: 60, clientsHigh: 63 };
+  const priorRange = { ...prior, clients: null, clientsLow: 10, clientsHigh: 20 };
+  const result = deriveMeasures(bounded, prior, priorRange, null, "2026-11", [priorRange, prior, bounded]);
+  expect(result.values).toMatchObject({ clients_per_staff: null, clients_per_non_advisory_staff: null,
+    aum_per_client: null, clients_growth_1y_pct: null, clients_growth_3y_pct: null });
+  expect(result.clientRanges.clients_per_staff).toEqual({ low: 6, high: 6.3 });
+  expect(result.clientRanges.clients_per_non_advisory_staff).toEqual({ low: 10, high: 10.5 });
+  expect(result.clientRanges.aum_per_client).toEqual({ low: current.aum! / 63, high: current.aum! / 60 });
+  expect(result.clientRanges.clients_growth_1y_pct?.low).toBeCloseTo(100);
+  expect(result.clientRanges.clients_growth_1y_pct?.high).toBeCloseTo(110);
+  expect(result.clientRanges.clients_growth_3y_pct?.low).toBeCloseTo(200);
+  expect(result.clientRanges.clients_growth_3y_pct?.high).toBeCloseTo(530);
+  expect(result.gapReasons.clients_per_staff).toContain("hidden-category");
+  const exact = deriveMeasures({ ...current, clientsLow: 1, clientsHigh: 4 }, prior, prior, null, "2026-11", [current]);
+  expect(exact.values.clients_per_staff).toBe(6);
+  expect(exact.clientRanges).toEqual({});
+});
+
+it("withholds client intervals with unknown counts, reversed bounds or invalid denominators", () => {
+  for (const bounds of [{}, { clientsLow: 5, clientsHigh: 4 }, { clientsLow: -1, clientsHigh: 4 },
+    { clientsLow: 1, clientsHigh: Infinity }]) {
+    expect(deriveMeasures({ ...current, clients: null, ...bounds }, prior, prior, null, "2026-11", []).clientRanges).toEqual({});
+  }
+  const bounded = { ...current, clients: null, clientsLow: 1, clientsHigh: 4, staff: 0 };
+  const zeroPrior = { ...prior, clients: 0 };
+  const result = deriveMeasures(bounded, zeroPrior, zeroPrior, null, "2026-11", []);
+  expect(result.clientRanges.clients_per_staff).toBeUndefined();
+  expect(result.clientRanges.clients_per_non_advisory_staff).toBeUndefined();
+  expect(result.clientRanges.clients_growth_1y_pct).toBeUndefined();
+  expect(result.clientRanges.aum_per_client).toEqual({ low: current.aum! / 4, high: current.aum! });
+});
+
+it("ranks client interval endpoints only against exact observations and withholds ranks for sparse groups", () => {
+  const make = (id: string, clients: number | null, clientsLow?: number, clientsHigh?: number) => ({
+    id, staff: 10, aum: current.aum,
+    ...deriveMeasures({ ...current, clients, clientsLow: clientsLow ?? null, clientsHigh: clientsHigh ?? null }, prior, prior, null, "2026-11", []),
+  });
+  const firms = [make("a", 20), make("b", 60), make("range", null, 30, 50)];
+  const peers = peerStatistics(firms, config);
+  expect(peers.summaries.find(s => s.measure === "clients_per_staff")).toMatchObject({ n: 2, median: 4 });
+  expect(peers.memberGroups.get("range")?.percentiles.clients_per_staff).toBeUndefined();
+  expect(peers.memberGroups.get("range")?.clientRangePercentiles.clients_per_staff).toEqual({ low: 50, high: 50 });
+  expect(peerStatistics([firms[2]!], config).memberGroups.get("range")?.clientRangePercentiles).toEqual({});
 });

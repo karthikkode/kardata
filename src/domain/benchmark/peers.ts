@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MEASURES, type FeeMeasure, type FeeRanges, type Measure, type MeasureValues } from "./measures.js";
+import { MEASURES, type ClientMeasure, type ClientRanges, type FeeMeasure, type FeeRanges, type Measure, type MeasureValues } from "./measures.js";
 
 export const peerConfig = z.object({
   aumBandStarts: z.array(z.number().finite().nonnegative()).min(2).refine(
@@ -11,7 +11,8 @@ export const peerConfig = z.object({
 }).refine(config => config.institutionalShareMax < config.individualShareMin, "mix thresholds must be distinct");
 
 export type PeerConfig = z.infer<typeof peerConfig>;
-type PeerFirm = { id: string; staff: number | null; aum: number | null; values: MeasureValues; feeRanges?: FeeRanges };
+type PeerFirm = { id: string; staff: number | null; aum: number | null; values: MeasureValues;
+  feeRanges?: FeeRanges; clientRanges?: ClientRanges };
 type PeerGroup = { mix: string; bands: number[]; members: PeerFirm[] };
 
 function bandFor(aum: number, config: PeerConfig) {
@@ -22,10 +23,10 @@ export function groupPeers(firms: PeerFirm[], config: PeerConfig) {
   const lanes = new Map<string, Map<number, PeerGroup>>();
   for (const firm of firms) {
     const solo = firm.staff !== null && firm.staff <= config.soloStaffMax;
-    const share = firm.values.individual_client_share_pct;
+    const share = firm.values.individual_aum_share_pct;
     if (!solo && (firm.staff === null || firm.aum === null || share === null)) continue;
-    const mix = solo ? "solo" : share! / 100 >= config.individualShareMin ? "mostly_individual" :
-      share! / 100 <= config.institutionalShareMax ? "mostly_institutional" : "mixed";
+    const mix = solo ? "solo" : share! >= config.individualShareMin * 100 ? "mostly_individual" :
+      share! <= config.institutionalShareMax * 100 ? "mostly_institutional" : "mixed";
     const band = solo ? -1 : bandFor(firm.aum!, config);
     const lane = lanes.get(mix) ?? new Map<number, PeerGroup>();
     lanes.set(mix, lane);
@@ -79,13 +80,13 @@ function rangePercentile(sorted: number[], value: number) {
 export function peerStatistics(firms: PeerFirm[], config: PeerConfig) {
   const groups = groupPeers(firms, config);
   const memberGroups = new Map<string, { key: string; size: number; percentiles: Partial<Record<Measure, number>>;
-    feeRangePercentiles: FeeRanges }>();
+    feeRangePercentiles: FeeRanges; clientRangePercentiles: ClientRanges }>();
   const summaries = [];
   for (const group of groups) {
     const key = group.mix === "solo" ? "solo" : `${group.mix}:${group.bands.join("+")}`;
     const size = group.members.length;
     const comparisonAvailable = size >= config.minimumGroupSize;
-    for (const firm of group.members) memberGroups.set(firm.id, { key, size, percentiles: {}, feeRangePercentiles: {} });
+    for (const firm of group.members) memberGroups.set(firm.id, { key, size, percentiles: {}, feeRangePercentiles: {}, clientRangePercentiles: {} });
     for (const measure of MEASURES) {
       const values = group.members.flatMap(firm => {
         const value = firm.values[measure];
@@ -98,6 +99,12 @@ export function peerStatistics(firms: PeerFirm[], config: PeerConfig) {
         q3: comparisonAvailable ? quantile(sorted, 0.75) : null, comparisonAvailable,
       });
       if (!comparisonAvailable || !sorted.length) continue;
+      for (const firm of group.members) {
+        const range = firm.clientRanges?.[measure as ClientMeasure];
+        if (range) memberGroups.get(firm.id)!.clientRangePercentiles[measure as ClientMeasure] = {
+          low: rangePercentile(sorted, range.low), high: rangePercentile(sorted, range.high),
+        };
+      }
       if (measure.startsWith("fee_")) {
         const feeMeasure = measure as FeeMeasure;
         for (const firm of group.members) {

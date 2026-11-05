@@ -8,6 +8,7 @@ November 4 backup, queried with MCP on a disposable local restore. 17,958 active
 | `sec_adv.advisory_staff`, other 5B keys | 5B(1)–(5) advisory, broker-dealer, state representative, other adviser, insurance roles | people |
 | `sec_adv.outside_solicitors` | 5B(6) non-employee solicitors | firms or people |
 | `firm.client_total`, `firm.client_individuals`, `firm.client_hnw`, `firm.client_pension`, `sec_adv.client_*` | 5D(1) counts, summed when exact, including individual, high-net-worth and pension categories | clients |
+| `firm.client_total_low`, `firm.client_total_high` | Total bounds assuming 1–4 per explicitly hidden category; absent if an unsuppressed count is missing | clients |
 | `sec_adv.aum_*` | 5D(3) client category regulatory AUM | USD |
 | `firm.regulatory_aum`, `sec_adv.*discretionary_aum` | 5F(2)(a–c) discretionary, non-discretionary, and total | USD |
 | `firm.accounts`, `sec_adv.*discretionary_accounts` | 5F(2)(d–f) discretionary, non-discretionary, and total | accounts |
@@ -27,6 +28,6 @@ Schedule records are `sec_adv_owner` (A/B ownership and officer status) and `sec
 
 Part 2A Item 5 uses `firm.fee_schedule` with extraction/input qualifiers, `fee_schedule.status`, and the `fee_schedule_terms` record. Tier rates are annual percentage points and balances, minimums, and calculated fees are USD. The record retains dated quotes and uses null for unstated terms. Scenario fees apply the disclosed marginal or cliff schedule and applicable minimum.
 
-Benchmark peers use AUM bands <$100M, $100–250M, $250–500M, $500M–1B, $1–3B, $3–10B, and ≥$10B, with inclusive lower bounds. The separate group for staff ≤1 takes precedence. Other groups use ≥2/3 and ≤1/3 individual plus high-net-worth client share. Sparse groups merge within that mix with the nearest occupied band, lower band on ties. A group still below 20 has no percentiles or published quartiles. Per-measure sample sizes accompany midpoint percentiles and interpolated quartiles.
+Benchmark peers use AUM bands <$100M, $100–250M, $250–500M, $500M–1B, $1–3B, $3–10B, and ≥$10B, with inclusive lower bounds. The separate group for staff ≤1 takes precedence. Other groups use ≥2/3 and ≤1/3 individual plus high-net-worth regulatory AUM share. Sparse groups merge within that mix with the nearest occupied band, lower band on ties. A group still below 20 has no percentiles or published quartiles. Per-measure sample sizes accompany midpoint percentiles and interpolated quartiles.
 
 Website software uses the sector host map and records dated portal, custodian, scheduling, form, and e-sign link evidence in `website_software`. A successful scan with no matching links is `none_found`. Blocked, unreachable, and missing sites are separate coverage outcomes.

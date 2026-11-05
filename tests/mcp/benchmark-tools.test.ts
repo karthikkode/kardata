@@ -2,11 +2,12 @@ import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { and, eq } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, expect, it } from "vitest";
+import { and, eq, inArray, sql } from "drizzle-orm";
+import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { companies, facts, records, sectorCompanies, sources } from "../../src/db/schema.js";
 import { startServer } from "../../src/server.js";
 import { ensureMigrated, fixtureImportDirs, getTestDb, resetTestDb } from "../db.js";
+import * as websiteCollector from "../../src/collect/collectors/website-software.js";
 
 const handle = getTestDb();
 const token = "benchmark-test";
@@ -22,6 +23,7 @@ beforeAll(async () => {
 });
 
 beforeEach(() => resetTestDb(handle));
+afterEach(() => vi.restoreAllMocks());
 afterAll(async () => {
   await client.close();
   await server?.close();
@@ -101,6 +103,54 @@ it("keeps name matches unverified until independently confirmed and is retry saf
     const [charlie] = await handle.db.select().from(companies).where(eq(companies.id, charlieId));
     expect(charlie?.secCrd).toBe("910003");
     expect(await handle.db.select().from(facts).where(and(eq(facts.companyId, charlieId), eq(facts.key, "firm.client_total")))).toHaveLength(0);
+  } finally {
+    if (dirs === undefined) delete process.env.KARDATA_IMPORT_DIRS;
+    else process.env.KARDATA_IMPORT_DIRS = dirs;
+  }
+});
+
+it("enriches old snapshots with client bounds once, preserves exact facts and reports intervals separately", async () => {
+  const { sectorId } = await setup();
+  // The standard benchmark config is sector data, supplied by this synthetic sector name.
+  const { sectors } = await import("../../src/db/schema.js");
+  await handle.db.update(sectors).set({ name: "ria-us" }).where(eq(sectors.id, sectorId));
+  const exact = randomUUID(), bounded = randomUUID();
+  await handle.db.insert(companies).values([
+    { id: exact, source: "sec", name: "Synthetic exact", secCrd: "910001" },
+    { id: bounded, source: "sec", name: "Synthetic bounded", secCrd: "910003" },
+  ]);
+  await handle.db.insert(sectorCompanies).values([exact, bounded].map(companyId => ({ companyId, sectorId, addedVia: "sec" as const })));
+  const dirs = process.env.KARDATA_IMPORT_DIRS;
+  process.env.KARDATA_IMPORT_DIRS = fixtureImportDirs().join(",");
+  const input = { sectorId, path: join(fixtureImportDirs()[0]!, "sec-adv-snapshot.csv"), snapshotDate: "2026-09-02",
+    sourceUrl: "https://www.sec.gov/synthetic-bounds.zip", dryRun: false };
+  const boundKeys = ["firm.client_total_low", "firm.client_total_high"];
+  try {
+    await data("sec_adv_snapshot_import", input);
+    // Simulate an earlier importer: same canonical file, evidence and exact facts, no bound fields/version.
+    await handle.db.delete(facts).where(inArray(facts.key, boundKeys));
+    await handle.db.update(sources).set({ details: sql`${sources.details} - 'clientBoundsVersion'` })
+      .where(eq(sources.collector, "sec_adv_snapshot"));
+    const before = await handle.db.select({ id: facts.id }).from(facts);
+    await data("sec_adv_snapshot_import", { ...input, dryRun: true });
+    expect(await handle.db.select().from(facts).where(inArray(facts.key, boundKeys))).toHaveLength(0);
+    const results = await Promise.all([data<{ written: number }>("sec_adv_snapshot_import", input),
+      data<{ written: number }>("sec_adv_snapshot_import", input)]);
+    expect(results.reduce((sum, r) => sum + r.written, 0)).toBe(4);
+    expect(await data("sec_adv_snapshot_import", input)).toMatchObject({ written: 0 });
+    expect((await handle.db.select({ id: facts.id }).from(facts)).map(f => f.id)).toEqual(expect.arrayContaining(before.map(f => f.id)));
+    const bounds = await handle.db.select().from(facts).where(and(eq(facts.companyId, bounded), inArray(facts.key, boundKeys)));
+    expect(bounds.map(f => Number(f.valueNum)).sort()).toEqual([1, 4]);
+    expect(bounds.every(f => f.asOf === "2026-09-01" && f.qualifiers.snapshot === "2026-09")).toBe(true);
+    const { revision } = await data<{ revision: string }>("benchmark_compute", { sectorId, formulaVersion: "bounds-test",
+      snapshots: { current: "2026-09", prior1: "2025-09", prior3: "2023-09" } });
+    expect(await data("benchmark_report", { sectorId, revision })).toMatchObject({ benchmark: {
+      clientRanges: { clients_per_staff: { exact: 1, range: 1, missing: 0 } },
+      measures: { clients_per_staff: { value: 1, missing: 1 } },
+    } });
+    const [result] = await handle.db.select().from(facts).where(and(eq(facts.companyId, bounded), eq(facts.key, "benchmark.measures")));
+    expect(result?.valueJson).toMatchObject({ values: { clients_per_staff: null },
+      clientRanges: { clients_per_staff: { low: 0.25, high: 1 } } });
   } finally {
     if (dirs === undefined) delete process.env.KARDATA_IMPORT_DIRS;
     else process.env.KARDATA_IMPORT_DIRS = dirs;
@@ -231,7 +281,7 @@ it("computes and reports a reproducible benchmark from verified snapshot facts",
   try {
     await data("sec_adv_snapshot_import", { sectorId, path: join(fixtureImportDirs()[0]!, "sec-adv-snapshot.csv"),
       snapshotDate: "2026-09-02", sourceUrl: "https://www.sec.gov/example-snapshot.zip", dryRun: false });
-    const args = { sectorId, formulaVersion: "fixture-v1", snapshots: { current: "2026-09", prior1: "2025-09", prior3: "2023-09" } };
+    const args = { sectorId, formulaVersion: "fixture-v1", snapshots: { current: "2026-09", prior1: "2025-10", prior3: "2023-09" } };
     const { revision } = await data<{ revision: string }>("benchmark_compute", args);
     expect(await data("benchmark_compute", args)).toMatchObject({ written: 0, revision });
     const measures = await handle.db.select().from(facts).where(eq(facts.key, "benchmark.measures"));
@@ -244,7 +294,9 @@ it("computes and reports a reproducible benchmark from verified snapshot facts",
       cohort: 2, matchCounts: { crd: 1, unmatched: 1 }, diagnosticsComplete: true,
       exceptions: [{ companyId: missing, status: "unmatched" }],
       coverage: { "2026-09": { "firm.client_total": { value: 1, missing: 1, notStated: 0 } } },
-      benchmark: { revision, measures: { clients_per_staff: { value: 1, missing: 1 } } },
+      benchmark: { revision, measures: { clients_per_staff: { value: 1, missing: 1 }, clients_growth_1y_pct: { value: 0 } },
+        growthWindows: { prior1: { months: 11 } },
+        measureLabels: { clients_growth_1y_pct: "Clients growth over 11 months (2025-10 to 2026-09)" } },
     });
   } finally {
     if (dirs === undefined) delete process.env.KARDATA_IMPORT_DIRS;
@@ -266,4 +318,60 @@ it("records a missing website and returns the stored result on repeat", async ()
   expect(await data("benchmark_report", { sectorId })).toMatchObject({
     website: { missing: 0, statuses: { missing_site: 1 }, fields: { portal: { value: 0, missing: 1 } } },
   });
+});
+
+it("uses a unique stored domain, skips shared domains outside the sector, and excludes old shared evidence", async () => {
+  const library = await data<{ companyId: string }>("evidence_library_ensure");
+  const { sector } = await data<{ sector: { id: string } }>("sector_create", { name: "ria-us" });
+  const unique = randomUUID(), shared = randomUUID(), outside = randomUUID();
+  await handle.db.insert(companies).values([
+    { id: unique, source: "sec", name: "Synthetic unique", domain: "unique-fixture.example" },
+    { id: shared, source: "sec", name: "Synthetic shared", domain: "shared-fixture.example" },
+    { id: outside, source: "sec", name: "Synthetic outside", domain: "shared-fixture.example" },
+  ]);
+  await handle.db.insert(sectorCompanies).values([unique, shared].map(companyId => ({ companyId, sectorId: sector.id, addedVia: "sec" as const })));
+  const { sourceId } = await data<{ sourceId: string }>("source_capture", { companyId: library.companyId,
+    url: "https://unique-fixture.example/", text: "Synthetic homepage", via: "browser", passages: ["Synthetic homepage"] });
+  const [source] = await handle.db.select().from(sources).where(eq(sources.id, sourceId));
+  const collect = vi.spyOn(websiteCollector, "collectWebsiteSoftware").mockResolvedValue({ status: "none_found",
+    clientStatus: null, signals: [], pages: [source!] });
+  const input = { sectorId: sector.id, companyIds: [unique, shared], concurrency: 2 };
+  expect(await data("website_software_collect", input)).toMatchObject({ uncheckedSharedDomain: 1,
+    results: expect.arrayContaining([{ companyId: shared, status: "shared_domain", checked: false,
+      cached: false, reason: expect.any(String) }, { companyId: unique, status: "none_found", cached: false }]) });
+  expect(collect).toHaveBeenCalledTimes(1);
+  expect(collect.mock.calls[0]?.[1].homepage.href).toBe("https://unique-fixture.example/");
+  expect(await handle.db.select().from(records).where(eq(records.companyId, shared))).toHaveLength(0);
+  await data("website_software_collect", input);
+  expect(collect).toHaveBeenCalledTimes(1);
+  // Historical signals stay stored, but no longer count after ownership becomes shared.
+  await handle.db.update(companies).set({ domain: "unique-fixture.example" }).where(eq(companies.id, outside));
+  expect(await data("benchmark_report", { sectorId: sector.id })).toMatchObject({
+    website: { missing: 2, uncheckedSharedDomain: 1, statuses: {} },
+  });
+});
+
+it("does not retry legacy robots failures or HTTP 403 recorded as generic fetch errors", async () => {
+  await data("evidence_library_ensure");
+  const { sector } = await data<{ sector: { id: string } }>("sector_create", { name: "ria-us" });
+  const { company } = await data<{ company: { id: string } }>("company_add", { sectorId: sector.id,
+    name: "Synthetic robots failure", website: "https://robots-fixture.example/" });
+  const collect = vi.spyOn(websiteCollector, "collectWebsiteSoftware").mockImplementation(() => { throw Error("Unexpected fetch"); });
+  const { websiteCheckKey } = await import("../../src/domain/benchmark/website-input.js");
+  const { sectorData } = await import("../../src/domain/benchmark/sector-data.js");
+  const config = websiteCollector.websiteVendorConfig.parse(await sectorData(handle.db, sector.id, "website-vendors.json"));
+  const key = websiteCheckKey(config, { home: new URL("https://robots-fixture.example/"), kind: "website", shared: false });
+  const { sourceId } = await data<{ sourceId: string }>("source_capture", { companyId: company.id,
+    url: "https://robots-fixture.example/", text: "Synthetic failure", via: "browser", passages: ["Synthetic failure"] });
+  await handle.db.update(sources).set({ status: "error", error: "robots.txt unavailable" }).where(eq(sources.id, sourceId));
+  await data("record_upsert", { companyId: company.id, records: [{ type: "website_software", naturalKey: ["check_key"],
+    sourceIds: [sourceId], data: { check_key: key, result: { status: "fetch_error", clientStatus: null, signals: [] } } }] });
+  expect(await data("website_software_collect", { sectorId: sector.id })).toMatchObject({
+    results: [{ companyId: company.id, status: "robots_unavailable", cached: true }],
+  });
+  await handle.db.update(sources).set({ error: null, httpStatus: 403 }).where(eq(sources.id, sourceId));
+  expect(await data("website_software_collect", { sectorId: sector.id })).toMatchObject({
+    results: [{ companyId: company.id, status: "blocked", cached: true }],
+  });
+  expect(collect).not.toHaveBeenCalled();
 });

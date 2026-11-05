@@ -23,6 +23,8 @@ const formula = {
   estimated_fee_revenue_per_staff: "estimated annual fee revenue / staff",
   percentile: "(count below + count tied / 2) / non-null sample × 100",
   fee_percentile: "single-reading primary fees only; two-reading endpoints ranked against that sample",
+  peer_mix: "individual plus high-net-worth regulatory AUM / total regulatory AUM",
+  client_ranges: "hidden category counts assumed 1–4; ratio endpoints ordered by denominator; growth low=current low/prior high−1, high=current high/prior low−1",
 };
 
 const FIELDS: Record<string, Exclude<keyof Snapshot, "filingDate">> = {
@@ -30,6 +32,7 @@ const FIELDS: Record<string, Exclude<keyof Snapshot, "filingDate">> = {
   "sec_adv.advisory_staff": "advisoryStaff", "firm.regulatory_aum": "aum",
   "firm.client_individuals": "individualClients", "firm.client_hnw": "hnwClients",
   "sec_adv.aum_individuals": "individualAum", "sec_adv.aum_hnw": "hnwAum",
+  "firm.client_total_low": "clientsLow", "firm.client_total_high": "clientsHigh",
 };
 
 type Windows = { current: string; prior1: string; prior2?: string; prior3: string };
@@ -81,7 +84,7 @@ export async function computeBenchmark(db: Db, input: { sectorId: string; formul
     byFirmMonth.set(key, entry);
   }
   const revision = createHash("sha256")
-    .update(JSON.stringify({ sectorId, formulaVersion, months, config, ids, feePeerVersion: 4 }))
+    .update(JSON.stringify({ sectorId, formulaVersion, months, config, ids, feePeerVersion: 4, benchmarkVersion: 2 }))
     .update(snapshotRows.map(row => row.id).join(","))
     .update(feeStatuses.map(row => row.id).join(","))
     .update(feeStatuses.map(row => feesByFirm.get(row.companyId)?.fee?.id ?? "").join(","))
@@ -144,7 +147,8 @@ export async function computeBenchmark(db: Db, input: { sectorId: string; formul
           qualifiers: { formula: formulaVersion, snapshot: snapshots.current, revision },
           asOf: firm.filingDate, sourceIds: firm.sourceIds, confidence: "high", verification: "verified_value",
           valueJson: {
-            values: firm.values, flags: firm.flags, jumps: firm.jumps, gapReasons: firm.gapReasons, feeRanges: firm.feeRanges, dates: firm.dates, feeDate: firm.feeDate,
+            values: firm.values, flags: firm.flags, jumps: firm.jumps, gapReasons: firm.gapReasons,
+            feeRanges: firm.feeRanges, clientRanges: firm.clientRanges, dates: firm.dates, feeDate: firm.feeDate,
             peer: peers.memberGroups.get(firm.id) ?? null, summarySourceId: summarySource.id, formula,
           },
         });
