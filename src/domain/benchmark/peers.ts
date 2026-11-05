@@ -22,10 +22,10 @@ export function groupPeers(firms: PeerFirm[], config: PeerConfig) {
   const lanes = new Map<string, Map<number, PeerGroup>>();
   for (const firm of firms) {
     const solo = firm.staff !== null && firm.staff <= config.soloStaffMax;
-    const share = firm.values.individual_client_share_pct;
+    const share = firm.values.individual_aum_share_pct;
     if (!solo && (firm.staff === null || firm.aum === null || share === null)) continue;
-    const mix = solo ? "solo" : share! / 100 >= config.individualShareMin ? "mostly_individual" :
-      share! / 100 <= config.institutionalShareMax ? "mostly_institutional" : "mixed";
+    const mix = solo ? "solo" : share! >= config.individualShareMin * 100 ? "mostly_individual" :
+      share! <= config.institutionalShareMax * 100 ? "mostly_institutional" : "mixed";
     const band = solo ? -1 : bandFor(firm.aum!, config);
     const lane = lanes.get(mix) ?? new Map<number, PeerGroup>();
     lanes.set(mix, lane);

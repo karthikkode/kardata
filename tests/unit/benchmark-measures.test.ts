@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { deriveMeasures, EMPTY_SNAPSHOT, primaryPeerFees, type Fees, type Snapshot } from "../../src/domain/benchmark/measures.js";
-import { peerStatistics, type PeerConfig } from "../../src/domain/benchmark/peers.js";
+import { groupPeers, peerStatistics, type PeerConfig } from "../../src/domain/benchmark/peers.js";
 
 const current: Snapshot = {
   filingDate: "2024-12-31", staff: 10, advisoryStaff: 4, clients: 60, accounts: 100,
@@ -36,7 +36,8 @@ it("derives operating ratios, historical growth, mix, and explicitly estimated f
 
 it("merges adjacent same-mix groups, separates solo firms, and assigns tied percentile ranks", () => {
   const make = (id: string, aum: number, clients: number, staff = 10, individualClients = clients) => {
-    const snapshot = { ...current, aum, clients, staff, individualClients, hnwClients: 0 };
+    const snapshot = { ...current, aum, clients, staff, individualClients, hnwClients: 0,
+      individualAum: aum * individualClients / clients, hnwAum: 0 };
     return { id, aum, staff, values: deriveMeasures(snapshot, prior, prior, null, "2026-11", [prior, snapshot]).values };
   };
   const report = peerStatistics([
@@ -50,6 +51,27 @@ it("merges adjacent same-mix groups, separates solo firms, and assigns tied perc
   expect(report.memberGroups.get("c")?.percentiles.clients_per_staff).toBeCloseTo(100 * 2.5 / 3);
   expect(report.memberGroups.get("solo")).toMatchObject({ key: "solo", size: 1, percentiles: {} });
   expect(report.summaries.find(row => row.mix === "mixed")?.median).toBeNull();
+});
+
+it("uses AUM mix at both thresholds, independent of client mix, and preserves solo and missing-data rules", () => {
+  const make = (id: string, share: number | null, staff = 10) => ({ id, aum: current.aum, staff,
+    values: { ...deriveMeasures(current, prior, prior, null, "2026-11", [current]).values,
+      individual_client_share_pct: 100, individual_aum_share_pct: share } });
+  const groups = groupPeers([make("institutional", config.institutionalShareMax * 100), make("mixed", 50),
+    make("individual", config.individualShareMin * 100), make("unknown", null), make("solo", null, 1)], config);
+  const mix = Object.fromEntries(groups.flatMap(g => g.members.map(f => [f.id, g.mix])));
+  expect(mix).toEqual({ institutional: "mostly_institutional", mixed: "mixed", individual: "mostly_individual", solo: "solo" });
+});
+
+it("merges small AUM-mix groups into the nearest occupied band, preferring the lower band on ties", () => {
+  const values = { ...deriveMeasures(current, prior, prior, null, "2026-11", [current]).values,
+    individual_aum_share_pct: 100 };
+  const firms = [50_000_000, 150_000_000, 300_000_000].flatMap((aum, band) =>
+    Array.from({ length: band === 1 ? 1 : 20 }, (_, i) => ({ id: `${band}-${i}`, aum, staff: 10, values })));
+  const groups = groupPeers(firms, { ...config, minimumGroupSize: 20 });
+  expect(groups.map(g => ({ bands: g.bands, size: g.members.length }))).toEqual([
+    { bands: [0, 1], size: 21 }, { bands: [2], size: 20 },
+  ]);
 });
 
 it("compares a two-reading interval against single-reading primary peers without adding it to the sample", () => {

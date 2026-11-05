@@ -23,6 +23,7 @@ const formula = {
   estimated_fee_revenue_per_staff: "estimated annual fee revenue / staff",
   percentile: "(count below + count tied / 2) / non-null sample × 100",
   fee_percentile: "single-reading primary fees only; two-reading endpoints ranked against that sample",
+  peer_mix: "individual plus high-net-worth regulatory AUM / total regulatory AUM",
 };
 
 const FIELDS: Record<string, Exclude<keyof Snapshot, "filingDate">> = {
@@ -81,7 +82,7 @@ export async function computeBenchmark(db: Db, input: { sectorId: string; formul
     byFirmMonth.set(key, entry);
   }
   const revision = createHash("sha256")
-    .update(JSON.stringify({ sectorId, formulaVersion, months, config, ids, feePeerVersion: 4 }))
+    .update(JSON.stringify({ sectorId, formulaVersion, months, config, ids, feePeerVersion: 4, benchmarkVersion: 2 }))
     .update(snapshotRows.map(row => row.id).join(","))
     .update(feeStatuses.map(row => row.id).join(","))
     .update(feeStatuses.map(row => feesByFirm.get(row.companyId)?.fee?.id ?? "").join(","))
