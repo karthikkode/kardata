@@ -11,6 +11,7 @@ import { ensureEvidenceLibrary } from "../domain/evidence-library.js";
 import { importSchedules } from "../domain/sec-adv/schedules.js";
 import { importSnapshot } from "../domain/sec-adv/snapshot.js";
 import { registerTool, type AuthContext } from "./auth.js";
+import { comparableJobStatus, enqueueComparableJob } from "../domain/benchmark/comparable-jobs.js";
 import { wrap } from "./result.js";
 
 const secUrl = z.string().url().refine(value => {
@@ -46,6 +47,22 @@ export function registerBenchmarkTools(server: McpServer, db: Db, auth: AuthCont
     return { summary: `${data.matched} matched archive filings, ${data.missing} missing`, data };
   }));
 
+  registerTool(server, db, auth, "benchmark_fee_comparable_run", {
+    description: "Queue a separate stored-brochure eligibility review for exact fee comparables. Reads physical pages including Items 4/5/7; never re-extracts or edits fee facts. Without companyIds selects active eligible firms with an exact comparable. Reusing a paused requestId resumes this review only.",
+    inputSchema: { sectorId: z.string().uuid(), companyIds: z.array(z.string().uuid()).min(1).max(200).optional(),
+      concurrency: z.number().int().min(1).max(4).optional(), requestId: z.string().uuid().optional() },
+  }, async input => wrap(async () => {
+    const data = await enqueueComparableJob(db, input);
+    return { summary: `Comparable review ${data.jobId}: ${data.status}`, data };
+  }));
+  registerTool(server, db, auth, "benchmark_fee_comparable_status", {
+    description: "Read restart-safe comparable-review progress, per-firm decisions with physical-page quotes, failures and token/time telemetry. Does not operate extraction jobs.",
+    inputSchema: { jobId: z.string().uuid(), offset: z.number().int().nonnegative().optional(), limit: z.number().int().min(1).max(200).optional() },
+    annotations: { readOnlyHint: true },
+  }, async ({ jobId, offset, limit }) => wrap(async () => {
+    const data = await comparableJobStatus(db, jobId, offset, limit);
+    return { summary: `Comparable review ${jobId}: ${data.status} (${data.finished}/${data.selected})`, data };
+  }));
   registerTool(server, db, auth, "benchmark_fees_run", {
     description: "Queue a background fee review of 20–30 named pilot firms or explicitly opt in to all eligible firms. Returns a job ID immediately.",
     inputSchema: {

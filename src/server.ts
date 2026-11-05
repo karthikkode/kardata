@@ -5,6 +5,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { sql } from "drizzle-orm";
 import { createDb, type Db } from "./db/client.js";
 import { createBenchmarkFeeWorker } from "./domain/benchmark/fee-jobs.js";
+import { createComparableReviewWorker } from "./domain/benchmark/comparable-jobs.js";
 import { createAgentRunner } from "./runs/agent-runner.js";
 import { createCompanyRunner, realCompanyDeps } from "./runs/company.js";
 import { buildStagePromptForRun } from "./runs/prompt.js";
@@ -250,9 +251,12 @@ async function main(): Promise<void> {
   quotaMonitor.start();
   const feeWorker = createBenchmarkFeeWorker(db);
   feeWorker.start();
+  const comparableWorker = createComparableReviewWorker(db);
+  comparableWorker.start();
   process.on("SIGTERM", () => {
     void (async () => {
       feeWorker.stop();
+      comparableWorker.stop();
       quotaMonitor.stop();
       await sectorRunner.stop();
       await companyRunner.stop();

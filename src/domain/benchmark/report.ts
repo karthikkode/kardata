@@ -135,6 +135,12 @@ export async function benchmarkReport(db: Db, input: {
     const range = measures.filter(row => (row.value as { clientRanges?: ClientRanges }).clientRanges?.[key] != null).length;
     return [key, { exact, range, missing: members.length - exact - range }];
   }));
+  const comparableReviews: Record<string, number> = {};
+  for (const row of measures) {
+    const value = row.value as { feeEligibility?: { status: string } };
+    const status = value.feeEligibility?.status ?? "legacy_unreviewed";
+    comparableReviews[status] = (comparableReviews[status] ?? 0) + 1;
+  }
   const vendorData = await sectorData(db, input.sectorId, "website-vendors.json", true);
   const websiteConfig = websiteVendorConfig.parse(vendorData ?? { excludedHosts: [], vendors: [] });
   const sites = await websiteInputs(db, companyIds, websiteConfig);
@@ -166,7 +172,7 @@ export async function benchmarkReport(db: Db, input: {
     matchCounts, diagnosticsComplete: diagnostics !== undefined, exceptions: exceptions.slice(offset, offset + limit),
     nextOffset: offset + limit < exceptions.length ? offset + limit : null,
     fees: { available: currentFees.size, unavailable: statusRows.length - currentFees.size, classifications: feeClassifications, fields: feeFields },
-    schedules, benchmark: { revision: revision ?? null, measures: measuresCoverage, clientRanges,
+    schedules, benchmark: { revision: revision ?? null, measures: measuresCoverage, clientRanges, comparableReviews,
       growthWindows: windows, measureLabels: growthMeasureLabels(windows) },
     website: { statuses: websiteStatuses, clientPageStatuses, missing: members.length - websiteRows.length,
       configured: vendorData !== null,
