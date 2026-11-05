@@ -1,5 +1,5 @@
 import { scopeType } from "./fee-extraction.js";
-import { effectiveFee, type FeeTier, type TierMethod } from "./fee-math.js";
+import { effectiveFee, rateNeedsReview, type FeeTier, type TierMethod } from "./fee-math.js";
 
 export type Snapshot = {
   filingDate: string | null;
@@ -14,17 +14,23 @@ export type Fees = {
   tiers: FeeTier[]; method: TierMethod | null; minimumAnnualFee: number | null; minimumAccountSize: number | null;
   at1m: FeeAmount | null; at5m: FeeAmount | null;
   scenarios?: Record<TierMethod, FeeScenarios | null> | null;
+  flags?: string[];
 };
 
 type StoredFees = Fees & {
   primaryScheduleIndex?: number | null;
-  schedules?: (Parameters<typeof scopeType>[0] & { role: string })[];
+  schedules?: (Parameters<typeof scopeType>[0] & { role: string; method?: TierMethod | null })[];
 };
 
 export function primaryPeerFees(value: unknown): Fees | null {
   const fee = value as StoredFees | null;
   const schedule = fee?.primaryScheduleIndex == null ? undefined : fee.schedules?.[fee.primaryScheduleIndex];
   if (!fee || !schedule || schedule.role !== "primary" || scopeType(schedule) !== "standard") return null;
+  const knownMethod = schedule.method ?? fee.method;
+  const methods = knownMethod ? [knownMethod] : (["cliff", "marginal"] as const).filter(method => fee.scenarios?.[method]?.at1m);
+  const { tiers, minimumAccountSize } = fee;
+  if (tiers?.length && methods.some(method =>
+    rateNeedsReview(effectiveFee({ tiers, method, balance: 1_000_000, minimumAccountSize })))) return null;
   return fee;
 }
 
@@ -85,7 +91,7 @@ export function deriveMeasures(current: Snapshot, prior1: Snapshot, prior3: Snap
   const staffOutsideAdvisory = current.staff === null || current.advisoryStaff === null ? null : current.staff - current.advisoryStaff;
   const averageAccount = ratio(current.aum, current.accounts);
   const feeRanges = twoReadingRanges(fees);
-  const ambiguous = !!(fees?.scenarios?.marginal && fees.scenarios.cliff);
+  const ambiguous = fees?.flags?.includes("tier_method_unclear") || !!(fees?.scenarios?.marginal && fees.scenarios.cliff);
   const rate = !ambiguous && fees?.method && averageAccount !== null
     ? effectiveFee({ ...fees, method: fees.method, balance: averageAccount })?.rate_pct ?? null : null;
   const estimated = current.aum !== null && rate !== null ? current.aum * rate / 100 : null;

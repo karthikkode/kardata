@@ -4,6 +4,10 @@ export type FeeTier = {
 };
 export type TierMethod = "marginal" | "cliff";
 
+export function rateNeedsReview(at1m: { dollars: number } | null | undefined) {
+  return at1m != null && (at1m.dollars < 2_500 || at1m.dollars > 30_000);
+}
+
 export function effectiveFee(input: {
   tiers: FeeTier[]; method: TierMethod; balance: number;
   minimumAnnualFee?: number | null; minimumAccountSize?: number | null;
@@ -36,9 +40,12 @@ export function effectiveFee(input: {
     const covers = (balance > tier.from || (lowerInclusive && balance === tier.from)) &&
       (tier.to === null || balance < tier.to || (upperInclusive && balance === tier.to));
     if (covers) {
-      if (reached) return null;
+      if (method === "cliff") {
+        if (reached) return null;
+        total = balance * tier.rate_pct / 100;
+      }
+      // A shared endpoint adds no dollars to the next marginal tier.
       reached = true;
-      if (method === "cliff") total = balance * tier.rate_pct / 100;
     }
   }
   if (!reached) return null;

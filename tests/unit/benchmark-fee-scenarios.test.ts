@@ -257,3 +257,154 @@ it.each([
   const result = summarize([{ ...standard, name, category: "program", scope: quote(label) }], [label]);
   expect(result.schedules[0]).toMatchObject({ role: "scoped", scopeType: "wrap" });
 });
+
+it("prefers a published table to an earlier wealth-management cap", () => {
+  const cap = "The maximum fee for wealth management is 2%.";
+  const result = summarize([
+    { ...standard, name: "Wealth Management", scope: quote(cap), pricing: "cap", tiers: [],
+      rateBounds: { lower_pct: null, upper_pct: 2, evidence: quote(cap) } },
+    standard,
+  ], [cap]);
+  expect(result).toMatchObject({ primaryScheduleIndex: 1, scenarios: {
+    cliff: { at1m: { dollars: 9_000 } }, marginal: { at1m: { dollars: 10_000 } },
+  } });
+  expect(result.schedules[0]?.role).toBe("alternative");
+});
+
+it("scopes product-specific fees even when the model calls them standard and the restriction starts on the next page", () => {
+  const title = "Our annual advisory fee is 1% of AUM for Long-Term Advisory Services.";
+  const continuation = "AUM is determined on the";
+  const basis = "AUM is based on the aggregate Net Asset Value (“NAV”) of Client's Specialty Investments acquired during the term.";
+  const section = { kind: "firm" as const, sourceId: "source", documentId: "doc", date: "2026-03-31" };
+  const review = groundFeeReview({ schedules: [
+    { ...standard, scope: quote(title), tiers: [band(0, null, 1, title)] },
+  ], terms: [], findings: [], inspect: [], gaps: [] }, [
+    { ...section, ref: "item-5", page: 5, text: `${title} ${continuation}` },
+    { ...section, ref: "p6", page: 6, text: `last business day of the month. ${basis}` },
+  ]);
+  const result = summarizeFeeReview(review, [], { complete: true, gaps: [] });
+  expect(result.primaryScheduleIndex).toBeNull();
+  expect(result.schedules[0]).toMatchObject({ role: "scoped", scopeType: "product",
+    productBasis: { ref: "p6", page: 6 }, at1m: { dollars: 10_000 } });
+});
+
+it("keeps explicitly limited strategies and model portfolios out of standard alternatives", () => {
+  const limited = "The strategy fee applies only to municipal securities.";
+  const model = "Advisory services through the model portfolio.";
+  const result = summarize([
+    { ...standard, scope: quote(limited) },
+    { ...standard, name: "Managed Model Portfolio Service", scope: quote(model) },
+    standard,
+  ], [limited, model]);
+  expect(result.primaryScheduleIndex).toBe(2);
+  expect(result.schedules.slice(0, 2)).toMatchObject([
+    { role: "scoped", scopeType: "product" }, { role: "scoped", scopeType: "product" },
+  ]);
+});
+
+it.each([0.1, 3.01])("scopes a %s percent standard rate and selects the next eligible table", rate => {
+  const flat = `Standard management fee: ${rate}%.`;
+  const result = summarize([
+    { ...standard, name: "Wealth Management", scope: quote(flat), tiers: [band(0, null, rate, flat)] },
+    standard,
+  ], [flat]);
+  expect(result.primaryScheduleIndex).toBe(1);
+  expect(result.schedules[0]).toMatchObject({ role: "scoped", flags: ["rate_review"], at1m: { dollars: Math.round(rate * 10_000) } });
+});
+
+it.each([0.25, 3])("accepts the inclusive %s percent review boundary", rate => {
+  const flat = `Standard management fee: ${rate}%.`;
+  const result = summarize([{ ...standard, scope: quote(flat), tiers: [band(0, null, rate, flat)] }], [flat]);
+  expect(result).toMatchObject({ primaryScheduleIndex: 0, at1m: { dollars: Math.round(rate * 10_000) } });
+  expect(result.schedules[0]?.flags).not.toContain("rate_review");
+});
+
+it("withholds only the whole-account reading at a printed shared boundary", () => {
+  const captions = ["Up to $999,999: 1%.", "$1million - $3 million: 0.90%.",
+    "$3 million – $5 million: 0.80%.", "$5 million - $7 million: 0.70%."];
+  const result = summarize([{ ...standard, pricing: "cap", tiers: [
+    band(0, 999_999, 1, captions[0]!), { ...band(1_000_000, 3_000_000, 0.9, captions[1]!), from_inclusive: true },
+    band(3_000_000, 5_000_000, 0.8, captions[2]!), band(5_000_000, 7_000_000, 0.7, captions[3]!),
+  ] }], captions);
+  expect(result.scenarios).toMatchObject({
+    cliff: { at1m: { dollars: 9_000 }, at5m: null },
+    marginal: { at1m: { dollars: 10_000 }, at5m: { dollars: 44_000 } },
+  });
+});
+
+it("allows comparable fees at or above a rejected account minimum without publishing it as verified", () => {
+  const flat = "The annual advisory fee is 1%.";
+  const minimum = { field: "minimum_account_size", value: "Suggested account minimum", amount: 1_000_000,
+    condition: "applies", evidence: quote("An account minimum of $1,000,000 is required.") };
+  const result = summarize([{ ...standard, tiers: [band(0, null, 1, flat)], terms: [minimum] }], [flat]);
+  expect(result).toMatchObject({ at1m: { dollars: 10_000 }, at5m: { dollars: 50_000 }, minimumAccountSize: null,
+    flags: ["minimum_account_review"] });
+  expect(result.coverage.gaps).toContain("Unsupported term: minimum_account_size");
+  expect(summarize([{ ...standard, tiers: [band(0, null, 1, flat)], terms: [{ ...minimum, amount: 2_000_000 }] }], [flat]))
+    .toMatchObject({ at1m: null, at5m: { dollars: 50_000 } });
+});
+
+it("keeps subscriptions, planning retainers, and unpriced descriptions outside primary fees", () => {
+  const subscription = "Full platform access costs $40 per month.";
+  const retainer = "Comprehensive financial planning retainer starts at 0.70% of investable assets.";
+  const unpriced = "Fees vary based on the size of the managed account.";
+  const result = summarize([
+    { ...standard, scope: quote(subscription), pricing: "subscription", tiers: [] },
+    { ...standard, scope: quote(retainer), pricing: "range", tiers: [] },
+    { ...standard, scope: quote(unpriced), pricing: "other", tiers: [] },
+  ], [subscription, retainer, unpriced]);
+  expect(result.primaryScheduleIndex).toBeNull();
+  expect(result.schedules.map(s => s.role)).toEqual(["scoped", "scoped", "scoped"]);
+});
+
+it.each([
+  ["Wrap Comprehensive Portfolio Management", "We bill for Wrap Comprehensive Portfolio Management quarterly."],
+  ["Managed account services and other wrap programs", "Managed account fees"],
+  ["Sponsor bundled fee", "Clients in a Wrap Account are charged a bundled fee by the sponsor."],
+])("keeps the %s wrap disclosure scoped even when no rate is published", (name, label) => {
+  const result = summarize([{ ...standard, name, category: "program", pricing: "other", scope: quote(label), tiers: [] }], [label]);
+  expect(result.schedules[0]).toMatchObject({ role: "scoped", scopeType: "wrap" });
+});
+
+it.each(["to", "through"])("leaves the cliff fee unresolved at $5M shared by '%s' ranges", connector => {
+  const method = "One rate applies to the whole account value.";
+  const first = `$0 ${connector} $5 million: 1%.`;
+  const second = `$5 million ${connector} $10 million: 0.8%.`;
+  const result = summarize([{ ...standard, method: "cliff", methodEvidence: quote(method),
+    tiers: [band(0, 5_000_000, 1, first), band(5_000_000, 10_000_000, 0.8, second)],
+  }], [method, first, second]);
+  expect(result).toMatchObject({ at1m: { dollars: 10_000 }, at5m: null,
+    scenarios: { cliff: { at5m: null }, marginal: null } });
+});
+
+it.each(["over $5 million through $10 million", "$5 million (exclusive) to $10 million"])(
+  "respects the explicit exclusion in '%s'", range => {
+    const method = "One rate applies to the whole account value.";
+    const first = "$0 to $5 million: 1%.";
+    const second = `${range}: 0.8%.`;
+    const result = summarize([{ ...standard, method: "cliff", methodEvidence: quote(method),
+      tiers: [band(0, 5_000_000, 1, first), band(5_000_000, 10_000_000, 0.8, second)],
+    }], [method, first, second]);
+    expect(result.at5m?.dollars).toBe(50_000);
+  },
+);
+
+it("keeps explicit marginal pricing comparable at $1M and $5M shared by dash bands", () => {
+  const ranges = ["$0 - $1 million: 1%.", "$1 million - $5 million: 0.8%.", "$5 million - $10 million: 0.5%."];
+  const result = summarize([{ ...standard, method: "marginal", methodEvidence: quote(marginal), tiers: [
+    band(0, 1_000_000, 1, ranges[0]!), band(1_000_000, 5_000_000, 0.8, ranges[1]!),
+    band(5_000_000, 10_000_000, 0.5, ranges[2]!),
+  ] }], ranges);
+  expect(result).toMatchObject({ classification: "comparable", at1m: { dollars: 10_000 }, at5m: { dollars: 42_000 } });
+});
+
+it.each([[1, true], [0.1, false], [3.01, false]] as const)("checks the %s percent rate before a $40,000 floor", (rate, eligible) => {
+  const flat = `Standard management fee: ${rate}%.`;
+  const minimum = "The minimum annual fee is $40,000.";
+  const result = summarize([{ ...standard, scope: quote(flat), tiers: [band(0, null, rate, flat)], terms: [
+    { field: "minimum_annual_fee", value: "Annual minimum", amount: 40_000, condition: "applies", evidence: quote(minimum) },
+  ] }], [flat, minimum]);
+  expect(result.schedules[0]).toMatchObject({ role: eligible ? "primary" : "scoped", at1m: { dollars: 40_000 } });
+  expect(result.schedules[0]?.flags.includes("rate_review")).toBe(!eligible);
+  expect(result.at1m?.dollars).toBe(eligible ? 40_000 : undefined);
+});
