@@ -178,6 +178,43 @@ it("writes sourced fee terms and reports extraction retries without a live provi
   });
 });
 
+it("persists a priced grounding failure separately from no-price firms", async () => {
+  const { sectorId } = await setup();
+  const { company } = await data<{ company: { id: string } }>("company_add", { sectorId, name: "Synthetic pricing review" });
+  const text = "Investment advisory terms. The planning fee is negotiated with each client.";
+  const { sourceId } = await data<{ sourceId: string }>("source_capture", {
+    companyId: company.id, text, url: "https://www.sec.gov/fixture-review", via: "browser", passages: [text],
+  });
+  await data("document_save", {
+    companyId: company.id, path: "financials/brochure-full-text.md", title: "Part 2A brochure (2026-03-31)",
+    content: text, sourceIds: [sourceId],
+  });
+  const { createFeeStep } = await import("../../src/domain/benchmark/fees.js");
+  let calls = 0;
+  const step = createFeeStep(async ({ prompt }) => {
+    calls++;
+    const ref = /--- Excerpt (.+?), filed/.exec(prompt)?.[1];
+    return { raw: "", usage: undefined, json: calls > 1 ? { replacements: [] } : {
+      schedules: [{
+        name: "Investment advisory", category: "standard", pricing: "annual_aum",
+        scope: { ref, quote: "Investment advisory terms." }, method: null, methodEvidence: null,
+        blocksExact: false, conditions: [], terms: [],
+        tiers: [{ from: 0, to: null, rate_pct: 1, from_inclusive: null, to_inclusive: null,
+          evidence: { ref, quote: "Invented price of 1%." } }],
+      }, {
+        name: "Planning", category: "other", pricing: "negotiated",
+        scope: { ref, quote: "The planning fee is negotiated with each client." },
+        method: null, methodEvidence: null, blocksExact: false, conditions: [], terms: [], tiers: [],
+      }], terms: [], findings: [], inspect: [], gaps: [],
+    } };
+  }, () => undefined);
+  expect(await step(handle.db, sectorId, company.id)).toMatchObject({ status: "gap", reason: expect.stringContaining("failed grounding") });
+  expect(calls).toBe(2);
+  expect(await data("benchmark_report", { sectorId })).toMatchObject({
+    fees: { available: 0, unavailable: 1, classifications: { review_failed: 1 } },
+  });
+});
+
 it("computes and reports a reproducible benchmark from verified snapshot facts", async () => {
   await data("evidence_library_ensure");
   const { sector } = await data<{ sector: { id: string } }>("sector_create", { name: "ria-us" });
