@@ -1,5 +1,5 @@
 import { and, countDistinct, desc, eq, inArray, sql } from "drizzle-orm";
-import { WEBSITE_SCAN_TYPE } from "../../collect/collectors/website-software.js";
+import { WEBSITE_SCAN_TYPE, websiteVendorConfig } from "../../collect/collectors/website-software.js";
 import type { Db } from "../../db/client.js";
 import { facts, records, sources } from "../../db/schema.js";
 import { findEvidenceLibrary } from "../evidence-library.js";
@@ -9,6 +9,8 @@ import { activeMembers } from "../sec-adv/snapshot.js";
 import { BENCHMARK_COLLECTOR } from "./compute.js";
 import { FEE_COLLECTOR } from "./fees.js";
 import { CLIENT_MEASURES, MEASURES, type ClientRanges, type MeasureValues } from "./measures.js";
+import { websiteCheckKey, websiteInputs } from "./website-input.js";
+import { sectorData } from "./sector-data.js";
 
 type Gap = { companyId: string; status: string; reason?: string };
 type SnapshotDiagnostics = { ambiguous: { companyId: string; reason: string }[];
@@ -131,9 +133,20 @@ export async function benchmarkReport(db: Db, input: {
     const range = measures.filter(row => (row.value as { clientRanges?: ClientRanges }).clientRanges?.[key] != null).length;
     return [key, { exact, range, missing: members.length - exact - range }];
   }));
-  const websiteRows = await db.selectDistinctOn([records.companyId], { data: records.data }).from(records)
+  const vendorData = await sectorData(db, input.sectorId, "website-vendors.json", true);
+  const websiteConfig = websiteVendorConfig.parse(vendorData ?? { excludedHosts: [], vendors: [] });
+  const sites = await websiteInputs(db, companyIds, websiteConfig);
+  const websiteHistory = await db.select({ companyId: records.companyId, data: records.data }).from(records)
     .where(and(eq(records.type, WEBSITE_SCAN_TYPE), inArray(records.companyId, companyIds)))
-    .orderBy(records.companyId, desc(records.updatedAt));
+    .orderBy(desc(records.updatedAt), desc(records.id));
+  const currentWebsites = new Map<string, typeof websiteHistory[number]>();
+  for (const row of websiteHistory) {
+    const key = websiteCheckKey(websiteConfig, sites.get(row.companyId)!);
+    if (key !== null && !currentWebsites.has(row.companyId) && row.data.check_key === key) {
+      currentWebsites.set(row.companyId, row);
+    }
+  }
+  const websiteRows = [...currentWebsites.values()];
   const categories = ["portal", "custodian", "scheduling", "form", "esign"];
   const websiteStatuses: Record<string, number> = {};
   const clientPageStatuses: Record<string, number> = {};
@@ -153,6 +166,8 @@ export async function benchmarkReport(db: Db, input: {
     fees: { available: currentFees.size, unavailable: statusRows.length - currentFees.size, classifications: feeClassifications, fields: feeFields },
     schedules, benchmark: { revision: revision ?? null, measures: measuresCoverage, clientRanges },
     website: { statuses: websiteStatuses, clientPageStatuses, missing: members.length - websiteRows.length,
+      configured: vendorData !== null,
+      uncheckedSharedDomain: [...sites.values()].filter(site => site.shared).length,
       fields: Object.fromEntries(categories.map(category => [category, countsFor(categoryCoverage.get(category) ?? 0)])) },
   };
 }

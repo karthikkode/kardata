@@ -3,10 +3,11 @@ import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { companies, facts, records, sectorCompanies, sources } from "../../src/db/schema.js";
 import { startServer } from "../../src/server.js";
 import { ensureMigrated, fixtureImportDirs, getTestDb, resetTestDb } from "../db.js";
+import * as websiteCollector from "../../src/collect/collectors/website-software.js";
 
 const handle = getTestDb();
 const token = "benchmark-test";
@@ -22,6 +23,7 @@ beforeAll(async () => {
 });
 
 beforeEach(() => resetTestDb(handle));
+afterEach(() => vi.restoreAllMocks());
 afterAll(async () => {
   await client.close();
   await server?.close();
@@ -314,4 +316,60 @@ it("records a missing website and returns the stored result on repeat", async ()
   expect(await data("benchmark_report", { sectorId })).toMatchObject({
     website: { missing: 0, statuses: { missing_site: 1 }, fields: { portal: { value: 0, missing: 1 } } },
   });
+});
+
+it("uses a unique stored domain, skips shared domains outside the sector, and excludes old shared evidence", async () => {
+  const library = await data<{ companyId: string }>("evidence_library_ensure");
+  const { sector } = await data<{ sector: { id: string } }>("sector_create", { name: "ria-us" });
+  const unique = randomUUID(), shared = randomUUID(), outside = randomUUID();
+  await handle.db.insert(companies).values([
+    { id: unique, source: "sec", name: "Synthetic unique", domain: "unique-fixture.example" },
+    { id: shared, source: "sec", name: "Synthetic shared", domain: "shared-fixture.example" },
+    { id: outside, source: "sec", name: "Synthetic outside", domain: "shared-fixture.example" },
+  ]);
+  await handle.db.insert(sectorCompanies).values([unique, shared].map(companyId => ({ companyId, sectorId: sector.id, addedVia: "sec" as const })));
+  const { sourceId } = await data<{ sourceId: string }>("source_capture", { companyId: library.companyId,
+    url: "https://unique-fixture.example/", text: "Synthetic homepage", via: "browser", passages: ["Synthetic homepage"] });
+  const [source] = await handle.db.select().from(sources).where(eq(sources.id, sourceId));
+  const collect = vi.spyOn(websiteCollector, "collectWebsiteSoftware").mockResolvedValue({ status: "none_found",
+    clientStatus: null, signals: [], pages: [source!] });
+  const input = { sectorId: sector.id, companyIds: [unique, shared], concurrency: 2 };
+  expect(await data("website_software_collect", input)).toMatchObject({ uncheckedSharedDomain: 1,
+    results: expect.arrayContaining([{ companyId: shared, status: "shared_domain", checked: false,
+      cached: false, reason: expect.any(String) }, { companyId: unique, status: "none_found", cached: false }]) });
+  expect(collect).toHaveBeenCalledTimes(1);
+  expect(collect.mock.calls[0]?.[1].homepage.href).toBe("https://unique-fixture.example/");
+  expect(await handle.db.select().from(records).where(eq(records.companyId, shared))).toHaveLength(0);
+  await data("website_software_collect", input);
+  expect(collect).toHaveBeenCalledTimes(1);
+  // Historical signals stay stored, but no longer count after ownership becomes shared.
+  await handle.db.update(companies).set({ domain: "unique-fixture.example" }).where(eq(companies.id, outside));
+  expect(await data("benchmark_report", { sectorId: sector.id })).toMatchObject({
+    website: { missing: 2, uncheckedSharedDomain: 1, statuses: {} },
+  });
+});
+
+it("does not retry legacy robots failures or HTTP 403 recorded as generic fetch errors", async () => {
+  await data("evidence_library_ensure");
+  const { sector } = await data<{ sector: { id: string } }>("sector_create", { name: "ria-us" });
+  const { company } = await data<{ company: { id: string } }>("company_add", { sectorId: sector.id,
+    name: "Synthetic robots failure", website: "https://robots-fixture.example/" });
+  const collect = vi.spyOn(websiteCollector, "collectWebsiteSoftware").mockImplementation(() => { throw Error("Unexpected fetch"); });
+  const { websiteCheckKey } = await import("../../src/domain/benchmark/website-input.js");
+  const { sectorData } = await import("../../src/domain/benchmark/sector-data.js");
+  const config = websiteCollector.websiteVendorConfig.parse(await sectorData(handle.db, sector.id, "website-vendors.json"));
+  const key = websiteCheckKey(config, { home: new URL("https://robots-fixture.example/"), kind: "website", shared: false });
+  const { sourceId } = await data<{ sourceId: string }>("source_capture", { companyId: company.id,
+    url: "https://robots-fixture.example/", text: "Synthetic failure", via: "browser", passages: ["Synthetic failure"] });
+  await handle.db.update(sources).set({ status: "error", error: "robots.txt unavailable" }).where(eq(sources.id, sourceId));
+  await data("record_upsert", { companyId: company.id, records: [{ type: "website_software", naturalKey: ["check_key"],
+    sourceIds: [sourceId], data: { check_key: key, result: { status: "fetch_error", clientStatus: null, signals: [] } } }] });
+  expect(await data("website_software_collect", { sectorId: sector.id })).toMatchObject({
+    results: [{ companyId: company.id, status: "robots_unavailable", cached: true }],
+  });
+  await handle.db.update(sources).set({ error: null, httpStatus: 403 }).where(eq(sources.id, sourceId));
+  expect(await data("website_software_collect", { sectorId: sector.id })).toMatchObject({
+    results: [{ companyId: company.id, status: "blocked", cached: true }],
+  });
+  expect(collect).not.toHaveBeenCalled();
 });

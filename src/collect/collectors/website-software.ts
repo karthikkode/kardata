@@ -71,6 +71,7 @@ function pageFailure(page: FetchResult) {
   if (page.source.status !== "ok" || page.text === undefined) {
     if (page.source.status === "robots_disallowed") return "robots_disallowed";
     if (page.source.status === "blocked") return "blocked";
+    if (page.source.error === "robots.txt unavailable") return "robots_unavailable";
     if (page.source.error === "redirect outside the allowed site or path") return "blocked_redirect";
     if (page.source.status === "not_found") return "not_found";
     return "fetch_error";

@@ -3,6 +3,7 @@ import { expect, it } from "vitest";
 import type { Db } from "../../src/db/client.js";
 import { collectWebsiteSoftware, companyHomepage, inspectWebsiteSoftware, type WebsiteVendorConfig } from "../../src/collect/collectors/website-software.js";
 import type { FetchRequest, FetchResult } from "../../src/collect/fetch.js";
+import { selectWebsiteInputs, websiteCheckKey } from "../../src/domain/benchmark/website-input.js";
 
 const config: WebsiteVendorConfig = {
   excludedHosts: ["social.example"],
@@ -49,4 +50,38 @@ it("keeps retryable fetch failures distinct from blocked and successful empty re
   expect((await result("blocked")).status).toBe("blocked");
   expect((await result("error")).status).toBe("fetch_error");
   expect((await result("ok")).status).toBe("none_found");
+});
+
+it("uses a stored domain only when no usable site exists and skips globally shared domains", () => {
+  const directory = [
+    { id: "unique", website: null, domain: "unique.example", sharedDomain: false },
+    { id: "preferred", website: "https://site.example/about", domain: "other.example", sharedDomain: false },
+    { id: "social", website: "https://social.example/firm", domain: "actual.example", sharedDomain: false },
+    { id: "shared", website: null, domain: "shared.example", sharedDomain: false },
+    { id: "outside-selection", website: "https://www.shared.example/", domain: null, sharedDomain: false },
+    { id: "flagged", website: null, domain: "flagged.example", sharedDomain: true },
+    { id: "excluded-shared", website: null, domain: "social.example", sharedDomain: true },
+    { id: "missing", website: null, domain: null, sharedDomain: false },
+  ];
+  const inputs = selectWebsiteInputs(directory, new Set(directory.map(c => c.id)), config);
+  expect(inputs.get("unique")).toMatchObject({ kind: "domain", shared: false });
+  expect(inputs.get("unique")?.home?.href).toBe("https://unique.example/");
+  expect(inputs.get("preferred")?.home?.href).toBe("https://site.example/");
+  expect(inputs.get("social")?.home?.href).toBe("https://actual.example/");
+  expect(inputs.get("shared")?.shared).toBe(true);
+  expect(inputs.get("flagged")?.shared).toBe(true);
+  expect(inputs.get("excluded-shared")?.shared).toBe(true);
+  expect(websiteCheckKey(config, inputs.get("shared")!)).toBeNull();
+  expect(inputs.get("missing")).toEqual({ home: null, kind: null, shared: false });
+  expect(websiteCheckKey(config, inputs.get("missing")!)).toMatch(/:missing$/);
+});
+
+it.each(["blocked", "robots_disallowed", "error"])("stops at a %s homepage without visiting another page", async status => {
+  let calls = 0;
+  const result = await collectWebsiteSoftware({} as Db, { companyId: "company", runId: "run", homepage, config }, async () => {
+    calls++;
+    return { source: { finalUrl: homepage.href, status, error: "robots.txt unavailable" } } as FetchResult;
+  });
+  expect(calls).toBe(1);
+  expect(result.status).toBe(status === "error" ? "robots_unavailable" : status);
 });
