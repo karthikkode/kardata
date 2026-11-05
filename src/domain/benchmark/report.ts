@@ -8,7 +8,7 @@ import { SNAPSHOT_FIELDS } from "../sec-adv/fields.js";
 import { activeMembers } from "../sec-adv/snapshot.js";
 import { BENCHMARK_COLLECTOR } from "./compute.js";
 import { FEE_COLLECTOR } from "./fees.js";
-import { MEASURES, type MeasureValues } from "./measures.js";
+import { CLIENT_MEASURES, MEASURES, type ClientRanges, type MeasureValues } from "./measures.js";
 
 type Gap = { companyId: string; status: string; reason?: string };
 type SnapshotDiagnostics = { ambiguous: { companyId: string; reason: string }[];
@@ -126,6 +126,11 @@ export async function benchmarkReport(db: Db, input: {
       sql`${facts.qualifiers}->>'revision' = ${revision}`)) : [];
   const measuresCoverage = Object.fromEntries(MEASURES.map(key => [key, countsFor(measures.filter(row =>
     (row.value as { values: MeasureValues }).values[key] != null).length)]));
+  const clientRanges = Object.fromEntries(CLIENT_MEASURES.map(key => {
+    const exact = measures.filter(row => (row.value as { values: MeasureValues }).values[key] != null).length;
+    const range = measures.filter(row => (row.value as { clientRanges?: ClientRanges }).clientRanges?.[key] != null).length;
+    return [key, { exact, range, missing: members.length - exact - range }];
+  }));
   const websiteRows = await db.selectDistinctOn([records.companyId], { data: records.data }).from(records)
     .where(and(eq(records.type, WEBSITE_SCAN_TYPE), inArray(records.companyId, companyIds)))
     .orderBy(records.companyId, desc(records.updatedAt));
@@ -146,7 +151,7 @@ export async function benchmarkReport(db: Db, input: {
     matchCounts, diagnosticsComplete: diagnostics !== undefined, exceptions: exceptions.slice(offset, offset + limit),
     nextOffset: offset + limit < exceptions.length ? offset + limit : null,
     fees: { available: currentFees.size, unavailable: statusRows.length - currentFees.size, classifications: feeClassifications, fields: feeFields },
-    schedules, benchmark: { revision: revision ?? null, measures: measuresCoverage },
+    schedules, benchmark: { revision: revision ?? null, measures: measuresCoverage, clientRanges },
     website: { statuses: websiteStatuses, clientPageStatuses, missing: members.length - websiteRows.length,
       fields: Object.fromEntries(categories.map(category => [category, countsFor(categoryCoverage.get(category) ?? 0)])) },
   };

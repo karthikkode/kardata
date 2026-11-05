@@ -18,3 +18,6 @@ Across the entire 17,263-row release, 12,786 of 12,788 firms with the blank-coun
 
 Decision: retain unknown blank counts, including when category AUM is zero or absent. Reconciliation proves asset completeness, not client completeness. The instruction and counterexamples do not support zero inference. Positive-AUM blank counts also remain unknown.
 Hidden-category bounds assume 1–4 clients as requested; exact totals and explicit reported zeros remain unchanged. Unsuppressed missing counts prevent a finite total range. These bounds are assumptions, not exact observations.
+
+After deployment, the standard snapshot importer can enrich an existing identical file once with the two bound keys; it preserves earlier exact fact IDs and canonical evidence. No production enrichment was run for this PR.
+`benchmark_compute` stores uncertain ratios and growth separately in `clientRanges`, with exact values left null. Inverse and growth denominators must have positive lower bounds. Peer quartiles and point ranks use exact observations only; `clientRangePercentiles` ranks each bound against that sample. Reports distinguish exact, range and missing coverage.

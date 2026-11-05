@@ -36,6 +36,8 @@ export const SNAPSHOT_FIELDS: Field[] = [
     field(`sec_adv.aum_${clientKeys[i]}`, `5D(${letter})(3)`, "usd"),
   ]),
   field("firm.client_total", "5D(·)(1)", "number"),
+  field("firm.client_total_low", "5D(·)(1), hidden categories assumed 1 client", "number"),
+  field("firm.client_total_high", "5D(·)(1), hidden categories assumed 4 clients", "number"),
   field("sec_adv.discretionary_aum", "5F(2)(a)", "usd"),
   field("sec_adv.nondiscretionary_aum", "5F(2)(b)", "usd"),
   field("firm.regulatory_aum", "5F(2)(c)", "usd"),
@@ -92,6 +94,30 @@ export function advBoolean(value: string | undefined): boolean | null {
 
 const COMPENSATION = ["percentage_of_aum", "hourly", "subscription", "fixed", "commissions", "performance", "other"];
 
+export const CLIENT_BOUNDS_VERSION = 1;
+export const CLIENT_BOUND_KEYS = ["firm.client_total_low", "firm.client_total_high"];
+
+/** Missing unsuppressed categories remain unknown, even with no reported AUM. */
+export function clientTotals(raw: Record<string, string>) {
+  let low = 0;
+  let high = 0;
+  let hidden = false;
+  for (const letter of letters) {
+    const flag = raw[`5D(${letter})(2)`];
+    if (advBoolean(flag) === true || /fewer than 5/i.test(flag ?? "")) {
+      low += 1;
+      high += 4;
+      hidden = true;
+    } else {
+      const count = parseCountField(raw[`5D(${letter})(1)`]);
+      if (count === null || count < 0) return { exact: null, low: null, high: null };
+      low += count;
+      high += count;
+    }
+  }
+  return { exact: hidden ? null : low, low, high };
+}
+
 export function snapshotValues(raw: Record<string, string>) {
   const counts = new Map(letters.map(letter => {
     const suppressed = raw[`5D(${letter})(2)`];
@@ -99,18 +125,13 @@ export function snapshotValues(raw: Record<string, string>) {
       ? null : parseCountField(raw[`5D(${letter})(1)`]);
     return [`5D(${letter})(1)`, count];
   }));
-  const anyCount = [...counts.values()].some(value => value !== null);
-  const incomplete = letters.some(letter => {
-    const suppression = raw[`5D(${letter})(2)`];
-    const count = raw[`5D(${letter})(1)`]?.trim();
-    return !count || advBoolean(suppression) === true || /fewer than 5/i.test(suppression ?? "") ||
-      (counts.get(`5D(${letter})(1)`) ?? -1) < 0;
-  });
-  const total = anyCount && !incomplete ? [...counts.values()].reduce<number>((sum, value) => sum + (value ?? 0), 0) : null;
+  const totals = clientTotals(raw);
   return SNAPSHOT_FIELDS.flatMap(def => {
     const rawValue = raw[def.column]?.trim();
     let value: unknown;
-    if (def.key === "firm.client_total") value = total;
+    if (def.key === "firm.client_total") value = totals.exact;
+    else if (def.key === "firm.client_total_low") value = totals.low;
+    else if (def.key === "firm.client_total_high") value = totals.high;
     else if (counts.has(def.column)) value = counts.get(def.column);
     else if (def.kind === "text_list") {
       const flags = COMPENSATION.map((_, index) => advBoolean(raw[`5E(${index + 1})`]));

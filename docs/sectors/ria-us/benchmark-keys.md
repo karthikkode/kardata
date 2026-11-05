@@ -8,6 +8,7 @@ November 4 backup, queried with MCP on a disposable local restore. 17,958 active
 | `sec_adv.advisory_staff`, other 5B keys | 5B(1)–(5) advisory, broker-dealer, state representative, other adviser, insurance roles | people |
 | `sec_adv.outside_solicitors` | 5B(6) non-employee solicitors | firms or people |
 | `firm.client_total`, `firm.client_individuals`, `firm.client_hnw`, `firm.client_pension`, `sec_adv.client_*` | 5D(1) counts, summed when exact, including individual, high-net-worth and pension categories | clients |
+| `firm.client_total_low`, `firm.client_total_high` | Total bounds assuming 1–4 per explicitly hidden category; absent if an unsuppressed count is missing | clients |
 | `sec_adv.aum_*` | 5D(3) client category regulatory AUM | USD |
 | `firm.regulatory_aum`, `sec_adv.*discretionary_aum` | 5F(2)(a–c) discretionary, non-discretionary, and total | USD |
 | `firm.accounts`, `sec_adv.*discretionary_accounts` | 5F(2)(d–f) discretionary, non-discretionary, and total | accounts |

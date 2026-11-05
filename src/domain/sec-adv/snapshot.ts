@@ -12,7 +12,7 @@ import { checkImportPaths, SEC_MAX_FILE_BYTES } from "../imports.js";
 import { upsertRecords } from "../research/records.js";
 import { isValidDateString, validateTypedValue } from "../research/validate.js";
 import { canonicalFile, companyFileEvidence, lockEvidence, SNAPSHOT_COLLECTOR } from "./evidence.js";
-import { SNAPSHOT_FIELDS, snapshotValues } from "./fields.js";
+import { CLIENT_BOUND_KEYS, CLIENT_BOUNDS_VERSION, SNAPSHOT_FIELDS, snapshotValues } from "./fields.js";
 
 export const CANDIDATE_TYPE = "sec_adv_crd_candidate";
 
@@ -151,8 +151,8 @@ export async function snapshotDefinitions(db: DbLike) {
 
 export async function writeSnapshotFacts(db: DbLike, input: {
   evidence: typeof sources.$inferSelect; raw: Record<string, string>; date: string; snapshot: string;
-}, definitions: Awaited<ReturnType<typeof snapshotDefinitions>>) {
-  const rows = snapshotValues(input.raw).map(field => {
+}, definitions: Awaited<ReturnType<typeof snapshotDefinitions>>, onlyKeys?: string[]) {
+  const rows = snapshotValues(input.raw).filter(field => !onlyKeys || onlyKeys.includes(field.key)).map(field => {
     const def = definitions.get(field.key)!;
     const value = def.valueType === "money" && field.kind === "usd" ? { amount: field.value, currency: "USD" } : field.value;
     return {
@@ -229,15 +229,23 @@ export async function importSnapshot(db: Db, input: {
       if (!company || (company.crd && normalizeCrd(company.crd) !== crd)) {
         throw new DomainError("conflict", `company identity changed during import: ${match.companyId}`);
       }
-      const [existing] = await tx.select({ id: sources.id }).from(sources).where(and(
+      const [existing] = await tx.select().from(sources).where(and(
         eq(sources.companyId, match.companyId), eq(sources.collector, SNAPSHOT_COLLECTOR),
         sql`${sources.details}->>'fileSourceId' = ${file.id}`,
         sql`${sources.details}->>'verification' = ${match.method === "name_state" ? "unverified" : "verified"}`,
       ));
-      if (existing) return 0;
+      if (existing) {
+        if (match.method === "name_state" || existing.details?.clientBoundsVersion === CLIENT_BOUNDS_VERSION) return 0;
+        // Enrich an earlier import atomically; preserve its exact facts and evidence.
+        const added = await writeSnapshotFacts(tx, { evidence: existing, raw: match.row.raw, date: date!, snapshot }, definitions, CLIENT_BOUND_KEYS);
+        await tx.update(sources).set({ details: { ...existing.details, clientBoundsVersion: CLIENT_BOUNDS_VERSION } })
+          .where(eq(sources.id, existing.id));
+        return added;
+      }
       const evidence = await companyFileEvidence(tx, file, match.companyId, {
         crd, filingDate: date, method: match.method, row: match.row.rowNumber,
         verification: match.method === "name_state" ? "unverified" : "verified",
+        clientBoundsVersion: CLIENT_BOUNDS_VERSION,
       });
       if (match.method === "name_state") {
         const result = await upsertRecords(tx, { companyId: match.companyId, runId: evidence.runId, createdBy: SNAPSHOT_COLLECTOR, records: [{

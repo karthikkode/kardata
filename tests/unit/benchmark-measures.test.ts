@@ -112,3 +112,49 @@ it.each([[1, true], [0.1, false], [3.01, false]] as const)("checks a stored %s p
       scope: { kind: "firm", quote: "Standard individual investment management." } }] };
   expect(primaryPeerFees(value)).toEqual(eligible ? value : null);
 });
+
+it("propagates client bounds through ratios, inverse denominators and both growth windows without creating exact values", () => {
+  const bounded = { ...current, clients: null, clientsLow: 60, clientsHigh: 63 };
+  const priorRange = { ...prior, clients: null, clientsLow: 10, clientsHigh: 20 };
+  const result = deriveMeasures(bounded, prior, priorRange, null, "2026-11", [priorRange, prior, bounded]);
+  expect(result.values).toMatchObject({ clients_per_staff: null, clients_per_non_advisory_staff: null,
+    aum_per_client: null, clients_growth_1y_pct: null, clients_growth_3y_pct: null });
+  expect(result.clientRanges.clients_per_staff).toEqual({ low: 6, high: 6.3 });
+  expect(result.clientRanges.clients_per_non_advisory_staff).toEqual({ low: 10, high: 10.5 });
+  expect(result.clientRanges.aum_per_client).toEqual({ low: current.aum! / 63, high: current.aum! / 60 });
+  expect(result.clientRanges.clients_growth_1y_pct?.low).toBeCloseTo(100);
+  expect(result.clientRanges.clients_growth_1y_pct?.high).toBeCloseTo(110);
+  expect(result.clientRanges.clients_growth_3y_pct?.low).toBeCloseTo(200);
+  expect(result.clientRanges.clients_growth_3y_pct?.high).toBeCloseTo(530);
+  expect(result.gapReasons.clients_per_staff).toContain("hidden-category");
+  const exact = deriveMeasures({ ...current, clientsLow: 1, clientsHigh: 4 }, prior, prior, null, "2026-11", [current]);
+  expect(exact.values.clients_per_staff).toBe(6);
+  expect(exact.clientRanges).toEqual({});
+});
+
+it("withholds client intervals with unknown counts, reversed bounds or invalid denominators", () => {
+  for (const bounds of [{}, { clientsLow: 5, clientsHigh: 4 }, { clientsLow: -1, clientsHigh: 4 },
+    { clientsLow: 1, clientsHigh: Infinity }]) {
+    expect(deriveMeasures({ ...current, clients: null, ...bounds }, prior, prior, null, "2026-11", []).clientRanges).toEqual({});
+  }
+  const bounded = { ...current, clients: null, clientsLow: 1, clientsHigh: 4, staff: 0 };
+  const zeroPrior = { ...prior, clients: 0 };
+  const result = deriveMeasures(bounded, zeroPrior, zeroPrior, null, "2026-11", []);
+  expect(result.clientRanges.clients_per_staff).toBeUndefined();
+  expect(result.clientRanges.clients_per_non_advisory_staff).toBeUndefined();
+  expect(result.clientRanges.clients_growth_1y_pct).toBeUndefined();
+  expect(result.clientRanges.aum_per_client).toEqual({ low: current.aum! / 4, high: current.aum! });
+});
+
+it("ranks client interval endpoints only against exact observations and withholds ranks for sparse groups", () => {
+  const make = (id: string, clients: number | null, clientsLow?: number, clientsHigh?: number) => ({
+    id, staff: 10, aum: current.aum,
+    ...deriveMeasures({ ...current, clients, clientsLow: clientsLow ?? null, clientsHigh: clientsHigh ?? null }, prior, prior, null, "2026-11", []),
+  });
+  const firms = [make("a", 20), make("b", 60), make("range", null, 30, 50)];
+  const peers = peerStatistics(firms, config);
+  expect(peers.summaries.find(s => s.measure === "clients_per_staff")).toMatchObject({ n: 2, median: 4 });
+  expect(peers.memberGroups.get("range")?.percentiles.clients_per_staff).toBeUndefined();
+  expect(peers.memberGroups.get("range")?.clientRangePercentiles.clients_per_staff).toEqual({ low: 50, high: 50 });
+  expect(peerStatistics([firms[2]!], config).memberGroups.get("range")?.clientRangePercentiles).toEqual({});
+});

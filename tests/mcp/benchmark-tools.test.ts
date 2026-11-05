@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, expect, it } from "vitest";
 import { companies, facts, records, sectorCompanies, sources } from "../../src/db/schema.js";
 import { startServer } from "../../src/server.js";
@@ -101,6 +101,54 @@ it("keeps name matches unverified until independently confirmed and is retry saf
     const [charlie] = await handle.db.select().from(companies).where(eq(companies.id, charlieId));
     expect(charlie?.secCrd).toBe("910003");
     expect(await handle.db.select().from(facts).where(and(eq(facts.companyId, charlieId), eq(facts.key, "firm.client_total")))).toHaveLength(0);
+  } finally {
+    if (dirs === undefined) delete process.env.KARDATA_IMPORT_DIRS;
+    else process.env.KARDATA_IMPORT_DIRS = dirs;
+  }
+});
+
+it("enriches old snapshots with client bounds once, preserves exact facts and reports intervals separately", async () => {
+  const { sectorId } = await setup();
+  // The standard benchmark config is sector data, supplied by this synthetic sector name.
+  const { sectors } = await import("../../src/db/schema.js");
+  await handle.db.update(sectors).set({ name: "ria-us" }).where(eq(sectors.id, sectorId));
+  const exact = randomUUID(), bounded = randomUUID();
+  await handle.db.insert(companies).values([
+    { id: exact, source: "sec", name: "Synthetic exact", secCrd: "910001" },
+    { id: bounded, source: "sec", name: "Synthetic bounded", secCrd: "910003" },
+  ]);
+  await handle.db.insert(sectorCompanies).values([exact, bounded].map(companyId => ({ companyId, sectorId, addedVia: "sec" as const })));
+  const dirs = process.env.KARDATA_IMPORT_DIRS;
+  process.env.KARDATA_IMPORT_DIRS = fixtureImportDirs().join(",");
+  const input = { sectorId, path: join(fixtureImportDirs()[0]!, "sec-adv-snapshot.csv"), snapshotDate: "2026-09-02",
+    sourceUrl: "https://www.sec.gov/synthetic-bounds.zip", dryRun: false };
+  const boundKeys = ["firm.client_total_low", "firm.client_total_high"];
+  try {
+    await data("sec_adv_snapshot_import", input);
+    // Simulate an earlier importer: same canonical file, evidence and exact facts, no bound fields/version.
+    await handle.db.delete(facts).where(inArray(facts.key, boundKeys));
+    await handle.db.update(sources).set({ details: sql`${sources.details} - 'clientBoundsVersion'` })
+      .where(eq(sources.collector, "sec_adv_snapshot"));
+    const before = await handle.db.select({ id: facts.id }).from(facts);
+    await data("sec_adv_snapshot_import", { ...input, dryRun: true });
+    expect(await handle.db.select().from(facts).where(inArray(facts.key, boundKeys))).toHaveLength(0);
+    const results = await Promise.all([data<{ written: number }>("sec_adv_snapshot_import", input),
+      data<{ written: number }>("sec_adv_snapshot_import", input)]);
+    expect(results.reduce((sum, r) => sum + r.written, 0)).toBe(4);
+    expect(await data("sec_adv_snapshot_import", input)).toMatchObject({ written: 0 });
+    expect((await handle.db.select({ id: facts.id }).from(facts)).map(f => f.id)).toEqual(expect.arrayContaining(before.map(f => f.id)));
+    const bounds = await handle.db.select().from(facts).where(and(eq(facts.companyId, bounded), inArray(facts.key, boundKeys)));
+    expect(bounds.map(f => Number(f.valueNum)).sort()).toEqual([1, 4]);
+    expect(bounds.every(f => f.asOf === "2026-09-01" && f.qualifiers.snapshot === "2026-09")).toBe(true);
+    const { revision } = await data<{ revision: string }>("benchmark_compute", { sectorId, formulaVersion: "bounds-test",
+      snapshots: { current: "2026-09", prior1: "2025-09", prior3: "2023-09" } });
+    expect(await data("benchmark_report", { sectorId, revision })).toMatchObject({ benchmark: {
+      clientRanges: { clients_per_staff: { exact: 1, range: 1, missing: 0 } },
+      measures: { clients_per_staff: { value: 1, missing: 1 } },
+    } });
+    const [result] = await handle.db.select().from(facts).where(and(eq(facts.companyId, bounded), eq(facts.key, "benchmark.measures")));
+    expect(result?.valueJson).toMatchObject({ values: { clients_per_staff: null },
+      clientRanges: { clients_per_staff: { low: 0.25, high: 1 } } });
   } finally {
     if (dirs === undefined) delete process.env.KARDATA_IMPORT_DIRS;
     else process.env.KARDATA_IMPORT_DIRS = dirs;
