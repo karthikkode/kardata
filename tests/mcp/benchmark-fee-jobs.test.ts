@@ -212,3 +212,40 @@ it("requires an exclusive full-run opt-in and resumes only the eligible cohort w
     results: [{ companyId: toRemove, outcome: "gap", reason: "company no longer active and eligible" }],
   });
 });
+
+it("finishes priority waves in submitted order before the eligible remainder, including after resume", async () => {
+  const { sectorId, companyIds } = await fixture(true);
+  const [ineligible, second, , , first, , third] = companyIds;
+  const priorityCompanyIds: string[] = [first!, second!, third!];
+  const input = { sectorId, fullRun: true, concurrency: 2, requestId: randomUUID(), priorityCompanyIds };
+  expect((await tool("benchmark_fees_run", { sectorId, companyIds, priorityCompanyIds })).isError).toBe(true);
+  for (const ids of [[ineligible!], [randomUUID()], [first!, first!]]) {
+    expect((await tool("benchmark_fees_run", { ...input, priorityCompanyIds: ids })).isError).toBe(true);
+  }
+  const { jobId } = await data("benchmark_fees_run", input);
+  expect(await data("benchmark_fees_run", input)).toMatchObject({ jobId, priorityCompanyIds });
+  expect((await tool("benchmark_fees_run", { ...input, priorityCompanyIds: [...priorityCompanyIds].reverse() })).isError).toBe(true);
+  expect((await tool("benchmark_fees_run", { ...input, requestId: randomUUID(), priorityCompanyIds: [second!] })).isError).toBe(true);
+
+  const worker = createBenchmarkFeeWorker(handle.db, async (_db, wave) => {
+    expect(wave.companyIds).toEqual([first, second]);
+    await wave.onResult(result(first!));
+    return "quota";
+  });
+  await worker.tick();
+  expect(await data("benchmark_fees_status", { jobId })).toMatchObject({ status: "paused", finished: 1, priorityCompanyIds });
+  await data("benchmark_fees_resume", { jobId });
+  const waves: string[][] = [];
+  const resumed = createBenchmarkFeeWorker(handle.db, async (_db, wave) => {
+    waves.push(wave.companyIds);
+    for (const id of wave.companyIds) await wave.onResult(result(id));
+    return null;
+  });
+  await resumed.tick();
+  expect(waves.slice(0, 2)).toEqual([[second], [third]]);
+  expect(waves.slice(2).flat()).toHaveLength(18);
+  expect(waves.slice(2).flat().some(id => priorityCompanyIds.includes(id) || id === ineligible)).toBe(false);
+  expect(await data("benchmark_fees_status", { jobId, limit: 3 })).toMatchObject({
+    status: "completed", finished: 21, results: priorityCompanyIds.map(id => result(id)),
+  });
+});

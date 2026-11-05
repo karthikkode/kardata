@@ -316,6 +316,13 @@
       "when": 1793814600000,
       "tag": "0044_full_benchmark_fee_jobs",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1793814700000,
+      "tag": "0045_benchmark_fee_priority",
+      "breakpoints": true
     }
   ]
 }

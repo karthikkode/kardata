@@ -51,6 +51,7 @@ export function registerBenchmarkTools(server: McpServer, db: Db, auth: AuthCont
     inputSchema: {
       sectorId: z.string().uuid(), companyIds: z.array(z.string().uuid()).min(20).max(30).optional(),
       fullRun: z.literal(true).optional().describe("Explicit opt-in to all active eligible firms, without companyIds or pilot"),
+      priorityCompanyIds: z.array(z.string().uuid()).optional().describe("Full-run only. Review these eligible company IDs in priority waves before the rest"),
       concurrency: z.number().int().min(1).max(16).optional(), pilot: z.literal(true).optional(),
       requestId: z.string().uuid().optional().describe("Optional idempotency ID for safely retrying the request"),
     },

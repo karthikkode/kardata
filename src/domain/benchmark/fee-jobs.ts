@@ -40,7 +40,7 @@ async function jobView(db: Db | DbTx, job: Job, offset = 0, limit = 100) {
     jobId: job.id, sectorId: job.sectorId, status: job.status, reason: job.reason,
     createdAt: job.createdAt, finishedAt: job.finishedAt, elapsedMs,
     selected: job.companyIds.length, eligibleSelected: job.eligibleSelected, cohortSize: job.cohortSize,
-    concurrency: job.concurrency, fullRun: job.fullRun, finished, pending: job.companyIds.length - finished,
+    concurrency: job.concurrency, fullRun: job.fullRun, priorityCompanyIds: job.priorityCompanyIds, finished, pending: job.companyIds.length - finished,
     results: job.fullRun
       ? job.companyIds.slice(offset, offset + limit).flatMap(id => saved[id] ? [saved[id]] : [])
       : results.slice(offset, offset + limit),
@@ -63,9 +63,14 @@ export async function benchmarkFeeJobStatus(db: Db, id: string, offset?: number,
 }
 
 export async function enqueueBenchmarkFeeJob(db: Db, input: {
-  sectorId: string; companyIds?: string[]; fullRun?: true; pilot?: true; concurrency?: number; requestId?: string;
+  sectorId: string; companyIds?: string[]; fullRun?: true; priorityCompanyIds?: string[];
+  pilot?: true; concurrency?: number; requestId?: string;
 }) {
   const fullRun = input.fullRun === true;
+  const priorityCompanyIds = input.priorityCompanyIds?.map(id => id.toLowerCase()) ?? [];
+  const prioritySet = new Set(priorityCompanyIds);
+  if (!fullRun && input.priorityCompanyIds) throw new DomainError("invalid_input", "priorityCompanyIds requires fullRun");
+  if (prioritySet.size !== priorityCompanyIds.length) throw new DomainError("invalid_input", "priorityCompanyIds must be distinct");
   const pilotIds = [...new Set(input.companyIds ?? [])].sort();
   if (fullRun && (input.companyIds || input.pilot)) {
     throw new DomainError("invalid_input", "fullRun cannot be combined with companyIds or pilot");
@@ -80,16 +85,19 @@ export async function enqueueBenchmarkFeeJob(db: Db, input: {
   const [cohort, eligible] = await Promise.all([activeMembers(db, input.sectorId), eligibleCompanyIds(db, input.sectorId)]);
   const active = new Set(cohort.map(row => row.id));
   const eligibleSet = new Set(eligible.filter(id => active.has(id)));
-  const companyIds = fullRun ? [...eligibleSet].sort() : pilotIds;
+  const companyIds = fullRun ? [...priorityCompanyIds, ...[...eligibleSet].filter(id => !prioritySet.has(id)).sort()] : pilotIds;
   return db.transaction(async tx => {
     await lockEvidence(tx, DISPATCH_LOCK);
     const previous = input.requestId ? await findJob(tx, input.requestId) : undefined;
     if (previous) {
       if (previous.sectorId !== input.sectorId || previous.concurrency !== concurrency || previous.fullRun !== fullRun ||
-        (!fullRun && previous.companyIds.join(",") !== companyIds.join(","))) {
+        (fullRun ? previous.priorityCompanyIds.join(",") !== priorityCompanyIds.join(",") : previous.companyIds.join(",") !== companyIds.join(","))) {
         throw new DomainError("conflict", "fee job requestId already belongs to a different fee job");
       }
       return jobView(tx, previous);
+    }
+    if (priorityCompanyIds.some(id => !eligibleSet.has(id))) {
+      throw new DomainError("invalid_input", "priority companies must be active eligible sector members");
     }
     if (!companyIds.length) throw new DomainError("invalid_input", "the sector has no active eligible firms");
     if (companyIds.some(id => !active.has(id))) {
@@ -101,9 +109,14 @@ export async function enqueueBenchmarkFeeJob(db: Db, input: {
       inArray(benchmarkFeeJobs.status, ["queued", "running", "paused"]),
       fullRun ? undefined : eq(benchmarkFeeJobs.companyIds, companyIds),
     )).orderBy(asc(benchmarkFeeJobs.createdAt)).limit(1);
-    if (queued && (fullRun || !input.requestId)) return jobView(tx, queued);
+    if (queued && (fullRun || !input.requestId)) {
+      if (fullRun && input.priorityCompanyIds && queued.priorityCompanyIds.join(",") !== priorityCompanyIds.join(",")) {
+        throw new DomainError("conflict", "an unfinished full fee job has a different priority list");
+      }
+      return jobView(tx, queued);
+    }
     const [job] = await tx.insert(benchmarkFeeJobs).values({
-      id: input.requestId ?? randomUUID(), sectorId: input.sectorId, companyIds, concurrency, fullRun,
+      id: input.requestId ?? randomUUID(), sectorId: input.sectorId, companyIds, concurrency, fullRun, priorityCompanyIds,
       eligibleSelected: companyIds.filter(id => eligibleSet.has(id)).length, cohortSize: eligibleSet.size,
     }).returning();
     return jobView(tx, job!);
@@ -209,9 +222,12 @@ export function createBenchmarkFeeWorker(db: Db, runWave: Wave = runBenchmarkFee
         void _feeJobId;
         await onResult(result);
       }
-      for (let i = 0; i < job.companyIds.length && shouldContinue(); i += job.concurrency) {
-        const ids = job.companyIds.slice(i, i + job.concurrency)
+      for (let i = 0; i < job.companyIds.length && shouldContinue();) {
+        const end = i < job.priorityCompanyIds.length
+          ? Math.min(i + job.concurrency, job.priorityCompanyIds.length) : i + job.concurrency;
+        const ids = job.companyIds.slice(i, end)
           .filter(id => !results[id] || results[id].outcome === "interrupted");
+        i = end;
         if (!ids.length) continue;
         const members = await db.select({ id: sectorCompanies.companyId }).from(sectorCompanies).where(and(
           eq(sectorCompanies.sectorId, job.sectorId), inArray(sectorCompanies.companyId, ids), isNull(sectorCompanies.removedAt),
