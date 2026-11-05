@@ -4,6 +4,10 @@ export type FeeTier = {
 };
 export type TierMethod = "marginal" | "cliff";
 
+export function rateNeedsReview(at1m: { dollars: number } | null | undefined) {
+  return at1m != null && (at1m.dollars < 2_500 || at1m.dollars > 30_000);
+}
+
 export function effectiveFee(input: {
   tiers: FeeTier[]; method: TierMethod; balance: number;
   minimumAnnualFee?: number | null; minimumAccountSize?: number | null;

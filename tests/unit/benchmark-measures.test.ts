@@ -64,6 +64,9 @@ it("compares a two-reading interval against single-reading primary peers without
     cliff: { at1m: fees.at1m, at5m: fees.at5m },
     marginal: { at1m: { dollars: 12_500, rate_pct: 1.25 }, at5m: { dollars: 62_500, rate_pct: 1.25 } },
   } };
+  expect(primaryPeerFees({ ...value, at1m: { dollars: 1_000, rate_pct: 0.1 } })).toBeNull();
+  expect(primaryPeerFees({ ...both, scenarios: { ...both.scenarios,
+    marginal: { ...both.scenarios.marginal, at1m: { dollars: 31_000, rate_pct: 3.1 } } } })).toBeNull();
   const make = (id: string, schedule: Fees | null) => ({ id, staff: current.staff, aum: current.aum,
     ...deriveMeasures(current, prior, prior, schedule, "2026-11", [prior, current]) });
   const one = make("a", primaryPeerFees(value));

@@ -1,5 +1,5 @@
 import { scopeType } from "./fee-extraction.js";
-import { effectiveFee, type FeeTier, type TierMethod } from "./fee-math.js";
+import { effectiveFee, rateNeedsReview, type FeeTier, type TierMethod } from "./fee-math.js";
 
 export type Snapshot = {
   filingDate: string | null;
@@ -25,6 +25,7 @@ export function primaryPeerFees(value: unknown): Fees | null {
   const fee = value as StoredFees | null;
   const schedule = fee?.primaryScheduleIndex == null ? undefined : fee.schedules?.[fee.primaryScheduleIndex];
   if (!fee || !schedule || schedule.role !== "primary" || scopeType(schedule) !== "standard") return null;
+  if ([fee.at1m, fee.scenarios?.cliff?.at1m, fee.scenarios?.marginal?.at1m].some(rateNeedsReview)) return null;
   return fee;
 }
 
