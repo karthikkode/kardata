@@ -81,7 +81,7 @@ export async function computeBenchmark(db: Db, input: { sectorId: string; formul
     byFirmMonth.set(key, entry);
   }
   const revision = createHash("sha256")
-    .update(JSON.stringify({ sectorId, formulaVersion, months, config, ids, feePeerVersion: 3 }))
+    .update(JSON.stringify({ sectorId, formulaVersion, months, config, ids, feePeerVersion: 4 }))
     .update(snapshotRows.map(row => row.id).join(","))
     .update(feeStatuses.map(row => row.id).join(","))
     .update(feeStatuses.map(row => feesByFirm.get(row.companyId)?.fee?.id ?? "").join(","))

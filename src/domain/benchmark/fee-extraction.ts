@@ -314,15 +314,19 @@ function applicableMinimum(terms: FeeTerms, field: "minimum_annual_fee" | "minim
 }
 
 type GroundedSchedule = Review["schedules"][number];
-// A hyphenated balance band gives no exclusion rule at a shared endpoint.
-const printedBand = /\$\s*[\d,.]+\s*(?:million|thousand|billion|[mbk]\b)?\s*[-–—]\s*\$\s*[\d,.]+(?:\s*(?:million|thousand|billion|[mbk]\b))?/i;
+const printedBand = /\$\s*[\d,.]+\s*(?:million|thousand|billion|[mbk]\b)?\s*(?:[-–—]|\b(?:to|through)\b)\s*\$\s*[\d,.]+/i;
+const exclusiveBoundary = /[<>]|\b(?:exclusiv(?:e|ely)|exclud(?:e|es|ing)|not including)\b|\b(?:over|above|under|below|greater than|less than|more than)\s*\$/i;
+
+function hasUnqualifiedBand(quote: string) {
+  return printedBand.test(quote) && !successiveBand.test(quote) &&
+    !/\bfirst\s+\$/i.test(quote) && !exclusiveBoundary.test(quote);
+}
 
 function mathTiers(schedule: GroundedSchedule & { firstBandMinimum: number | null; conditionalFrom: number | null }) {
   const overlaps = new Set<number>();
   for (const [i, tier] of schedule.tiers.entries()) {
     const next = schedule.tiers[i + 1];
-    if (next && tier.to === next.from && [tier, next].every(row =>
-      printedBand.test(row.evidence.quote) && !successiveBand.test(row.evidence.quote))) {
+    if (next && tier.to === next.from && hasUnqualifiedBand(tier.evidence.quote) && hasUnqualifiedBand(next.evidence.quote)) {
       overlaps.add(i);
     }
   }
@@ -433,8 +437,10 @@ export function summarizeFeeReview(review: Review, preliminary: Review[], covera
       schedule.accountMinimumReview != null ? "minimum account citation unresolved" : null,
       schedule.conditionalFrom !== null ? "published rate overlaps a separately negotiated account bracket" : null,
     ].filter(Boolean);
+    const canPrice = (balance: number) => priceBasis !== null && !account.unresolved &&
+      !schedule.invalidTierStarts?.some(start => start === null || start <= balance);
     const at = (method: "marginal" | "cliff", balance: number, minimumAnnualFee = fee.amount) => {
-      if (!priceBasis || fee.unresolved || account.unresolved || schedule.invalidTierStarts?.some(start => start === null || start <= balance)) return null;
+      if (fee.unresolved || !canPrice(balance)) return null;
       const amount = effectiveFee({ tiers, method, balance, minimumAnnualFee, minimumAccountSize });
       return amount && schedule.conditionalFrom !== null && balance >= schedule.conditionalFrom
         ? { ...amount, conditional: true as const } : amount;
@@ -461,7 +467,9 @@ export function summarizeFeeReview(review: Review, preliminary: Review[], covera
     };
     const known = schedule.method ? scenarios[schedule.method] : null;
     const scope = scopeType(schedule);
-    const rateReview = schedule.category === "standard" && Object.values(scenarios).some(reading => rateNeedsReview(reading?.at1m));
+    const rateReview = schedule.category === "standard" && canPrice(1_000_000) &&
+      (["marginal", "cliff"] as const).some(method => scenarios[method] &&
+        rateNeedsReview(effectiveFee({ tiers, method, balance: 1_000_000, minimumAccountSize })));
     return { ...schedule, scopeType: scope, priceBasis, flags: rateReview ? [...flags, "rate_review"] : flags, scenarios, scenarioGaps,
       at1m: comparable(1_000_000, known?.at1m ?? null), at5m: comparable(5_000_000, known?.at5m ?? null),
       minimumAnnualFee: fee.amount, minimumAccountSize,
