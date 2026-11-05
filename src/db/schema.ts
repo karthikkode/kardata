@@ -1170,6 +1170,7 @@ export const benchmarkFeeJobs = pgTable("benchmark_fee_jobs", {
   id: uuid("id").primaryKey(),
   sectorId: uuid("sector_id").notNull().references(() => sectors.id, { onDelete: "cascade" }),
   fullRun: boolean("full_run").notNull().default(false),
+  priorityCompanyIds: uuid("priority_company_ids").array().notNull().default(sql`ARRAY[]::uuid[]`),
   companyIds: uuid("company_ids").array().notNull(),
   eligibleSelected: integer("eligible_selected").notNull(),
   cohortSize: integer("cohort_size").notNull(),

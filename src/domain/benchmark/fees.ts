@@ -18,7 +18,7 @@ import { FEE_REPAIR_SCHEMA, FEE_SCHEMA, feeRepairResponse, feeReviewResponse, ty
 import { loadBrochureEvidence, needsWrapFiling, reviewBrochures } from "./brochure-review.js";
 
 export const FEE_COLLECTOR = "benchmark_fee_schedule";
-export const FEE_VERSION = "adv-2a-v5";
+export const FEE_VERSION = "adv-2a-v6";
 const fetchFeeBrochures = createBrochureStep(false, true);
 const ATTEMPTS = 3;
 
