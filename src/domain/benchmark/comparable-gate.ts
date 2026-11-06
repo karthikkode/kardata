@@ -6,12 +6,16 @@ export function comparableFeeGate(raw: Fees | null, review: ComparableReview | n
   const empty = (status: string) => ({ fees: null, status, balances: null, minimum: null });
   if (!raw) return empty("no_primary_fee");
   if (!review || review.version !== COMPARABLE_REVIEW_VERSION || review.feeFactId !== feeFactId) return empty("unreviewed");
+  if (review.outcome === "fail" && review.scope.evidence && ["strategy", "product", "client_type"].includes(review.scope.category)) return empty("fail");
   if (review.outcome === "unclear" || review.scope.category === "unclear" || review.minimum.kind === "unclear") return empty("unclear");
   if (review.scope.category !== "general" || review.outcome === "fail") return empty("fail");
   const stated = review.minimum.kind === "account_minimum" ? review.minimum.amount : 0;
   if (stated === null || !Number.isFinite(stated) || stated < 0 || !review.scope.evidence || !review.minimum.evidence ||
     !review.sections.item4 || !review.sections.item5 || !review.sections.item7) return empty("unclear");
-  const minimum = Math.max(raw.minimumAccountSize ?? 0, stated);
+  // A positive review classification can correct an extraction's non-account
+  // target without editing the raw fee fact.
+  const nonAccountTarget = ["net_worth_target", "relationship_preference"].includes(review.minimum.kind);
+  const minimum = nonAccountTarget ? 0 : Math.max(raw.minimumAccountSize ?? 0, stated);
   const balances = { at1m: "available", at5m: "available" } as ComparableReview["balances"];
   for (const [key, balance] of [["at1m", 1_000_000], ["at5m", 5_000_000]] as const) {
     if (minimum > balance) balances[key] = review.minimum.waivable && stated === minimum ? "waiver_required" : "unavailable";

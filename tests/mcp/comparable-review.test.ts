@@ -242,7 +242,7 @@ it("does not silently upgrade a pending job from a different review version", as
   });
 });
 
-it("reviews the exact archived stored PDF when newer documents no longer include it", async () => {
+it.each([false, true])("reviews the archived stored PDF with a textless page=%s", async unread => {
   const f = await fixture(), companyId = f.companyIds[0]!, prior = f.evidence.get(companyId)!;
   const sourceId = prior.passages[0]!.sourceId;
   const body = Buffer.from("%PDF- synthetic parser fixture"), sha256 = createHash("sha256").update(body).digest("hex");
@@ -250,14 +250,57 @@ it("reviews the exact archived stored PDF when newer documents no longer include
   await handle.db.update(sources).set({ blobSha256: sha256 }).where(eq(sources.id, sourceId));
   vi.mocked(brochures.loadBrochureEvidence).mockResolvedValue({ passages: [], item5: [], complete: true, gaps: [],
     firmFound: true, sourceIds: [], date: "2026-02-01" });
-  vi.spyOn(pdf, "pdfReviewPages").mockResolvedValue(prior.passages.map(row => row.text));
+  vi.spyOn(pdf, "pdfReviewPages").mockResolvedValue([...prior.passages.map(row => row.text), ...(unread ? [" "] : [])]);
   const answer = structuredClone(prior.answer);
   const update = (citation: { ref: string; page: number }, page: number) => { citation.ref = `stored-${sourceId}-p${page}`; citation.page = page; };
   update(answer.scope.evidence, 1); update(answer.minimum.evidence, 3);
   update(answer.sections.item4, 1); update(answer.sections.item5, 2); update(answer.sections.item7, 3);
-  const review: typeof reviewComparable = (db, fee) => reviewComparable(db, fee, async () => ({ json: answer, usage: undefined }));
+  const extractor = vi.fn(async (request: { prompt: string }) => {
+    if (unread) expect(request.prompt).toContain('"unreadPages":[4]');
+    return { json: answer, usage: undefined };
+  });
+  const review: typeof reviewComparable = (db, fee) => reviewComparable(db, fee, extractor);
   const job = await tool("benchmark_fee_comparable_run", { sectorId: f.sectorId, companyIds: [companyId] });
   await createComparableReviewWorker(handle.db, { review, gate: ready }).tick();
-  expect(await tool("benchmark_fee_comparable_status", { jobId: job.jobId })).toMatchObject({ counts: { pass: 1 },
+  expect(extractor).toHaveBeenCalledOnce();
+  expect(await tool("benchmark_fee_comparable_status", { jobId: job.jobId })).toMatchObject({ counts: unread ? { unclear: 1 } : { pass: 1 },
     results: [expect.objectContaining({ review: expect.objectContaining({ brochureDate: "2026-01-01", scope: expect.objectContaining({ evidence: expect.objectContaining({ page: 1, sourceId }) }) }) })] });
+});
+
+
+it("calls the model with named textless pages, allowing grounded restrictions only", async () => {
+  const f = await fixture();
+  vi.mocked(brochures.loadBrochureEvidence).mockImplementation(async (_db, companyId) => {
+    const e = f.evidence.get(companyId)!;
+    return { ...e, complete: false, gaps: [`No text layer on page 9 of b-${e.passages[0]!.sourceId}; original PDF requires visual review`],
+      firmFound: true, item5: [e.passages[1]!], sourceIds: [e.passages[0]!.sourceId], date: "2026-01-01" };
+  });
+  const extractor = vi.fn(async (request: Parameters<Parameters<typeof reviewComparable>[2]>[0]) => {
+    expect(request.prompt).toContain('"unreadPages":[9]');
+    expect(request.prompt).toContain("firm-wide investing style");
+    expect(request.prompt).toContain("net_worth_target");
+    expect(request.prompt).toContain("relationship_preference");
+    expect(request.prompt).toContain("either/or");
+    expect(request.prompt).toContain("Every other outcome must stay unclear");
+    const e = [...f.evidence.values()].find(e => request.prompt.includes(e.passages[0]!.sourceId))!;
+    return { json: e.answer, usage: undefined };
+  });
+  const job = await tool("benchmark_fee_comparable_run", { sectorId: f.sectorId, companyIds: f.companyIds });
+  await createComparableReviewWorker(handle.db, { gate: ready, review: (db, fee) => reviewComparable(db, fee, extractor) }).tick();
+  expect(extractor).toHaveBeenCalledTimes(3);
+  expect(await tool("benchmark_fee_comparable_status", { jobId: job.jobId })).toMatchObject({ status: "completed", counts: { unclear: 2, fail: 1 },
+    results: expect.arrayContaining([expect.objectContaining({ review: expect.objectContaining({ reasons: expect.arrayContaining([expect.stringContaining("page 9")]) }) })]) });
+});
+it("excludes dated v1 review facts from a new benchmark revision", async () => {
+  const f = await fixture(); await seedSnapshot(f.companyIds);
+  await tool("benchmark_fee_comparable_run", { sectorId: f.sectorId, companyIds: f.companyIds });
+  await createComparableReviewWorker(handle.db, { gate: ready, review: f.mockReview }).tick();
+  const reviews = await handle.db.select().from(facts).where(eq(facts.key, COMPARABLE_REVIEW_KEY));
+  for (const row of reviews) await handle.db.update(facts).set({ qualifiers: { ...row.qualifiers, review: "adv-comparable-v1" },
+    valueJson: { ...row.valueJson as object, version: "adv-comparable-v1" } }).where(eq(facts.id, row.id));
+  const r = await tool("benchmark_compute", { sectorId: f.sectorId, formulaVersion: "synthetic-version-boundary",
+    snapshots: { current: "2026-11", prior1: "2025-12", prior3: "2023-11" } });
+  expect(await tool("benchmark_report", { sectorId: f.sectorId, revision: r.revision })).toMatchObject({ benchmark: {
+    comparableReviews: { unreviewed: 3 }, measures: { fee_1m_dollars: { value: 0, missing: 3 } },
+  } });
 });
