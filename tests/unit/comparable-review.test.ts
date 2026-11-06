@@ -130,6 +130,15 @@ it("does not translate net-worth targets or relationship preferences into accoun
     expect(extracted.minimumAccountSize).toBe(5_000_000);
   }
 });
+
+it("keeps a generally preferred negotiable minimum account size conditional below its amount", () => {
+  const f = comparableFixture({ minimum: 2_000_000, preferredAccountMinimum: true, waivable: true });
+  const review = assessComparable(f.answer, f.passages, f.context);
+  expect(review).toMatchObject({ outcome: "conditional", minimum: { kind: "account_minimum", amount: 2_000_000, waivable: true },
+    balances: { at1m: "waiver_required", at5m: "available" } });
+  expect(comparableFeeGate(raw, review, "synthetic-fee")).toMatchObject({ fees: { at1m: null, at5m: raw.at5m },
+    balances: { at1m: "waiver_required", at5m: "available" } });
+});
 it("keeps the assets limb of an assets-or-net-worth requirement conditional below that limb", () => {
   expect(assess({ minimumKind: "assets_or_net_worth" })).toMatchObject({ outcome: "conditional", minimum: { kind: "account_minimum", amount: 2_000_000 },
     balances: { at1m: "waiver_required", at5m: "available" } });
@@ -152,9 +161,9 @@ it("accepts only a grounded restriction as fail when physical pages are unread",
   const invented = structuredClone(f.answer); invented.scope.evidence.quote = "Unsupported restriction quotation.";
   expect(assessComparable(invented, f.passages, context).outcome).toBe("unclear");
 });
-it("requires v5 evidence and never accepts v1–v4 reviews", () => {
-  expect(COMPARABLE_REVIEW_VERSION).toBe("adv-comparable-v5");
-  for (const version of ["adv-comparable-v1", "adv-comparable-v2", "adv-comparable-v3", "adv-comparable-v4"]) {
+it("requires v6 evidence and never accepts v1–v5 reviews", () => {
+  expect(COMPARABLE_REVIEW_VERSION).toBe("adv-comparable-v6");
+  for (const version of ["adv-comparable-v1", "adv-comparable-v2", "adv-comparable-v3", "adv-comparable-v4", "adv-comparable-v5"]) {
     expect(comparableFeeGate(raw, { ...assess(), version }, "synthetic-fee")).toMatchObject({ status: "unreviewed", fees: null });
   }
 });

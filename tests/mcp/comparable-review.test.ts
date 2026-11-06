@@ -16,6 +16,7 @@ import { addFacts } from "../../src/domain/research/facts.js";
 import { canonicalFile, companyFileEvidence, SNAPSHOT_COLLECTOR } from "../../src/domain/sec-adv/evidence.js";
 import * as pdf from "../../src/lib/sec/pdf-text.js";
 import * as codexStatus from "../../src/harness/codex-status.js";
+import { codexExtractArgs } from "../../src/harness/codex-config.js";
 
 const handle = getTestDb(), client = new Client({ name: "comparable-review-test", version: "1" });
 let server: Awaited<ReturnType<typeof startServer>>;
@@ -91,6 +92,33 @@ async function seedSnapshot(companyIds: string[]) {
   }
   await handle.db.update(facts).set({ verification: "verified" }).where(eq(facts.createdBy, SNAPSHOT_COLLECTOR));
 }
+
+it("uses high Codex effort only in the comparable worker and retains a preferred negotiable account minimum", async () => {
+  const f = await fixture(), companyId = f.companyIds[0]!;
+  const evidence = comparableFixture({ minimum: 2_000_000, preferredAccountMinimum: true, waivable: true });
+  for (const p of evidence.passages) p.sourceId = f.evidence.get(companyId)!.passages[0]!.sourceId;
+  f.evidence.set(companyId, evidence);
+  const args = () => codexExtractArgs({ runId: "synthetic", area: "other", inputDir: "/tmp/synthetic" });
+  expect(args()).toContain('model_reasoning_effort="medium"');
+  const before = await handle.db.select().from(facts).where(eq(facts.key, "firm.fee_schedule"));
+  const job = await tool("benchmark_fee_comparable_run", { sectorId: f.sectorId, companyIds: [companyId], concurrency: 1 });
+  await createComparableReviewWorker(handle.db, {
+    gate: async () => ({ mode: "auto", provider: "codex", available: true, reason: null }),
+    review: (db, fee) => reviewComparable(db, fee, async request => {
+      await Promise.resolve();
+      expect(args()).toContain('model_reasoning_effort="high"');
+      expect(request.prompt).toContain("even when worded as generally prefers a minimum account size");
+      return { json: evidence.answer, usage: undefined };
+    }),
+  }).tick();
+  expect(await tool("benchmark_fee_comparable_status", { jobId: job.jobId })).toMatchObject({ version: "adv-comparable-v6", status: "completed",
+    counts: { conditional: 1 }, results: [expect.objectContaining({ providers: ["codex"], review: expect.objectContaining({
+      minimum: expect.objectContaining({ kind: "account_minimum", amount: 2_000_000 }),
+      balances: { at1m: "waiver_required", at5m: "available" },
+    }) })] });
+  expect(args()).toContain('model_reasoning_effort="medium"');
+  expect(await handle.db.select().from(facts).where(eq(facts.key, "firm.fee_schedule"))).toEqual(before);
+});
 
 it("queues independent reviews, stores dated quoted decisions, and never edits extraction facts or jobs", async () => {
   const f = await fixture(), requestId = randomUUID();
@@ -386,7 +414,7 @@ it("calls the model with named textless pages, allowing grounded restrictions on
   expect(await tool("benchmark_fee_comparable_status", { jobId: job.jobId })).toMatchObject({ status: "completed", counts: { unclear: 2, fail: 1 },
     results: expect.arrayContaining([expect.objectContaining({ review: expect.objectContaining({ reasons: expect.arrayContaining([expect.stringContaining("page 9")]) }) })]) });
 });
-it.each(["adv-comparable-v1", "adv-comparable-v2", "adv-comparable-v3", "adv-comparable-v4"])("excludes dated %s review facts from a new benchmark revision", async version => {
+it.each(["adv-comparable-v1", "adv-comparable-v2", "adv-comparable-v3", "adv-comparable-v4", "adv-comparable-v5"])("excludes dated %s review facts from a new benchmark revision", async version => {
   const f = await fixture(); await seedSnapshot(f.companyIds);
   await tool("benchmark_fee_comparable_run", { sectorId: f.sectorId, companyIds: f.companyIds });
   await createComparableReviewWorker(handle.db, { gate: ready, review: f.mockReview }).tick();
@@ -422,7 +450,7 @@ it.each([false, true])("reviews the selected asset-class table before firm conte
     review: (db, fee) => reviewComparable(db, fee, extractor) }).tick();
   expect(extractor).toHaveBeenCalledOnce();
   expect(await tool("benchmark_fee_comparable_status", { jobId: job.jobId })).toMatchObject({
-    version: "adv-comparable-v5", status: "completed", counts: { fail: 1 },
+    version: "adv-comparable-v6", status: "completed", counts: { fail: 1 },
     results: [expect.objectContaining({ review: expect.objectContaining({ scope: expect.objectContaining({
       category: "asset_class", evidence: expect.objectContaining({ page: 5 }),
     }) }) })],
@@ -433,7 +461,7 @@ it.each([false, true])("reviews the selected asset-class table before firm conte
     eq(facts.key, "benchmark.measures"), eq(facts.qualifiers, {
       formula: "synthetic-priced-scope", snapshot: "2026-11", revision: computed.revision as string,
     })));
-  expect(row!.valueJson).toMatchObject({ feeEligibility: { status: "fail", version: "adv-comparable-v5" },
+  expect(row!.valueJson).toMatchObject({ feeEligibility: { status: "fail", version: "adv-comparable-v6" },
     values: { fee_1m_dollars: null, fee_5m_dollars: null, estimated_annual_fee_revenue: null }, feeRanges: {} });
   expect(await tool("benchmark_report", { sectorId: f.sectorId, revision: computed.revision })).toMatchObject({
     benchmark: { comparableReviews: { fail: 1, unreviewed: 2 }, measures: { fee_1m_dollars: { value: 0 } } },
@@ -461,7 +489,7 @@ it.each([false, true])("withholds annual-floor contradictions from stored exact/
   await createComparableReviewWorker(handle.db, { gate: ready,
     review: (db, fee) => reviewComparable(db, fee, extractor) }).tick();
   expect(await tool("benchmark_fee_comparable_status", { jobId: job.jobId })).toMatchObject({
-    version: "adv-comparable-v5", status: "completed", counts: { fail: 1 }, results: [expect.objectContaining({
+    version: "adv-comparable-v6", status: "completed", counts: { fail: 1 }, results: [expect.objectContaining({
       review: expect.objectContaining({ pricing: expect.objectContaining({ status: "contradicted", evidence: expect.objectContaining({ page: 6 }) }) }),
     })],
   });
@@ -511,14 +539,14 @@ it.each([false, true])("rejects a locally contradicted hybrid price, preserving 
   });
   const job = await tool("benchmark_fee_comparable_run", { sectorId: f.sectorId, companyIds: [companyId] });
   await createComparableReviewWorker(handle.db, { gate: ready, review: (db, row) => reviewComparable(db, row, extractor) }).tick();
-  expect(await tool("benchmark_fee_comparable_status", { jobId: job.jobId })).toMatchObject({ version: "adv-comparable-v5", status: "completed",
+  expect(await tool("benchmark_fee_comparable_status", { jobId: job.jobId })).toMatchObject({ version: "adv-comparable-v6", status: "completed",
     counts: { fail: 1 }, results: [expect.objectContaining({ review: expect.objectContaining({ pricing: expect.objectContaining({
       status: "contradicted", explanation: expect.stringContaining("at5m/"), evidence: expect.objectContaining({ page: 5 }),
     }) }) })] });
   const computed = await tool("benchmark_compute", { sectorId: f.sectorId, formulaVersion: "synthetic-reading-validation",
     snapshots: { current: "2026-11", prior1: "2025-12", prior3: "2023-11" } });
   const [bench] = await handle.db.select().from(facts).where(and(eq(facts.companyId, companyId), eq(facts.key, "benchmark.measures")));
-  expect(bench!.valueJson).toMatchObject({ feeEligibility: { status: "fail", version: "adv-comparable-v5" }, feeRanges: {},
+  expect(bench!.valueJson).toMatchObject({ feeEligibility: { status: "fail", version: "adv-comparable-v6" }, feeRanges: {},
     values: { fee_1m_dollars: null, fee_5m_dollars: null, estimated_annual_fee_revenue: null } });
   expect(await tool("benchmark_report", { sectorId: f.sectorId, revision: computed.revision })).toMatchObject({ benchmark: {
     comparableReviews: { fail: 1, unreviewed: 2 }, measures: { fee_1m_dollars: { value: 0 } },

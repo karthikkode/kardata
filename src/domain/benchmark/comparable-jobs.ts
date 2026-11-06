@@ -4,6 +4,7 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { Db, DbTx } from "../../db/client.js";
 import { benchmarkComparableJobs, facts } from "../../db/schema.js";
 import { codexHasCapacity } from "../../harness/codex-status.js";
+import { withCodexReasoning } from "../../harness/codex-config.js";
 import { DomainError } from "../errors.js";
 import { addFacts } from "../research/facts.js";
 import { eligibleCompanyIds } from "../ria-steps/status.js";
@@ -173,7 +174,8 @@ export function createComparableReviewWorker(db: Db, dependencies: {
             if (!provider.available) return provider.reason ?? "provider unavailable";
             providers.push(provider.provider);
             try {
-              const result = await withRiaProvider(provider.provider, () => review(db, fee, riaExtractorCall(db)));
+              const result = await withRiaProvider(provider.provider,
+                () => withCodexReasoning("high", () => review(db, fee, riaExtractorCall(db))));
               if (alive && !closed) await persist(db, job, companyId, { ...result, attempts: attempt, retryCount: attempt - 1,
                 providers, attemptErrors, usageIncomplete: attemptErrors.length > 0, elapsedMs: Math.round(performance.now() - started) });
               return null;

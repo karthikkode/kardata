@@ -2,7 +2,7 @@ import type { Passage } from "../../src/domain/benchmark/fee-extraction.js";
 import type { comparablePriceReadings } from "../../src/domain/benchmark/comparable-review.js";
 
 /** Entirely invented brochure evidence; no live filing text or identities. */
-export function comparableFixture(options: { strategy?: boolean; minimum?: number; waivable?: boolean; twoReadings?: boolean; hybrid?: boolean; annualFloorConflict?: boolean; scope?: "diversified" | "style" | "balanced_row" | "asset_class" | "current_schedule" | "legacy" | "optional_services" | "product" | "institutional" | "adviser_channel";
+export function comparableFixture(options: { strategy?: boolean; minimum?: number; preferredAccountMinimum?: boolean; waivable?: boolean; twoReadings?: boolean; hybrid?: boolean; annualFloorConflict?: boolean; scope?: "diversified" | "style" | "balanced_row" | "asset_class" | "current_schedule" | "legacy" | "optional_services" | "product" | "institutional" | "adviser_channel";
   minimumKind?: "net_worth_target" | "relationship_preference" | "assets_or_net_worth" } = {}) {
   const scope = options.strategy ? "Separate accounts are available only through the Synthetic Growth Strategy." :
     "We provide general investment management services to individuals and families.";
@@ -21,7 +21,9 @@ export function comparableFixture(options: { strategy?: boolean; minimum?: numbe
   const scopeText = options.scope ? scopes[options.scope] : scope;
   const minimum = options.minimumKind === "net_worth_target" ? "For our general services we target family net worth of $5,000,000." :
     options.minimumKind === "relationship_preference" ? "We prefer relationships with $5,000,000 of assets or the potential to reach that size." :
-    options.minimumKind === "assets_or_net_worth" ? "We require $2,000,000 in managed assets or $20,000,000 net worth. We may waive this requirement." : options.minimum ? `The minimum account size is $${options.minimum.toLocaleString("en-US")}.${options.waivable ? " We may waive this minimum." : ""}` :
+    options.minimumKind === "assets_or_net_worth" ? "We require $2,000,000 in managed assets or $20,000,000 net worth. We may waive this requirement." : options.minimum ?
+      options.preferredAccountMinimum ? `We generally prefer a minimum account size of $${options.minimum.toLocaleString("en-US")}; this minimum is negotiable.` :
+        `The minimum account size is $${options.minimum.toLocaleString("en-US")}.${options.waivable ? " We may waive this minimum." : ""}` :
     "We do not impose a minimum account size for these services.";
   const feeText = options.hybrid ? "Annual fees are cumulative through $12 million: 1.1% of the first $2 million plus 0.7% of the next $4 million plus 0.5% of the next $6 million. Above $12 million, apply a flat 0.25% to the whole account." :
     options.scope === "balanced_row" ? "Investment strategies: Stock mandates. Large growth portfolios: 0.9%. Balanced multi-asset portfolios: 0.7% on all assets in the account." :
