@@ -33,14 +33,14 @@ async function tool(name: string, args: Record<string, unknown> = {}) {
 }
 const ready = async () => ({ mode: "muse" as const, provider: "muse" as const, available: true, reason: null });
 
-async function fixture() {
+async function fixture(twoReadings = false) {
   await tool("evidence_library_ensure");
   const { sector } = await tool("sector_create", { name: "ria-us" }) as { sector: { id: string } };
   const evidence = new Map<string, ReturnType<typeof comparableFixture>>(), companyIds: string[] = [];
   for (const options of [{}, { strategy: true }, { minimum: 10_000_000, waivable: true }]) {
     const { company } = await tool("company_add", { sectorId: sector.id, name: "Synthetic comparable review" }) as { company: { id: string } };
     companyIds.push(company.id);
-    const f = comparableFixture(options);
+    const f = comparableFixture({ ...options, twoReadings });
     const text = f.passages.map(row => row.text).join("\n");
     const { sourceId } = await tool("source_capture", { companyId: company.id, url: "https://www.sec.gov/synthetic-comparable.pdf",
       text, via: "browser", passages: [text] }) as { sourceId: string };
@@ -48,16 +48,19 @@ async function fixture() {
     evidence.set(company.id, f);
     const [source] = await handle.db.select().from(sources).where(eq(sources.id, sourceId));
     const qualifiers = { input: randomUUID(), extraction: FEE_VERSION };
-    const tiers = [{ from: 0, to: null, rate_pct: 1 }];
+    const tiers = twoReadings ? [{ from: 0, to: 500_000, rate_pct: 2 }, { from: 500_000, to: null, rate_pct: 1 }] :
+      [{ from: 0, to: null, rate_pct: 1 }];
     const saved = await addFacts(handle.db, { companyId: company.id, runId: source!.runId, createdBy: FEE_COLLECTOR, facts: [{
       key: "fee_schedule.status", value: "available", qualifiers, sourceIds: [sourceId], asOf: "2026-01-01",
     }, {
       key: "firm.fee_schedule", qualifiers, sourceIds: [sourceId], asOf: "2026-01-01", value: {
-        method: "cliff", tiers, minimumAnnualFee: null, minimumAccountSize: null, flags: [],
-        at1m: { dollars: 10_000, rate_pct: 1 }, at5m: { dollars: 50_000, rate_pct: 1 },
+        method: twoReadings ? null : "cliff", tiers, minimumAnnualFee: null, minimumAccountSize: null, flags: twoReadings ? ["tier_method_unclear"] : [],
+        at1m: twoReadings ? null : { dollars: 10_000, rate_pct: 1 }, at5m: twoReadings ? null : { dollars: 50_000, rate_pct: 1 },
+        scenarios: twoReadings ? { cliff: { at1m: { dollars: 10_000, rate_pct: 1 }, at5m: { dollars: 50_000, rate_pct: 1 } },
+          marginal: { at1m: { dollars: 15_000, rate_pct: 1.5 }, at5m: { dollars: 55_000, rate_pct: 1.1 } } } : null,
         primaryScheduleIndex: 0, classification: "comparable", terms: {},
-        schedules: [{ name: "Investment management", category: "standard", role: "primary", pricing: "annual_aum", method: "cliff", tiers, terms: [],
-          scope: { ref: f.passages[1]!.ref, quote: "The annual investment management fee is 1% of assets.", sourceId, kind: "firm", page: 5, date: "2026-01-01" } }],
+        schedules: [{ name: "Investment management", category: "standard", role: "primary", pricing: "annual_aum", method: twoReadings ? null : "cliff", tiers, terms: [],
+          scope: { ref: f.passages[1]!.ref, quote: f.passages[1]!.text, sourceId, kind: "firm", page: 5, date: "2026-01-01" } }],
       },
     }] });
     expect(saved.every(row => row.ok)).toBe(true);
@@ -72,6 +75,20 @@ async function fixture() {
     return { json: evidence.get(fee.companyId)!.answer, usage: { inputTokens: 1000, outputTokens: 100, cachedTokens: 0, reasoningTokens: 0, calls: 1 } };
   });
   return { sectorId: sector.id, companyIds, evidence, mockReview };
+}
+
+async function seedSnapshot(companyIds: string[]) {
+  const file = await handle.db.transaction(tx => canonicalFile(tx, { collector: SNAPSHOT_COLLECTOR, release: "2026-11",
+    url: "https://www.sec.gov/synthetic-current.zip", filename: "Synthetic current snapshot", digest: "synthetic" }));
+  for (const companyId of companyIds) {
+    const citation = await companyFileEvidence(handle.db, file, companyId, { verification: "verified", filingDate: "2026-01-01" });
+    const numbers = { "firm.accounts": 100, "firm.regulatory_aum": 100_000_000, "financials.employees": 10,
+      "sec_adv.advisory_staff": 5, "firm.client_total": 60, "sec_adv.aum_individuals": 100_000_000, "sec_adv.aum_hnw": 0 };
+    const saved = await addFacts(handle.db, { companyId, runId: citation.runId, createdBy: SNAPSHOT_COLLECTOR,
+      facts: Object.entries(numbers).map(([key, value]) => ({ key, value, sourceIds: [citation.id], asOf: "2026-01-01", qualifiers: { snapshot: "2026-11" } })) });
+    expect(saved.every(row => row.ok)).toBe(true);
+  }
+  await handle.db.update(facts).set({ verification: "verified" }).where(eq(facts.createdBy, SNAPSHOT_COLLECTOR));
 }
 
 it("queues independent reviews, stores dated quoted decisions, and never edits extraction facts or jobs", async () => {
@@ -140,17 +157,7 @@ it("pauses only its own review for quota and resumes through the idempotent run 
 
 it("changes benchmark revisions with review evidence, excludes failures, and separates conditional raw values", async () => {
   const f = await fixture();
-  const file = await handle.db.transaction(tx => canonicalFile(tx, { collector: SNAPSHOT_COLLECTOR, release: "2026-11",
-    url: "https://www.sec.gov/synthetic-current.zip", filename: "Synthetic current snapshot", digest: "synthetic" }));
-  for (const companyId of f.companyIds) {
-    const citation = await companyFileEvidence(handle.db, file, companyId, { verification: "verified", filingDate: "2026-01-01" });
-    const numbers = { "firm.accounts": 100, "firm.regulatory_aum": 100_000_000, "financials.employees": 10,
-      "sec_adv.advisory_staff": 5, "firm.client_total": 60, "sec_adv.aum_individuals": 100_000_000, "sec_adv.aum_hnw": 0 };
-    const saved = await addFacts(handle.db, { companyId, runId: citation.runId, createdBy: SNAPSHOT_COLLECTOR,
-      facts: Object.entries(numbers).map(([key, value]) => ({ key, value, sourceIds: [citation.id], asOf: "2026-01-01", qualifiers: { snapshot: "2026-11" } })) });
-    expect(saved.every(row => row.ok)).toBe(true);
-  }
-  await handle.db.update(facts).set({ verification: "verified" }).where(eq(facts.createdBy, SNAPSHOT_COLLECTOR));
+  await seedSnapshot(f.companyIds);
   const compute = { sectorId: f.sectorId, formulaVersion: "synthetic-review-v1", snapshots: { current: "2026-11", prior1: "2025-12", prior3: "2023-11" } };
   const previous = await tool("benchmark_compute", compute);
   const extractionBefore = await handle.db.select().from(facts).where(eq(facts.createdBy, FEE_COLLECTOR));
@@ -175,13 +182,38 @@ it("changes benchmark revisions with review evidence, excludes failures, and sep
   expect(await handle.db.select().from(facts).where(eq(facts.createdBy, FEE_COLLECTOR))).toEqual(extractionBefore);
 });
 
-it("selects only exact eligible comparables by default and rejects explicit firms without one", async () => {
+it("selects exact eligible comparables by default and rejects explicit firms without a benchmark fee output", async () => {
   const f = await fixture();
   const { company } = await tool("company_add", { sectorId: f.sectorId, name: "Synthetic without published price" }) as { company: { id: string } };
   await handle.db.update(sectorCompanies).set({ eligibility: "eligible" }).where(eq(sectorCompanies.sectorId, f.sectorId));
   expect(await tool("benchmark_fee_comparable_run", { sectorId: f.sectorId })).toMatchObject({ selected: 3 });
   const bad = await client.callTool({ name: "benchmark_fee_comparable_run", arguments: { sectorId: f.sectorId, companyIds: [company.id] } });
   expect(bad.isError).toBe(true);
+});
+
+it("selects numeric two-reading firms by default and explicit IDs, retaining only passing or conditional endpoints", async () => {
+  const f = await fixture(true);
+  await seedSnapshot(f.companyIds);
+  await handle.db.update(sectorCompanies).set({ eligibility: "eligible" }).where(eq(sectorCompanies.sectorId, f.sectorId));
+  const job = await tool("benchmark_fee_comparable_run", { sectorId: f.sectorId });
+  expect(job).toMatchObject({ selected: 3 });
+  expect(await tool("benchmark_fee_comparable_run", { sectorId: f.sectorId, companyIds: f.companyIds })).toMatchObject({ jobId: job.jobId, selected: 3 });
+  const before = await handle.db.select().from(facts).where(eq(facts.createdBy, FEE_COLLECTOR));
+  await createComparableReviewWorker(handle.db, { review: f.mockReview, gate: ready }).tick();
+  expect(await tool("benchmark_fee_comparable_status", { jobId: job.jobId })).toMatchObject({ status: "completed", counts: { pass: 1, fail: 1, conditional: 1 } });
+  const computed = await tool("benchmark_compute", { sectorId: f.sectorId, formulaVersion: "synthetic-two-reading-v1",
+    snapshots: { current: "2026-11", prior1: "2025-12", prior3: "2023-11" } });
+  const rows = await handle.db.select().from(facts).where(and(eq(facts.key, "benchmark.measures"),
+    eq(facts.qualifiers, { formula: "synthetic-two-reading-v1", snapshot: "2026-11", revision: computed.revision as string })));
+  const results = new Map(rows.map(row => [row.companyId, row.valueJson]));
+  expect(results.get(f.companyIds[0]!)).toMatchObject({ feeEligibility: { status: "pass" },
+    values: { fee_1m_dollars: null, fee_5m_dollars: null },
+    feeRanges: { fee_1m_dollars: { low: 10_000, high: 15_000 }, fee_5m_dollars: { low: 50_000, high: 55_000 } } });
+  expect(results.get(f.companyIds[1]!)).toMatchObject({ feeEligibility: { status: "fail" }, feeRanges: {} });
+  expect(results.get(f.companyIds[2]!)).toMatchObject({ feeEligibility: { status: "conditional" }, feeRanges: {},
+    conditionalFeeValues: { ranges: { fee_1m_dollars: { low: 10_000, high: 15_000 }, fee_5m_dollars: { low: 50_000, high: 55_000 },
+      fee_1m_pct: { low: 1, high: 1.5 }, fee_5m_pct: { low: 1, high: 1.1 } } } });
+  expect(await handle.db.select().from(facts).where(eq(facts.createdBy, FEE_COLLECTOR))).toEqual(before);
 });
 
 it("records a named unclear gap when physical pages are unavailable and makes no model call", async () => {

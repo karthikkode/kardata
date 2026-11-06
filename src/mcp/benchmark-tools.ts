@@ -48,7 +48,7 @@ export function registerBenchmarkTools(server: McpServer, db: Db, auth: AuthCont
   }));
 
   registerTool(server, db, auth, "benchmark_fee_comparable_run", {
-    description: "Queue a separate stored-brochure eligibility review for exact fee comparables. Reads physical pages including Items 4/5/7; never re-extracts or edits fee facts. Without companyIds selects active eligible firms with an exact comparable. Reusing a paused requestId resumes this review only.",
+    description: "Queue a separate stored-brochure eligibility review for exact comparables and numeric two-reading fees. Reads physical pages including Items 4/5/7; never re-extracts or edits fee facts. Without companyIds selects active eligible firms with an exact price or numeric two-reading interval at either tested balance. Reusing a paused requestId resumes this review only.",
     inputSchema: { sectorId: z.string().uuid(), companyIds: z.array(z.string().uuid()).min(1).max(200).optional(),
       concurrency: z.number().int().min(1).max(4).optional(), requestId: z.string().uuid().optional() },
   }, async input => wrap(async () => {

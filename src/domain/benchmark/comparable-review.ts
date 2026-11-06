@@ -10,6 +10,7 @@ import { normalizeForGrounding } from "../ria-steps/handlers.js";
 import { loadBrochureEvidence } from "./brochure-review.js";
 import type { Passage } from "./fee-extraction.js";
 import { FEE_COLLECTOR } from "./fees.js";
+import { primaryPeerFees } from "./measures.js";
 
 export const COMPARABLE_REVIEW_VERSION = "adv-comparable-v1";
 export const COMPARABLE_REVIEW_KEY = "benchmark.fee_comparable_review";
@@ -43,6 +44,17 @@ export type ComparableReview = {
   reasons: string[];
 };
 
+export function hasBenchmarkFeeOutput(value: unknown) {
+  const fee = primaryPeerFees(value);
+  if (!fee) return false;
+  const numeric = (amount: { dollars: number; rate_pct: number } | null | undefined) =>
+    amount != null && Number.isFinite(amount.dollars) && Number.isFinite(amount.rate_pct);
+  const ambiguous = fee.flags?.includes("tier_method_unclear") || !!(fee.scenarios?.marginal && fee.scenarios.cliff);
+  if (!ambiguous && (numeric(fee.at1m) || numeric(fee.at5m))) return true;
+  return (["at1m", "at5m"] as const).some(balance =>
+    numeric(fee.scenarios?.marginal?.[balance]) && numeric(fee.scenarios?.cliff?.[balance]));
+}
+
 export async function currentComparableFees(db: Db, ids: string[]) {
   if (!ids.length) return [];
   const statuses = await db.selectDistinctOn([facts.companyId]).from(facts).where(and(eq(facts.createdBy, FEE_COLLECTOR),
@@ -51,8 +63,7 @@ export async function currentComparableFees(db: Db, ids: string[]) {
   return statuses.flatMap(status => {
     const fee = rows.find(row => row.companyId === status.companyId && row.qualifiers.input === status.qualifiers.input &&
       row.qualifiers.extraction === status.qualifiers.extraction);
-    const value = fee?.valueJson as { at1m?: unknown; at5m?: unknown } | null;
-    return status.valueText === "available" && fee && (value?.at1m != null || value?.at5m != null) ? [fee] : [];
+    return status.valueText === "available" && fee && hasBenchmarkFeeOutput(fee.valueJson) ? [fee] : [];
   });
 }
 

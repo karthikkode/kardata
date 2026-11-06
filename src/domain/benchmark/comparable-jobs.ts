@@ -41,7 +41,7 @@ export async function enqueueComparableJob(db: Db, input: {
   const selected = input.companyIds ?? (await eligibleCompanyIds(db, input.sectorId)).filter(id => active.has(id));
   if (new Set(selected).size !== selected.length || selected.some(id => !active.has(id))) throw new DomainError("invalid_input", "select distinct active sector companies");
   const fees = await currentComparableFees(db, selected);
-  if (input.companyIds && fees.length !== selected.length) throw new DomainError("invalid_input", "each selected firm must have an exact comparable");
+  if (input.companyIds && fees.length !== selected.length) throw new DomainError("invalid_input", "each selected firm must have an exact comparable or numeric two-reading interval");
   const companyIds = fees.map(row => row.companyId).sort();
   return db.transaction(async tx => {
     await lockEvidence(tx, DISPATCH);
@@ -54,7 +54,7 @@ export async function enqueueComparableJob(db: Db, input: {
         return comparableJobStatus(tx, prior.id);
       }
     }
-    if (!companyIds.length) throw new DomainError("invalid_input", "no exact comparable firms were selected");
+    if (!companyIds.length) throw new DomainError("invalid_input", "no exact comparable or numeric two-reading firms were selected");
     const [pending] = await tx.select().from(benchmarkComparableJobs).where(and(eq(benchmarkComparableJobs.sectorId, input.sectorId),
       eq(benchmarkComparableJobs.version, COMPARABLE_REVIEW_VERSION), eq(benchmarkComparableJobs.companyIds, companyIds),
       inArray(benchmarkComparableJobs.status, ["queued", "running", "paused"])));
@@ -138,7 +138,7 @@ export function createComparableReviewWorker(db: Db, dependencies: {
         const fees = await currentComparableFees(db, ids);
         const pauses = await Promise.all(ids.map(async companyId => {
           const fee = fees.find(row => row.companyId === companyId);
-          if (!fee) { await persist(db, job, companyId, { error: "Firm no longer has an exact comparable" }); return null; }
+          if (!fee) { await persist(db, job, companyId, { error: "Firm no longer has an exact comparable or numeric two-reading interval" }); return null; }
           const provider = await gate(db);
           if (!provider.available) return provider.reason ?? "provider unavailable";
           try {

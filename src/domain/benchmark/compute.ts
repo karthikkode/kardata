@@ -122,6 +122,8 @@ export async function computeBenchmark(db: Db, input: { sectorId: string; formul
       conditionalFeeValues: {
         at1m: gate.balances?.at1m === "waiver_required" ? raw?.at1m : null,
         at5m: gate.balances?.at5m === "waiver_required" ? raw?.at5m : null,
+        ranges: Object.fromEntries(Object.entries(rawResult.feeRanges).filter(([measure]) =>
+          gate.balances?.[measure.startsWith("fee_1m_") ? "at1m" : "at5m"] === "waiver_required")),
         estimatedAnnualFeeRevenue: conditionalRevenue ? rawResult.values.estimated_annual_fee_revenue : null,
         estimatedFeeRevenuePerStaff: conditionalRevenue ? rawResult.values.estimated_fee_revenue_per_staff : null,
       },
