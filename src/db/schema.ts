@@ -1209,6 +1209,23 @@ export const benchmarkComparableJobs = pgTable("benchmark_comparable_jobs", {
   finishedAt: timestamp("finished_at", { withTimezone: true }),
 }, t => [index("benchmark_comparable_jobs_status_created_idx").on(t.status, t.createdAt)]);
 
+// Source mining has its own queue and leases; never operates prospect or fee jobs.
+export const evidenceMiningJobs = pgTable("evidence_mining_jobs", {
+  id: uuid("id").primaryKey(),
+  companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  documentIds: uuid("document_ids").array().notNull(),
+  version: text("version").notNull(),
+  settings: jsonb("settings").$type<{ themes: { key: string; name: string; definition: string }[]; metadataType?: string; researchContext?: string }>().notNull(),
+  concurrency: integer("concurrency").notNull(),
+  status: text("status", { enum: ["queued", "running", "paused", "completed", "failed"] }).notNull().default("queued"),
+  reason: text("reason"),
+  results: jsonb("results").$type<Record<string, Record<string, unknown>>>().notNull().default({}),
+  leaseId: uuid("lease_id"),
+  leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+}, t => [index("evidence_mining_jobs_status_created_idx").on(t.status, t.createdAt)]);
+
 // Human verdict on a flagged (over $1M per staff) public revenue figure.
 export const revenueConfirmations = pgTable("revenue_confirmations", {
   companyId: uuid("company_id")

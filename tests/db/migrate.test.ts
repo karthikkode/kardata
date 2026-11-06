@@ -39,6 +39,7 @@ describe("migrations on kardata_test", () => {
       "company_jobs",
       "company_verdicts",
       "documents",
+      "evidence_mining_jobs",
       "fact_keys",
       "facts",
       "findings",

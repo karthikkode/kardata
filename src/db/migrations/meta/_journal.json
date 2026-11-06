@@ -330,6 +330,13 @@
       "when": 1793814800000,
       "tag": "0046_fee_comparable_review_jobs",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1793814900000,
+      "tag": "0047_evidence_mining_jobs",
+      "breakpoints": true
     }
   ]
 }
