@@ -12,7 +12,7 @@ import type { Passage } from "./fee-extraction.js";
 import { FEE_COLLECTOR } from "./fees.js";
 import { primaryPeerFees, type Fees } from "./measures.js";
 
-export const COMPARABLE_REVIEW_VERSION = "adv-comparable-v5";
+export const COMPARABLE_REVIEW_VERSION = "adv-comparable-v6";
 export const COMPARABLE_REVIEW_KEY = "benchmark.fee_comparable_review";
 export const COMPARABLE_REVIEW_COLLECTOR = "benchmark_fee_comparable_review";
 const citation = z.object({ ref: z.string(), quote: z.string().trim().min(1), page: z.number().int().positive() });
@@ -223,6 +223,7 @@ export async function reviewComparable(db: Db, fee: typeof facts.$inferSelect, c
       "Separate prices for optional services, external managers or specialized products do not restrict a general multi-asset schedule to an asset class. Distinguish an ordinary whole-portfolio service with optional extras from a table pricing only one asset-class component.",
       "A schedule limited to one named strategy or product remains strategy/product scoped. Institutional-only, adviser-channel-only and closed historical client-cohort schedules remain client_type scoped. A current schedule's effective/start date that includes new clients is not a historical-cohort restriction. An ordinary individual/family wealth-management schedule covering the whole portfolio is general. A stored primary role or standard label is not evidence that the schedule is general.",
       "Find account minimums anywhere, including Item 7 and appendices. An account-size or managed-assets minimum is account_minimum and still applies when waivable or reducible: below it is waiver_required when waivable. A net-worth target is net_worth_target, not an account minimum. A relationship size stated only as a preference is relationship_preference, not an account minimum. Retain the target amount for audit, but never translate either into managed account dollars. A right to terminate small accounts is not an account minimum.",
+      "A stated minimum account size is account_minimum even when worded as generally prefers a minimum account size. If negotiable, a balance below that stated amount is waiver_required; do not classify the stated account minimum as relationship_preference.",
       "For an either/or requirement between managed assets and net worth, keep the assets limb as account_minimum and mark it waivable: a balance below the assets limb is waiver_required; do not discard the assets limb because the net-worth alternative exists.",
       "If both a target/preference and an applicable account-size or managed-assets minimum are present, return account_minimum for the actual requirement. A target or preference must never hide a real minimum.",
       "Only a minimum applicable to this primary schedule and its ordinary clients counts. Do not apply another product/program's minimum. Uncertain applicability must be unclear.",
