@@ -3,6 +3,7 @@ import type { Db } from "../db/client.js";
 import { OPERATOR_AUTH, type AuthContext } from "./auth.js";
 import { registerResearchTools } from "./research-tools.js";
 import { registerBenchmarkTools } from "./benchmark-tools.js";
+import { registerEvidenceMiningTools } from "./evidence-mining-tools.js";
 import { registerTools } from "./tools.js";
 
 export function createMcpServer(db: Db, auth: AuthContext = OPERATOR_AUTH): McpServer {
@@ -10,5 +11,6 @@ export function createMcpServer(db: Db, auth: AuthContext = OPERATOR_AUTH): McpS
   registerTools(server, db, auth);
   registerResearchTools(server, db, auth);
   registerBenchmarkTools(server, db, auth);
+  registerEvidenceMiningTools(server, db, auth);
   return server;
 }

@@ -6,6 +6,7 @@ import { sql } from "drizzle-orm";
 import { createDb, type Db } from "./db/client.js";
 import { createBenchmarkFeeWorker } from "./domain/benchmark/fee-jobs.js";
 import { createComparableReviewWorker } from "./domain/benchmark/comparable-jobs.js";
+import { createEvidenceMiningWorker } from "./domain/research/evidence-mining-jobs.js";
 import { createAgentRunner } from "./runs/agent-runner.js";
 import { createCompanyRunner, realCompanyDeps } from "./runs/company.js";
 import { buildStagePromptForRun } from "./runs/prompt.js";
@@ -253,10 +254,13 @@ async function main(): Promise<void> {
   feeWorker.start();
   const comparableWorker = createComparableReviewWorker(db);
   comparableWorker.start();
+  const evidenceWorker = createEvidenceMiningWorker(db);
+  evidenceWorker.start();
   process.on("SIGTERM", () => {
     void (async () => {
       feeWorker.stop();
       comparableWorker.stop();
+      evidenceWorker.stop();
       quotaMonitor.stop();
       await sectorRunner.stop();
       await companyRunner.stop();
