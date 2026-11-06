@@ -153,6 +153,8 @@ const EXPECTED_TOOLS = [
   "sec_adv_website_promote",
   "sec_adv_brochures_import",
   "benchmark_fees_run",
+  "benchmark_fee_comparable_run",
+  "benchmark_fee_comparable_status",
   "benchmark_fees_status",
   "benchmark_fees_resume",
   "benchmark_brochure_page_review",

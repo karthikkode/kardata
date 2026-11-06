@@ -1193,6 +1193,22 @@ export const benchmarkFeeJobResults = pgTable("benchmark_fee_job_results", {
   metrics: jsonb("metrics").$type<Record<string, unknown>>().notNull(),
 }, t => [primaryKey({ columns: [t.jobId, t.companyId] })]);
 
+// Independent eligibility checks; never share leases or results with extraction jobs.
+export const benchmarkComparableJobs = pgTable("benchmark_comparable_jobs", {
+  id: uuid("id").primaryKey(),
+  sectorId: uuid("sector_id").notNull().references(() => sectors.id, { onDelete: "cascade" }),
+  companyIds: uuid("company_ids").array().notNull(),
+  version: text("version").notNull(),
+  concurrency: integer("concurrency").notNull(),
+  status: text("status", { enum: ["queued", "running", "paused", "completed", "failed"] }).notNull().default("queued"),
+  reason: text("reason"),
+  results: jsonb("results").$type<Record<string, unknown>>().notNull().default({}),
+  leaseId: uuid("lease_id"),
+  leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+}, t => [index("benchmark_comparable_jobs_status_created_idx").on(t.status, t.createdAt)]);
+
 // Human verdict on a flagged (over $1M per staff) public revenue figure.
 export const revenueConfirmations = pgTable("revenue_confirmations", {
   companyId: uuid("company_id")

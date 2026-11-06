@@ -13,6 +13,8 @@ import { FEE_COLLECTOR } from "./fees.js";
 import { deriveMeasures, EMPTY_SNAPSHOT, primaryPeerFees, type Snapshot } from "./measures.js";
 import { peerConfig, peerStatistics } from "./peers.js";
 import { sectorData } from "./sector-data.js";
+import { comparableFeeGate } from "./comparable-gate.js";
+import { COMPARABLE_REVIEW_COLLECTOR, COMPARABLE_REVIEW_KEY, COMPARABLE_REVIEW_VERSION, type ComparableReview } from "./comparable-review.js";
 
 export const BENCHMARK_COLLECTOR = "benchmark_compute";
 export const BENCHMARK_MEASURES_KEY = "benchmark.measures";
@@ -23,6 +25,7 @@ const formula = {
   estimated_fee_revenue_per_staff: "estimated annual fee revenue / staff",
   percentile: "(count below + count tied / 2) / non-null sample × 100",
   fee_percentile: "single-reading primary fees only; two-reading endpoints ranked against that sample",
+  fee_eligibility: "current grounded comparable review required; scoped/unclear excluded; below-minimum waivable prices conditional and outside peer numbers",
   peer_mix: "individual plus high-net-worth regulatory AUM / total regulatory AUM",
   client_ranges: "hidden category counts assumed 1–4; ratio endpoints ordered by denominator; growth low=current low/prior high−1, high=current high/prior low−1",
 };
@@ -73,6 +76,11 @@ export async function computeBenchmark(db: Db, input: { sectorId: string; formul
   const feesByFirm = new Map(feeStatuses.map(status => [
     status.companyId, { status, fee: status.valueText === "available" ? feesByInput.get(`${status.companyId}:${status.qualifiers.input}`) : undefined },
   ]));
+  const reviewRows = await db.selectDistinctOn([facts.companyId]).from(facts).where(and(eq(facts.createdBy, COMPARABLE_REVIEW_COLLECTOR),
+    eq(facts.key, COMPARABLE_REVIEW_KEY), inArray(facts.companyId, ids), sql`${facts.qualifiers}->>'review' = ${COMPARABLE_REVIEW_VERSION}`,
+    inArray(sql<string>`${facts.qualifiers}->>'fee_fact_id'`, [...feesByFirm.values()].flatMap(row => row.fee ? [row.fee.id] : []))))
+    .orderBy(facts.companyId, desc(facts.createdAt), desc(facts.id));
+  const reviewsByFee = new Map(reviewRows.map(row => [row.qualifiers.fee_fact_id, row]));
   const byFirmMonth = new Map<string, SnapshotData>();
   for (const row of snapshotRows) {
     const key = `${row.companyId}:${row.qualifiers.snapshot}`;
@@ -84,23 +92,42 @@ export async function computeBenchmark(db: Db, input: { sectorId: string; formul
     byFirmMonth.set(key, entry);
   }
   const revision = createHash("sha256")
-    .update(JSON.stringify({ sectorId, formulaVersion, months, config, ids, feePeerVersion: 4, benchmarkVersion: 2 }))
+    .update(JSON.stringify({ sectorId, formulaVersion, months, config, ids, feePeerVersion: 5, benchmarkVersion: 2, comparableReview: COMPARABLE_REVIEW_VERSION }))
     .update(snapshotRows.map(row => row.id).join(","))
     .update(feeStatuses.map(row => row.id).join(","))
     .update(feeStatuses.map(row => feesByFirm.get(row.companyId)?.fee?.id ?? "").join(","))
+    .update(reviewRows.map(row => row.id).join(","))
     .digest("hex").slice(0, 24);
   const results = ids.map(id => {
     const pick = (month: string) => byFirmMonth.get(`${id}:${month}`);
     const current = pick(snapshots.current)?.data ?? EMPTY_SNAPSHOT;
     const chronological = months.map(month => pick(month)?.data ?? EMPTY_SNAPSHOT);
     const fee = feesByFirm.get(id);
+    const raw = primaryPeerFees(fee?.fee?.valueJson ?? null);
+    const reviewFact = fee?.fee && reviewsByFee.get(fee.fee.id);
+    const review = reviewFact?.valueJson as ComparableReview | null;
+    const gate = comparableFeeGate(raw, review ?? null, fee?.fee?.id);
     const result = deriveMeasures(current, pick(snapshots.prior1)?.data ?? EMPTY_SNAPSHOT, pick(snapshots.prior3)?.data ?? EMPTY_SNAPSHOT,
-      primaryPeerFees(fee?.fee?.valueJson ?? null), snapshots.current, chronological);
+      gate.fees, snapshots.current, chronological);
+    const rawResult = deriveMeasures(current, pick(snapshots.prior1)?.data ?? EMPTY_SNAPSHOT, pick(snapshots.prior3)?.data ?? EMPTY_SNAPSHOT,
+      raw, snapshots.current, chronological);
+    const conditionalRevenue = gate.status === "conditional" && current.aum !== null && current.accounts !== null && current.accounts > 0 &&
+      gate.minimum !== null && current.aum / current.accounts < gate.minimum;
     return {
       id, staff: current.staff, aum: current.aum, ...result, filingDate: current.filingDate,
       dates: Object.fromEntries(months.map((month, index) => [month, chronological[index]!.filingDate])),
       feeDate: fee?.fee?.asOf ?? null,
-      sourceIds: [...new Set([...months.flatMap(month => [...(pick(month)?.sourceIds ?? [])]), ...(fee?.status.sourceIds ?? []), ...(fee?.fee?.sourceIds ?? [])])],
+      feeEligibility: { status: gate.status, reviewFactId: reviewFact?.id ?? null, version: COMPARABLE_REVIEW_VERSION,
+        review: review ?? null, rawAt1m: raw?.at1m ?? null, rawAt5m: raw?.at5m ?? null },
+      conditionalFeeValues: {
+        at1m: gate.balances?.at1m === "waiver_required" ? raw?.at1m : null,
+        at5m: gate.balances?.at5m === "waiver_required" ? raw?.at5m : null,
+        ranges: Object.fromEntries(Object.entries(rawResult.feeRanges).filter(([measure]) =>
+          gate.balances?.[measure.startsWith("fee_1m_") ? "at1m" : "at5m"] === "waiver_required")),
+        estimatedAnnualFeeRevenue: conditionalRevenue ? rawResult.values.estimated_annual_fee_revenue : null,
+        estimatedFeeRevenuePerStaff: conditionalRevenue ? rawResult.values.estimated_fee_revenue_per_staff : null,
+      },
+      sourceIds: [...new Set([...months.flatMap(month => [...(pick(month)?.sourceIds ?? [])]), ...(fee?.status.sourceIds ?? []), ...(fee?.fee?.sourceIds ?? []), ...(reviewFact?.sourceIds ?? [])])],
     };
   });
   const peers = peerStatistics(results, config);
@@ -149,6 +176,7 @@ export async function computeBenchmark(db: Db, input: { sectorId: string; formul
           valueJson: {
             values: firm.values, flags: firm.flags, jumps: firm.jumps, gapReasons: firm.gapReasons,
             feeRanges: firm.feeRanges, clientRanges: firm.clientRanges, dates: firm.dates, feeDate: firm.feeDate,
+            feeEligibility: firm.feeEligibility, conditionalFeeValues: firm.conditionalFeeValues,
             peer: peers.memberGroups.get(firm.id) ?? null, summarySourceId: summarySource.id, formula,
           },
         });

@@ -27,6 +27,7 @@ describe("migrations on kardata_test", () => {
     expect(names.sort()).toEqual([
       "apollo_contacts",
       "area_statuses",
+      "benchmark_comparable_jobs",
       "benchmark_fee_job_results",
       "benchmark_fee_jobs",
       "blobs",
@@ -123,6 +124,11 @@ describe("migrations on kardata_test", () => {
       "findings.confidence",
       "area_statuses.status",
       "area_statuses.reason",
+      "benchmark_comparable_jobs.company_ids",
+      "benchmark_comparable_jobs.version",
+      "benchmark_comparable_jobs.results",
+      "benchmark_comparable_jobs.lease_id",
+      "benchmark_comparable_jobs.lease_until",
     ]) {
       expect(have.has(want), `missing column ${want}`).toBe(true);
     }
