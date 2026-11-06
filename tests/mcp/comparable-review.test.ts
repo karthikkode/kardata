@@ -4,7 +4,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { and, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
-import { benchmarkComparableJobs, benchmarkFeeJobs, blobs, facts, sectorCompanies, sources } from "../../src/db/schema.js";
+import { benchmarkComparableJobs, benchmarkFeeJobs, blobs, facts, harnessSettings, sectorCompanies, sources } from "../../src/db/schema.js";
 import { startServer } from "../../src/server.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
 import { comparableFixture } from "../fixtures/comparable-review.js";
@@ -15,6 +15,7 @@ import { FEE_COLLECTOR, FEE_VERSION } from "../../src/domain/benchmark/fees.js";
 import { addFacts } from "../../src/domain/research/facts.js";
 import { canonicalFile, companyFileEvidence, SNAPSHOT_COLLECTOR } from "../../src/domain/sec-adv/evidence.js";
 import * as pdf from "../../src/lib/sec/pdf-text.js";
+import * as codexStatus from "../../src/harness/codex-status.js";
 
 const handle = getTestDb(), client = new Client({ name: "comparable-review-test", version: "1" });
 let server: Awaited<ReturnType<typeof startServer>>;
@@ -153,6 +154,98 @@ it("pauses only its own review for quota and resumes through the idempotent run 
   expect(await tool("benchmark_fee_comparable_run", input)).toMatchObject({ status: "queued" });
   await createComparableReviewWorker(handle.db, { review: f.mockReview, gate: ready }).tick();
   expect(await tool("benchmark_fee_comparable_status", { jobId: requestId, limit: 1 })).toMatchObject({ status: "completed", finished: 3, nextOffset: 1 });
+});
+
+it.each([
+  "extraction container exited 1: transport error: error sending request for url (https://api.fixture.example/responses)",
+  "Codex extraction failed (transport)",
+  "Codex extraction failed (timeout)",
+  "network connection could not be opened within 15 seconds (after 2 provider attempts)",
+])("recovers one comparable transport failure and reports its retry: %s", async message => {
+  const f = await fixture(), companyId = f.companyIds[0]!;
+  const before = await handle.db.select().from(facts).where(eq(facts.createdBy, FEE_COLLECTOR));
+  const review = vi.fn(f.mockReview).mockRejectedValueOnce(Error(message)), wait = vi.fn(async () => undefined);
+  const job = await tool("benchmark_fee_comparable_run", { sectorId: f.sectorId, companyIds: [companyId] });
+  await createComparableReviewWorker(handle.db, { gate: ready, review, wait }).tick();
+  expect(review).toHaveBeenCalledTimes(2); expect(wait).toHaveBeenCalledExactlyOnceWith(1000);
+  expect(await tool("benchmark_fee_comparable_status", { jobId: job.jobId })).toMatchObject({ status: "completed",
+    counts: { pass: 1 }, results: [expect.objectContaining({ attempts: 2, retryCount: 1, usageIncomplete: true,
+      attemptErrors: [{ attempt: 1, provider: "muse", reason: message }], outcome: "pass" })] });
+  expect(await handle.db.select().from(facts).where(eq(facts.key, COMPARABLE_REVIEW_KEY))).toHaveLength(1);
+  expect(await handle.db.select().from(facts).where(eq(facts.createdBy, FEE_COLLECTOR))).toEqual(before);
+  expect(FEE_VERSION).toBe("adv-2a-v8");
+});
+
+it.each([
+  ["transport error: connection reset", 2],
+  ["invalid structured response", 1],
+  ["transport error: unauthorized 401", 1],
+  ["Codex extraction requires login (provider)", 1],
+])("bounds comparable retries and keeps exhausted errors visible: %s", async (message, attempts) => {
+  const f = await fixture(), review = vi.fn(f.mockReview).mockRejectedValue(Error(message)), wait = vi.fn(async () => undefined);
+  const job = await tool("benchmark_fee_comparable_run", { sectorId: f.sectorId, companyIds: [f.companyIds[0]!] });
+  await createComparableReviewWorker(handle.db, { gate: ready, review, wait }).tick();
+  expect(review).toHaveBeenCalledTimes(attempts); expect(wait).toHaveBeenCalledTimes(attempts - 1);
+  expect(await tool("benchmark_fee_comparable_status", { jobId: job.jobId })).toMatchObject({ status: "completed",
+    counts: { error: 1 }, results: [expect.objectContaining({ reason: message, attempts, retryCount: attempts - 1,
+      attemptErrors: Array.from({ length: attempts }, (_, i) => ({ attempt: i + 1, provider: "muse", reason: message })) })] });
+  expect(await handle.db.select().from(facts).where(eq(facts.key, COMPARABLE_REVIEW_KEY))).toHaveLength(0);
+});
+
+it("pauses a quota response without retrying transport or controlling extraction", async () => {
+  const f = await fixture(), review = vi.fn(f.mockReview).mockRejectedValue(Error("Subscription quota exhausted: transport error"));
+  const wait = vi.fn(async () => undefined), before = await handle.db.select().from(benchmarkFeeJobs);
+  const job = await tool("benchmark_fee_comparable_run", { sectorId: f.sectorId, companyIds: [f.companyIds[0]!] });
+  await createComparableReviewWorker(handle.db, { gate: ready, review, wait }).tick();
+  expect(review).toHaveBeenCalledOnce(); expect(wait).not.toHaveBeenCalled();
+  expect(await tool("benchmark_fee_comparable_status", { jobId: job.jobId })).toMatchObject({ status: "paused", reason: "provider_quota", finished: 0 });
+  expect(await handle.db.select().from(benchmarkFeeJobs)).toEqual(before);
+});
+
+it.each(["muse_quota", "codex_auth"])("rechecks readiness after backoff and leaves a newly held firm pending: %s", async reason => {
+  const f = await fixture(), review = vi.fn(f.mockReview).mockRejectedValue(Error("transport error"));
+  const gate = vi.fn(async () => ({ ...await ready(), available: false, reason: reason as string | null }))
+    .mockResolvedValueOnce(await ready()).mockResolvedValueOnce(await ready());
+  const job = await tool("benchmark_fee_comparable_run", { sectorId: f.sectorId, companyIds: [f.companyIds[0]!] });
+  await createComparableReviewWorker(handle.db, { gate, review, wait: async () => undefined }).tick();
+  expect(review).toHaveBeenCalledOnce();
+  expect(await tool("benchmark_fee_comparable_status", { jobId: job.jobId })).toMatchObject({ status: "paused", reason, finished: 0 });
+});
+
+it("parks a review stopped during backoff and resumes it through a new worker", async () => {
+  const f = await fixture(), review = vi.fn(f.mockReview).mockRejectedValueOnce(Error("transport error"));
+  const job = await tool("benchmark_fee_comparable_run", { sectorId: f.sectorId, companyIds: [f.companyIds[0]!] });
+  const worker = createComparableReviewWorker(handle.db, { gate: ready, review, wait: async () => { worker.stop(); } });
+  await worker.tick(); expect(review).toHaveBeenCalledOnce();
+  expect(await tool("benchmark_fee_comparable_status", { jobId: job.jobId })).toMatchObject({ status: "queued", finished: 0 });
+  await createComparableReviewWorker(handle.db, { gate: ready, review }).tick();
+  expect(await tool("benchmark_fee_comparable_status", { jobId: job.jobId })).toMatchObject({ status: "completed", counts: { pass: 1 } });
+});
+
+it.each(["ready", "quota", "auth", "hold", "explicit_muse"])("uses ready Codex for an auto-mode comparable retry only: %s", async condition => {
+  const f = await fixture(), companyId = f.companyIds[0]!, mode = condition === "explicit_muse" ? "muse" : "auto";
+  await handle.db.insert(harnessSettings).values([
+    { key: "ria_extractor_provider", value: { mode } },
+    { key: "quota_snapshot", value: { checkedAt: new Date().toISOString(), fivePct: 0, weeklyPct: 0,
+      fiveResetAt: new Date(Date.now() + 3600000).toISOString(), weeklyResetAt: new Date(Date.now() + 86400000).toISOString() } },
+    ...(condition === "hold" ? [{ key: "ria_codex_hold", value: { kind: "quota", at: new Date().toISOString(), resumeAt: null } }] : []),
+  ]);
+  const inspect = vi.spyOn(codexStatus, "readCodexSnapshot").mockResolvedValue({ checkedAt: new Date().toISOString(),
+    authenticated: condition !== "auth", modelAvailable: true, error: condition === "auth" ? "not_logged_in" : null,
+    primary: { usedPercent: condition === "quota" ? 100 : 20, windowMinutes: 10080, resetsAt: new Date(Date.now() + 86400000).toISOString() }, secondary: null });
+  await handle.db.insert(benchmarkFeeJobs).values({ id: randomUUID(), sectorId: f.sectorId, companyIds: f.companyIds,
+    eligibleSelected: 3, cohortSize: 3, concurrency: 2, status: "running", leaseId: randomUUID(), leaseUntil: new Date(Date.now() + 60_000) });
+  const extractionBefore = await handle.db.select().from(benchmarkFeeJobs);
+  const modeBefore = await handle.db.select().from(harnessSettings).where(eq(harnessSettings.key, "ria_extractor_provider"));
+  const review = vi.fn(f.mockReview).mockRejectedValueOnce(Error("transport error"));
+  const job = await tool("benchmark_fee_comparable_run", { sectorId: f.sectorId, companyIds: [companyId] });
+  await createComparableReviewWorker(handle.db, { review, wait: async () => undefined }).tick();
+  expect(review).toHaveBeenCalledTimes(2);
+  expect(inspect).toHaveBeenCalledTimes(condition === "explicit_muse" ? 0 : 1);
+  expect(await tool("benchmark_fee_comparable_status", { jobId: job.jobId })).toMatchObject({ status: "completed", counts: { pass: 1 },
+    results: [expect.objectContaining({ providers: ["muse", condition === "ready" ? "codex" : "muse"], retryCount: 1 })] });
+  expect(await handle.db.select().from(benchmarkFeeJobs)).toEqual(extractionBefore);
+  expect(await handle.db.select().from(harnessSettings).where(eq(harnessSettings.key, "ria_extractor_provider"))).toEqual(modeBefore);
 });
 
 it("changes benchmark revisions with review evidence, excludes failures, and separates conditional raw values", async () => {

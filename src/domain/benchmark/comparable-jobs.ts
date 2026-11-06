@@ -1,11 +1,13 @@
 import { randomUUID } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { Db, DbTx } from "../../db/client.js";
 import { benchmarkComparableJobs, facts } from "../../db/schema.js";
+import { codexHasCapacity } from "../../harness/codex-status.js";
 import { DomainError } from "../errors.js";
 import { addFacts } from "../research/facts.js";
 import { eligibleCompanyIds } from "../ria-steps/status.js";
-import { riaExtractorCall, riaProviderGate, withRiaProvider } from "../ria-steps/provider.js";
+import { riaExtractorCall, riaProviderGate, riaProviderStatus, withRiaProvider, type RiaProvider } from "../ria-steps/provider.js";
 import { lockEvidence } from "../sec-adv/evidence.js";
 import { activeMembers } from "../sec-adv/snapshot.js";
 import { parseQuotaExhaustion } from "../quota/breaker.js";
@@ -14,6 +16,9 @@ import { COMPARABLE_REVIEW_COLLECTOR, COMPARABLE_REVIEW_KEY, COMPARABLE_REVIEW_V
 
 type Job = typeof benchmarkComparableJobs.$inferSelect;
 type Result = Awaited<ReturnType<typeof reviewComparable>>;
+type ProviderState = Awaited<ReturnType<typeof riaProviderGate>>;
+type Attempts = { attempts: number; retryCount: number; providers: RiaProvider[];
+  attemptErrors: { attempt: number; provider: RiaProvider; reason: string }[]; usageIncomplete: boolean };
 const DISPATCH = "benchmark:comparable-review-dispatch", LEASE_MS = 60_000;
 const owned = (job: Job) => and(eq(benchmarkComparableJobs.id, job.id), eq(benchmarkComparableJobs.leaseId, job.leaseId!),
   sql`${benchmarkComparableJobs.leaseUntil} > now()`);
@@ -84,13 +89,29 @@ async function claim(db: Db) {
   });
 }
 
-async function persist(db: Db, job: Job, companyId: string, result: Result | { error: string }) {
+function transientTransport(message: string) {
+  if (/quota|usage exhausted|rate.?limit|unauthori|authentication|login|\b(?:401|403|429)\b/i.test(message)) return false;
+  return /transport error|error sending request|network connection could not be opened|connection (?:reset|closed|timed out)|ECONNRESET|ETIMEDOUT|socket hang up|fetch failed|extraction timed out|Codex extraction failed \((?:transport|timeout)\)/i.test(message);
+}
+
+/** Comparable-only fallback: never alter the operator mode or extraction worker. */
+async function transportRetryProvider(db: Db, state: ProviderState): Promise<ProviderState> {
+  if (state.mode !== "auto" || state.provider !== "muse" || !state.available) return state;
+  const status = await riaProviderStatus(db, true);
+  const current = { mode: status.mode, provider: status.provider, available: status.available, reason: status.reason };
+  if (status.mode !== "auto" || !status.available) return current;
+  const held = status.codexHold as { kind?: unknown } | null;
+  return status.codex && codexHasCapacity(status.codex) && !held?.kind
+    ? { ...current, provider: "codex", available: true, reason: null } : current;
+}
+
+async function persist(db: Db, job: Job, companyId: string, result: (Result | { error: string }) & Partial<Attempts>) {
   await db.transaction(async tx => {
     const [lease] = await tx.select().from(benchmarkComparableJobs).where(owned(job)).for("update");
     if (!lease) throw new Error("comparable review lease expired");
     if (lease.results[companyId]) return;
     let metrics: Record<string, unknown>;
-    if ("error" in result) metrics = { outcome: "error", reason: result.error };
+    if ("error" in result) metrics = { ...result, outcome: "error", reason: result.error };
     else {
       const review = result.review;
       const qualifiers = { review: COMPARABLE_REVIEW_VERSION, input: review.inputHash, fee_fact_id: review.feeFactId };
@@ -113,9 +134,12 @@ async function persist(db: Db, job: Job, companyId: string, result: Result | { e
 }
 
 export function createComparableReviewWorker(db: Db, dependencies: {
-  review?: typeof reviewComparable; gate?: typeof riaProviderGate;
+  review?: typeof reviewComparable; gate?: typeof riaProviderGate; wait?: (ms: number) => Promise<unknown>;
+  retryGate?: typeof transportRetryProvider;
 } = {}) {
   const review = dependencies.review ?? reviewComparable, gate = dependencies.gate ?? riaProviderGate;
+  const wait = dependencies.wait ?? delay;
+  const retryGate = dependencies.retryGate ?? transportRetryProvider;
   let timer: ReturnType<typeof setInterval> | undefined, active: Promise<void> | undefined, closed = false;
   async function run() {
     const job = await claim(db);
@@ -139,18 +163,32 @@ export function createComparableReviewWorker(db: Db, dependencies: {
         const pauses = await Promise.all(ids.map(async companyId => {
           const fee = fees.find(row => row.companyId === companyId);
           if (!fee) { await persist(db, job, companyId, { error: "Firm no longer has an exact comparable or numeric two-reading interval" }); return null; }
-          const provider = await gate(db);
-          if (!provider.available) return provider.reason ?? "provider unavailable";
-          try {
-            const result = await withRiaProvider(provider.provider, () => review(db, fee, riaExtractorCall(db)));
-            if (alive && !closed) await persist(db, job, companyId, result);
-          } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            // A quota/auth hold leaves this firm pending, without manufacturing a review.
-            if (parseQuotaExhaustion(message).exhausted) return "provider_quota";
-            const state = await gate(db);
-            if (!state.available) return state.reason ?? message;
-            if (alive && !closed) await persist(db, job, companyId, { error: message.slice(0, 500) });
+          const started = performance.now(), attemptErrors: Attempts["attemptErrors"] = [], providers: RiaProvider[] = [];
+          // Retry transport only, once. Recheck provider readiness before each
+          // attempt; quota/auth holds and semantic failures retain their behavior.
+          for (let attempt = 1; attempt <= 2 && alive && !closed; attempt++) {
+            let provider = await gate(db);
+            if (!provider.available) return provider.reason ?? "provider unavailable";
+            if (attempt > 1 && providers[0] === "muse") provider = await retryGate(db, provider);
+            if (!provider.available) return provider.reason ?? "provider unavailable";
+            providers.push(provider.provider);
+            try {
+              const result = await withRiaProvider(provider.provider, () => review(db, fee, riaExtractorCall(db)));
+              if (alive && !closed) await persist(db, job, companyId, { ...result, attempts: attempt, retryCount: attempt - 1,
+                providers, attemptErrors, usageIncomplete: attemptErrors.length > 0, elapsedMs: Math.round(performance.now() - started) });
+              return null;
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error);
+              // A quota/auth hold leaves this firm pending, without manufacturing a review.
+              if (parseQuotaExhaustion(message).exhausted) return "provider_quota";
+              const state = await gate(db);
+              if (!state.available) return state.reason ?? message;
+              attemptErrors.push({ attempt, provider: provider.provider, reason: message.slice(0, 500) });
+              if (attempt === 1 && transientTransport(message) && alive && !closed) { await wait(1000); continue; }
+              if (alive && !closed) await persist(db, job, companyId, { error: message.slice(0, 500), attempts: attempt,
+                retryCount: attempt - 1, providers, attemptErrors, usageIncomplete: true });
+              return null;
+            }
           }
           return null;
         }));
