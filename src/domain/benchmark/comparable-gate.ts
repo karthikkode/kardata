@@ -6,7 +6,7 @@ export function comparableFeeGate(raw: Fees | null, review: ComparableReview | n
   const empty = (status: string) => ({ fees: null, status, balances: null, minimum: null });
   if (!raw) return empty("no_primary_fee");
   if (!review || review.version !== COMPARABLE_REVIEW_VERSION || review.feeFactId !== feeFactId) return empty("unreviewed");
-  if (review.outcome === "fail" && review.scope.evidence && ["strategy", "product", "client_type"].includes(review.scope.category)) return empty("fail");
+  if (review.outcome === "fail" && review.scope.evidence && ["asset_class", "strategy", "product", "client_type"].includes(review.scope.category)) return empty("fail");
   if (review.outcome === "unclear" || review.scope.category === "unclear" || review.minimum.kind === "unclear") return empty("unclear");
   if (review.scope.category !== "general" || review.outcome === "fail") return empty("fail");
   const stated = review.minimum.kind === "account_minimum" ? review.minimum.amount : 0;
