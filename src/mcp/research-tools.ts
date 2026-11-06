@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { sectors } from "../db/schema.js";
 import { recordEvent } from "../collect/db.js";
 import { fetchUrl } from "../collect/fetch.js";
+import { sourceFetchPolicy } from "../domain/research/source-fetch-policy.js";
 import { FACT_BATCH_MAX, addFacts } from "../domain/research/facts.js";
 import { RECORD_BATCH_MAX, upsertRecords } from "../domain/research/records.js";
 import { listRegistry, describeRegistryEntry, curateRegistryEntry } from "../domain/research/registry.js";
@@ -551,6 +552,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
           companyId: scoped,
           collector: "agent",
           url,
+          ...sourceFetchPolicy(url),
           privateHostAllowlist: privateHostAllowlist(),
         });
         let text: string | null = null;
