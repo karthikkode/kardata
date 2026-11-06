@@ -151,7 +151,30 @@ it("accepts only a grounded restriction as fail when physical pages are unread",
   const invented = structuredClone(f.answer); invented.scope.evidence.quote = "Unsupported restriction quotation.";
   expect(assessComparable(invented, f.passages, context).outcome).toBe("unclear");
 });
-it("requires v2 evidence and never accepts a v1 review", () => {
-  expect(COMPARABLE_REVIEW_VERSION).toBe("adv-comparable-v2");
-  expect(comparableFeeGate(raw, { ...assess(), version: "adv-comparable-v1" }, "synthetic-fee")).toMatchObject({ status: "unreviewed", fees: null });
+it("requires v3 evidence and never accepts v1 or v2 reviews", () => {
+  expect(COMPARABLE_REVIEW_VERSION).toBe("adv-comparable-v3");
+  for (const version of ["adv-comparable-v1", "adv-comparable-v2"]) {
+    expect(comparableFeeGate(raw, { ...assess(), version }, "synthetic-fee")).toMatchObject({ status: "unreviewed", fees: null });
+  }
+});
+
+it("withholds an asset-class table despite diversified firm services, preserving raw fees", () => {
+  const f = comparableFixture({ scope: "asset_class" });
+  const review = assessComparable(f.answer, f.passages, f.context);
+  expect(review).toMatchObject({ outcome: "fail", scope: { category: "asset_class", evidence: { page: 5 } },
+    balances: { at1m: "unavailable", at5m: "unavailable" } });
+  for (const fees of [raw, two]) {
+    const before = structuredClone(fees);
+    const gate = comparableFeeGate(fees, review, "synthetic-fee");
+    expect(gate).toMatchObject({ status: "fail", fees: null });
+    const derived = deriveMeasures(current, EMPTY_SNAPSHOT, EMPTY_SNAPSHOT, gate.fees, "2026-11", [current]);
+    expect(derived.values).toMatchObject({ fee_1m_dollars: null, fee_5m_dollars: null, estimated_annual_fee_revenue: null });
+    expect(derived.feeRanges).toEqual({});
+    expect(fees).toEqual(before);
+  }
+  const unread = assessComparable({ ...f.answer, minimum: { ...f.answer.minimum, kind: "unclear", evidence: null } }, f.passages,
+    { ...f.context, complete: false, gaps: ["Unrelated physical page unavailable"] });
+  expect(comparableFeeGate(raw, unread, "synthetic-fee").status).toBe("fail");
+  f.answer.scope.evidence.quote = "Invented restriction not in the table.";
+  expect(assessComparable(f.answer, f.passages, f.context).outcome).toBe("unclear");
 });
