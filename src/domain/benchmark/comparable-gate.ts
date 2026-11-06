@@ -1,5 +1,5 @@
 import type { Fees } from "./measures.js";
-import { COMPARABLE_REVIEW_VERSION, type ComparableReview } from "./comparable-review.js";
+import { comparablePriceReadings, contradictedPriceReading, supportedPriceReadings, COMPARABLE_REVIEW_VERSION, type ComparableReview } from "./comparable-review.js";
 
 /** The review never mutates extraction. Conditional prices are separate from peer inputs. */
 export function comparableFeeGate(raw: Fees | null, review: ComparableReview | null, feeFactId?: string) {
@@ -8,7 +8,9 @@ export function comparableFeeGate(raw: Fees | null, review: ComparableReview | n
   if (!review || review.version !== COMPARABLE_REVIEW_VERSION || review.feeFactId !== feeFactId) return empty("unreviewed");
   if (review.outcome === "fail" && review.scope.evidence && ["asset_class", "strategy", "product", "client_type"].includes(review.scope.category)) return empty("fail");
   if (review.pricing?.status === "contradicted" && review.pricing.evidence) return empty("fail");
+  if (contradictedPriceReading(review.pricing?.readings, comparablePriceReadings(raw))) return empty("fail");
   if (review.pricing?.status !== "supported" || !review.pricing.evidence) return empty("unclear");
+  if (!supportedPriceReadings(review.pricing.readings, comparablePriceReadings(raw))) return empty("unclear");
   if (review.outcome === "unclear" || review.scope.category === "unclear" || review.minimum.kind === "unclear") return empty("unclear");
   if (review.scope.category !== "general" || review.outcome === "fail") return empty("fail");
   const stated = review.minimum.kind === "account_minimum" ? review.minimum.amount : 0;
