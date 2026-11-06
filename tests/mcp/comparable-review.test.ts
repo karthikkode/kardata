@@ -71,7 +71,7 @@ async function fixture(twoReadings = false) {
   }));
   const mockReview: typeof reviewComparable = (db, fee) => reviewComparable(db, fee, async request => {
     expect(request.prompt).toContain("Item 4"); expect(request.prompt).toContain("Item 5"); expect(request.prompt).toContain("Item 7");
-    expect(Object.keys(JSON.parse(request.schema!).properties)).toEqual(["scope", "minimum", "sections"]);
+    expect(Object.keys(JSON.parse(request.schema!).properties)).toEqual(["scope", "minimum", "pricing", "sections"]);
     return { json: evidence.get(fee.companyId)!.answer, usage: { inputTokens: 1000, outputTokens: 100, cachedTokens: 0, reasoningTokens: 0, calls: 1 } };
   });
   return { sectorId: sector.id, companyIds, evidence, mockReview };
@@ -254,6 +254,7 @@ it.each([false, true])("reviews the archived stored PDF with a textless page=%s"
   const answer = structuredClone(prior.answer);
   const update = (citation: { ref: string; page: number }, page: number) => { citation.ref = `stored-${sourceId}-p${page}`; citation.page = page; };
   update(answer.scope.evidence, 1); update(answer.minimum.evidence, 3);
+  update(answer.pricing.evidence, 2);
   update(answer.sections.item4, 1); update(answer.sections.item5, 2); update(answer.sections.item7, 3);
   const extractor = vi.fn(async (request: { prompt: string }) => {
     if (unread) expect(request.prompt).toContain('"unreadPages":[4]');
@@ -291,7 +292,7 @@ it("calls the model with named textless pages, allowing grounded restrictions on
   expect(await tool("benchmark_fee_comparable_status", { jobId: job.jobId })).toMatchObject({ status: "completed", counts: { unclear: 2, fail: 1 },
     results: expect.arrayContaining([expect.objectContaining({ review: expect.objectContaining({ reasons: expect.arrayContaining([expect.stringContaining("page 9")]) }) })]) });
 });
-it.each(["adv-comparable-v1", "adv-comparable-v2"])("excludes dated %s review facts from a new benchmark revision", async version => {
+it.each(["adv-comparable-v1", "adv-comparable-v2", "adv-comparable-v3"])("excludes dated %s review facts from a new benchmark revision", async version => {
   const f = await fixture(); await seedSnapshot(f.companyIds);
   await tool("benchmark_fee_comparable_run", { sectorId: f.sectorId, companyIds: f.companyIds });
   await createComparableReviewWorker(handle.db, { gate: ready, review: f.mockReview }).tick();
@@ -327,7 +328,7 @@ it.each([false, true])("reviews the selected asset-class table before firm conte
     review: (db, fee) => reviewComparable(db, fee, extractor) }).tick();
   expect(extractor).toHaveBeenCalledOnce();
   expect(await tool("benchmark_fee_comparable_status", { jobId: job.jobId })).toMatchObject({
-    version: "adv-comparable-v3", status: "completed", counts: { fail: 1 },
+    version: "adv-comparable-v4", status: "completed", counts: { fail: 1 },
     results: [expect.objectContaining({ review: expect.objectContaining({ scope: expect.objectContaining({
       category: "asset_class", evidence: expect.objectContaining({ page: 5 }),
     }) }) })],
@@ -338,10 +339,45 @@ it.each([false, true])("reviews the selected asset-class table before firm conte
     eq(facts.key, "benchmark.measures"), eq(facts.qualifiers, {
       formula: "synthetic-priced-scope", snapshot: "2026-11", revision: computed.revision as string,
     })));
-  expect(row!.valueJson).toMatchObject({ feeEligibility: { status: "fail", version: "adv-comparable-v3" },
+  expect(row!.valueJson).toMatchObject({ feeEligibility: { status: "fail", version: "adv-comparable-v4" },
     values: { fee_1m_dollars: null, fee_5m_dollars: null, estimated_annual_fee_revenue: null }, feeRanges: {} });
   expect(await tool("benchmark_report", { sectorId: f.sectorId, revision: computed.revision })).toMatchObject({
     benchmark: { comparableReviews: { fail: 1, unreviewed: 2 }, measures: { fee_1m_dollars: { value: 0 } } },
   });
+  expect(await handle.db.select().from(facts).where(eq(facts.createdBy, FEE_COLLECTOR))).toEqual(before);
+});
+
+it.each([false, true])("withholds annual-floor contradictions from stored exact/two-reading=%s facts without re-extraction", async twoReadings => {
+  const f = await fixture(twoReadings), companyId = f.companyIds[0]!, old = f.evidence.get(companyId)!;
+  const evidence = comparableFixture({ annualFloorConflict: true, twoReadings });
+  for (const passage of evidence.passages) passage.sourceId = old.passages[0]!.sourceId;
+  f.evidence.set(companyId, evidence); await seedSnapshot(f.companyIds);
+  const before = await handle.db.select().from(facts).where(eq(facts.createdBy, FEE_COLLECTOR));
+  const extractor = vi.fn(async (request: Parameters<Parameters<typeof reviewComparable>[2]>[0]) => {
+    expect(request.prompt).toContain("including annual minimum fees outside Item 5");
+    expect(request.prompt).toContain("even when the adviser may waive or reduce the floor");
+    expect(request.prompt).toContain("current schedule's effective/start date");
+    expect(request.prompt).toContain("Separate prices for optional services");
+    expect(request.prompt).toContain("rather than a nearby parent heading alone");
+    expect(request.prompt).toContain('"existingMinimumAnnualFee":null');
+    if (twoReadings) expect(request.prompt).toContain('"existingScenarios":{"cliff"');
+    return { json: evidence.answer, usage: undefined };
+  });
+  const job = await tool("benchmark_fee_comparable_run", { sectorId: f.sectorId, companyIds: [companyId] });
+  await createComparableReviewWorker(handle.db, { gate: ready,
+    review: (db, fee) => reviewComparable(db, fee, extractor) }).tick();
+  expect(await tool("benchmark_fee_comparable_status", { jobId: job.jobId })).toMatchObject({
+    version: "adv-comparable-v4", status: "completed", counts: { fail: 1 }, results: [expect.objectContaining({
+      review: expect.objectContaining({ pricing: expect.objectContaining({ status: "contradicted", evidence: expect.objectContaining({ page: 6 }) }) }),
+    })],
+  });
+  const computed = await tool("benchmark_compute", { sectorId: f.sectorId, formulaVersion: "synthetic-price-consistency",
+    snapshots: { current: "2026-11", prior1: "2025-12", prior3: "2023-11" } });
+  const [row] = await handle.db.select().from(facts).where(and(eq(facts.companyId, companyId),
+    eq(facts.key, "benchmark.measures"), eq(facts.qualifiers, {
+      formula: "synthetic-price-consistency", snapshot: "2026-11", revision: computed.revision as string,
+    })));
+  expect(row!.valueJson).toMatchObject({ feeEligibility: { status: "fail" }, feeRanges: {},
+    values: { fee_1m_dollars: null, fee_5m_dollars: null, estimated_annual_fee_revenue: null } });
   expect(await handle.db.select().from(facts).where(eq(facts.createdBy, FEE_COLLECTOR))).toEqual(before);
 });

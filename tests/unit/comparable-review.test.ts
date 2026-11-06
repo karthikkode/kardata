@@ -111,10 +111,10 @@ it("ranks only passing reviewed intervals against exact peers without adding end
 
 
 it("keeps diversified multi-asset schedules and a firm-wide investing style general", () => {
-  for (const scope of ["diversified", "style"] as const) {
+  for (const scope of ["diversified", "style", "balanced_row", "current_schedule", "optional_services"] as const) {
     expect(assess({ scope })).toMatchObject({ outcome: "pass", scope: { category: "general", evidence: { page: 4 } } });
   }
-  for (const scope of ["product", "institutional", "adviser_channel"] as const) {
+  for (const scope of ["product", "institutional", "adviser_channel", "legacy"] as const) {
     expect(assess({ scope }).outcome).toBe("fail");
   }
 });
@@ -151,11 +151,39 @@ it("accepts only a grounded restriction as fail when physical pages are unread",
   const invented = structuredClone(f.answer); invented.scope.evidence.quote = "Unsupported restriction quotation.";
   expect(assessComparable(invented, f.passages, context).outcome).toBe("unclear");
 });
-it("requires v3 evidence and never accepts v1 or v2 reviews", () => {
-  expect(COMPARABLE_REVIEW_VERSION).toBe("adv-comparable-v3");
-  for (const version of ["adv-comparable-v1", "adv-comparable-v2"]) {
+it("requires v4 evidence and never accepts v1, v2 or v3 reviews", () => {
+  expect(COMPARABLE_REVIEW_VERSION).toBe("adv-comparable-v4");
+  for (const version of ["adv-comparable-v1", "adv-comparable-v2", "adv-comparable-v3"]) {
     expect(comparableFeeGate(raw, { ...assess(), version }, "synthetic-fee")).toMatchObject({ status: "unreviewed", fees: null });
   }
+});
+
+it("fails grounded annual-floor contradictions without correcting exact fees or two-reading endpoints", () => {
+  const f = comparableFixture({ annualFloorConflict: true });
+  const review = assessComparable(f.answer, f.passages, f.context);
+  expect(review).toMatchObject({ outcome: "fail", scope: { category: "general" }, minimum: { kind: "none_stated" },
+    pricing: { status: "contradicted", evidence: { page: 6 } }, balances: { at1m: "unavailable", at5m: "unavailable" } });
+  for (const fees of [raw, two]) {
+    const before = structuredClone(fees), gate = comparableFeeGate(fees, review, "synthetic-fee");
+    expect(gate).toMatchObject({ status: "fail", fees: null });
+    const derived = deriveMeasures(current, EMPTY_SNAPSHOT, EMPTY_SNAPSHOT, gate.fees, "2026-11", [current]);
+    expect(derived.values).toMatchObject({ fee_1m_dollars: null, fee_5m_dollars: null, estimated_annual_fee_revenue: null });
+    expect(derived.feeRanges).toEqual({}); expect(fees).toEqual(before);
+  }
+  const partial = assessComparable({ ...f.answer, minimum: { ...f.answer.minimum, kind: "unclear", evidence: null } },
+    f.passages, { ...f.context, complete: false, gaps: ["Unrelated unread page"] });
+  expect(comparableFeeGate(raw, partial, "synthetic-fee").status).toBe("fail");
+});
+
+it("keeps unsupported and unclear price checks out of peer output", () => {
+  const f = comparableFixture();
+  f.answer.pricing.evidence.quote = "An unsupported price quotation.";
+  const ungrounded = assessComparable(f.answer, f.passages, f.context);
+  expect(ungrounded).toMatchObject({ outcome: "unclear", reasons: expect.arrayContaining(["Price consistency answer failed quote/page grounding"]) });
+  const g = comparableFixture();
+  const unclear = assessComparable({ ...g.answer, pricing: { ...g.answer.pricing, status: "unclear" } }, g.passages, g.context);
+  expect(unclear.outcome).toBe("unclear");
+  expect(comparableFeeGate(raw, unclear, "synthetic-fee").fees).toBeNull();
 });
 
 it("withholds an asset-class table despite diversified firm services, preserving raw fees", () => {
