@@ -108,3 +108,50 @@ it("ranks only passing reviewed intervals against exact peers without adding end
   expect(peers.memberGroups.get("range-fail")?.feeRangePercentiles).toEqual({});
   expect(peers.memberGroups.get("range-waived")?.feeRangePercentiles).toEqual({});
 });
+
+
+it("keeps diversified multi-asset schedules and a firm-wide investing style general", () => {
+  for (const scope of ["diversified", "style"] as const) {
+    expect(assess({ scope })).toMatchObject({ outcome: "pass", scope: { category: "general", evidence: { page: 4 } } });
+  }
+  for (const scope of ["product", "institutional", "adviser_channel"] as const) {
+    expect(assess({ scope }).outcome).toBe("fail");
+  }
+});
+it("does not translate net-worth targets or relationship preferences into account minimums", () => {
+  for (const minimumKind of ["net_worth_target", "relationship_preference"] as const) {
+    const review = assess({ minimumKind });
+    expect(review).toMatchObject({ outcome: "pass", minimum: { kind: minimumKind, amount: 5_000_000 },
+      balances: { at1m: "available", at5m: "available" } });
+    const extracted = { ...raw, minimumAccountSize: 5_000_000 };
+    expect(comparableFeeGate(extracted, review, "synthetic-fee")).toMatchObject({ status: "pass", minimum: 0,
+      fees: { at1m: raw.at1m, at5m: raw.at5m, minimumAccountSize: null } });
+    expect(extracted.minimumAccountSize).toBe(5_000_000);
+  }
+});
+it("keeps the assets limb of an assets-or-net-worth requirement conditional below that limb", () => {
+  expect(assess({ minimumKind: "assets_or_net_worth" })).toMatchObject({ outcome: "conditional", minimum: { kind: "account_minimum", amount: 2_000_000 },
+    balances: { at1m: "waiver_required", at5m: "available" } });
+});
+it("accepts only a grounded restriction as fail when physical pages are unread", () => {
+  const f = comparableFixture({ strategy: true });
+  const context = { ...f.context, complete: false, gaps: ["No text layer on page 9 of b-synthetic; original PDF requires visual review"] };
+  const answer = { ...f.answer, minimum: { ...f.answer.minimum, kind: "unclear", evidence: null },
+    sections: { ...f.answer.sections, item7: null } };
+  const failed = assessComparable(answer, f.passages, context);
+  expect(failed).toMatchObject({ outcome: "fail", scope: { category: "strategy" }, balances: { at1m: "unavailable", at5m: "unavailable" } });
+  expect(failed.reasons).toContain(context.gaps[0]);
+  expect(comparableFeeGate(raw, failed, "synthetic-fee").status).toBe("fail");
+  for (const options of [{}, { minimum: 10_000_000, waivable: true }]) {
+    const normal = comparableFixture(options);
+    const review = assessComparable(normal.answer, normal.passages, context);
+    expect(review.outcome).toBe("unclear"); expect(review.reasons).toContain(context.gaps[0]);
+    expect(comparableFeeGate(two, review, "synthetic-fee").fees).toBeNull();
+  }
+  const invented = structuredClone(f.answer); invented.scope.evidence.quote = "Unsupported restriction quotation.";
+  expect(assessComparable(invented, f.passages, context).outcome).toBe("unclear");
+});
+it("requires v2 evidence and never accepts a v1 review", () => {
+  expect(COMPARABLE_REVIEW_VERSION).toBe("adv-comparable-v2");
+  expect(comparableFeeGate(raw, { ...assess(), version: "adv-comparable-v1" }, "synthetic-fee")).toMatchObject({ status: "unreviewed", fees: null });
+});
