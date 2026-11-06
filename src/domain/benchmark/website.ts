@@ -14,14 +14,14 @@ import { lockEvidence } from "../sec-adv/evidence.js";
 import { activeMembers } from "../sec-adv/snapshot.js";
 import { sectorData } from "./sector-data.js";
 import { websiteCheckKey, websiteInputs } from "./website-input.js";
-import { REDIRECT_REPAIR_VERSION, redirectRepairEligible, websiteEvidenceBlocked, websiteRetryEvidence } from "./website-retry.js";
+import { REDIRECT_REPAIR_VERSION, redirectRepairEligible, transientWebsiteRetryEligible, websiteEvidenceBlocked, websiteRetryEvidence } from "./website-retry.js";
 
 const websiteHost = (url: URL) => url.hostname.toLowerCase().replace(/^www\./, "");
 
 type Scan = Awaited<ReturnType<typeof collectWebsiteSoftware>>;
 const scansInFlight = new WeakMap<Db, Map<string, Promise<Scan>>>();
 
-async function scanSite(db: Db, key: string, companyId: string, homepage: URL, config: WebsiteVendorConfig, repairRedirect = false) {
+async function scanSite(db: Db, key: string, companyId: string, homepage: URL, config: WebsiteVendorConfig, repairRedirect = false, retryTransient = false) {
   if (repairRedirect) key += `:${REDIRECT_REPAIR_VERSION}`;
   let pending = scansInFlight.get(db);
   if (!pending) {
@@ -34,7 +34,7 @@ async function scanSite(db: Db, key: string, companyId: string, homepage: URL, c
     const [cached] = await db.select().from(sources).where(and(eq(sources.companyId, companyId),
       eq(sources.collector, WEBSITE_SOFTWARE_COLLECTOR), sql`${sources.details}->>'scanKey' = ${key}`))
       .orderBy(desc(sources.fetchedAt)).limit(1);
-    if (cached) {
+    if (cached && !retryTransient) {
       const result = cached.details?.result as Omit<Scan, "pages">;
       const ids = cached.details?.pageIds as string[];
       const pages = await Promise.all(ids.map(async id => (await db.select().from(sources).where(eq(sources.id, id)))[0]!));
@@ -112,9 +112,11 @@ export async function runWebsiteSoftware(db: Db, input: {
         }
         const prior = known?.data.result as { status: string; clientStatus: string | null } | undefined;
         let repairRedirect = false;
+        let retryTransient = false;
         let retainedStatus = prior?.status;
         if (prior && known) {
           const evidence = await websiteRetryEvidence(db, known.sourceIds);
+          retryTransient = transientWebsiteRetryEligible(prior, evidence);
           if (prior.status === "fetch_error") {
             if (evidence.some(row => row.status === "blocked" || (row.httpStatus !== null &&
               ([401, 403, 406, 418].includes(row.httpStatus) || row.httpStatus >= 500)))) retainedStatus = "blocked";
@@ -136,11 +138,11 @@ export async function runWebsiteSoftware(db: Db, input: {
             });
           }
         }
-        if (prior && !repairRedirect) {
+        if (prior && !repairRedirect && !retryTransient) {
           results.push({ companyId, status: retainedStatus!, cached: true });
           continue;
         }
-        const scan = home ? await scanSite(db, key, library.companyId, home, config, repairRedirect) :
+        const scan = home ? await scanSite(db, key, library.companyId, home, config, repairRedirect, retryTransient) :
           { status: "missing_site", clientStatus: null, pages: [], signals: [] };
         await db.transaction(async tx => {
           await lockEvidence(tx, `company:${companyId}:website-software`);

@@ -19,6 +19,16 @@ export function redirectRepairEligible(evidence: Evidence[]) {
     failed.every(row => row.httpStatus === null && [REDIRECT_ERROR, "robots.txt unavailable"].includes(row.error ?? ""));
 }
 
+/** Retry ordinary page/network failures, never a blocked or failed robots request. */
+export function transientWebsiteRetryEligible(prior: { status: string; clientStatus: string | null }, evidence: Evidence[]) {
+  if (prior.status !== "fetch_error" && prior.clientStatus !== "fetch_error") return false;
+  return !websiteEvidenceBlocked(evidence) && !evidence.some(row => {
+    if (row.error === "robots.txt unavailable" || row.error === REDIRECT_ERROR) return true;
+    try { return new URL(row.url ?? "").pathname === "/robots.txt" && !["ok", "not_found"].includes(row.status); }
+    catch { return false; }
+  });
+}
+
 /** Follow company citations back to library pages and the exact stored robots request. No fetching. */
 export async function websiteRetryEvidence(db: Db, sourceIds: string[]) {
   if (!sourceIds.length) return [];

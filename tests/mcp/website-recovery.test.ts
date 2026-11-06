@@ -123,3 +123,39 @@ it.each([true, false])("retains historical hard blocks=%s without treating an ol
   await tool("website_software_collect", { sectorId: f.sectorId });
   expect(scan).toHaveBeenCalledTimes(hard ? 0 : 1);
 });
+
+it.each(["timeout after 15000ms", "fetch failed"])("collects an ordinary %s again instead of caching the failure", async error => {
+  const f = await fixture(false);
+  const [record] = await handle.db.select().from(records).where(eq(records.type, "website_software"));
+  await handle.db.update(records).set({ data: { ...record!.data, result: { status: "fetch_error", clientStatus: null, signals: [] } } }).where(eq(records.id, record!.id));
+  await handle.db.update(sources).set({ error }).where(eq(sources.id, f.citation));
+  await handle.db.update(sources).set({ error, collector: "website_software", details: { scanKey: record!.data.check_key,
+    result: { status: "fetch_error", clientStatus: null, signals: [] }, pageIds: [f.libraryPage] } }).where(eq(sources.id, f.libraryPage));
+  const fresh = await f.capture(f.libraryId, "https://repair.example/", "Synthetic recovered transient failure");
+  const [page] = await handle.db.select().from(sources).where(eq(sources.id, fresh));
+  const scan = vi.spyOn(collector, "collectWebsiteSoftware").mockResolvedValue({ status: "none_found", clientStatus: null, signals: [], pages: [page!] });
+  expect(await tool("website_software_collect", { sectorId: f.sectorId })).toMatchObject({ results: [{ status: "none_found", cached: false }] });
+  expect(scan).toHaveBeenCalledTimes(1);
+  expect(await tool("website_software_collect", { sectorId: f.sectorId })).toMatchObject({ results: [{ status: "none_found", cached: true }] });
+});
+
+it.each(["fetch failed", "too many redirects (over 5)"])("does not retry a robots request with %s", async error => {
+  const f = await fixture(true);
+  const [record] = await handle.db.select().from(records).where(eq(records.type, "website_software"));
+  await handle.db.update(records).set({ data: { ...record!.data, result: { status: "fetch_error", clientStatus: null, signals: [] } } }).where(eq(records.id, record!.id));
+  await handle.db.update(sources).set({ error }).where(eq(sources.url, "https://repair.example/robots.txt"));
+  const scan = vi.spyOn(collector, "collectWebsiteSoftware").mockRejectedValue(Error("Robots failure must stay skipped"));
+  expect(await tool("website_software_collect", { sectorId: f.sectorId })).toMatchObject({ results: [{ status: "robots_unavailable", cached: true }] });
+  expect(scan).not.toHaveBeenCalled();
+});
+
+it.each(["blocked", "robots_disallowed"])("keeps a legacy fetch_error backed by %s evidence skipped", async status => {
+  const f = await fixture(false);
+  const [record] = await handle.db.select().from(records).where(eq(records.type, "website_software"));
+  await handle.db.update(records).set({ data: { ...record!.data, result: { status: "fetch_error", clientStatus: null, signals: [] } } }).where(eq(records.id, record!.id));
+  await handle.db.update(sources).set({ status: status as "blocked" | "robots_disallowed", httpStatus: status === "blocked" ? 200 : null,
+    error: null }).where(eq(sources.id, f.citation));
+  const scan = vi.spyOn(collector, "collectWebsiteSoftware").mockRejectedValue(Error("Must not fetch a challenge or excluded page"));
+  expect(await tool("website_software_collect", { sectorId: f.sectorId })).toMatchObject({ results: [{ cached: true }] });
+  expect(scan).not.toHaveBeenCalled();
+});
