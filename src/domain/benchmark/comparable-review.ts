@@ -12,7 +12,7 @@ import type { Passage } from "./fee-extraction.js";
 import { FEE_COLLECTOR } from "./fees.js";
 import { primaryPeerFees } from "./measures.js";
 
-export const COMPARABLE_REVIEW_VERSION = "adv-comparable-v3";
+export const COMPARABLE_REVIEW_VERSION = "adv-comparable-v4";
 export const COMPARABLE_REVIEW_KEY = "benchmark.fee_comparable_review";
 export const COMPARABLE_REVIEW_COLLECTOR = "benchmark_fee_comparable_review";
 const citation = z.object({ ref: z.string(), quote: z.string().trim().min(1), page: z.number().int().positive() });
@@ -20,6 +20,7 @@ export const comparableResponse = z.object({
   scope: z.object({ category: z.enum(["general", "asset_class", "strategy", "product", "client_type", "unclear"]), explanation: z.string().min(1), evidence: citation.nullable() }),
   minimum: z.object({ kind: z.enum(["account_minimum", "net_worth_target", "relationship_preference", "none_stated", "unclear"]),
     amount: z.number().finite().nonnegative().nullable(), waivable: z.boolean(), explanation: z.string().min(1), evidence: citation.nullable() }),
+  pricing: z.object({ status: z.enum(["supported", "contradicted", "unclear"]), explanation: z.string().min(1), evidence: citation.nullable() }),
   sections: z.object({ item4: citation.nullable(), item5: citation.nullable(), item7: citation.nullable() }),
 });
 const evidenceShape = { type: "object", properties: { ref: { type: "string" }, quote: { type: "string" }, page: { type: "integer" } },
@@ -30,6 +31,7 @@ export const COMPARABLE_REVIEW_SCHEMA = JSON.stringify(object({
   scope: object({ category: { enum: ["general", "asset_class", "strategy", "product", "client_type", "unclear"] }, explanation: { type: "string" }, evidence: optionalEvidence }),
   minimum: object({ kind: { enum: ["account_minimum", "net_worth_target", "relationship_preference", "none_stated", "unclear"] }, amount: { type: ["number", "null"] },
     waivable: { type: "boolean" }, explanation: { type: "string" }, evidence: optionalEvidence }),
+  pricing: object({ status: { enum: ["supported", "contradicted", "unclear"] }, explanation: { type: "string" }, evidence: optionalEvidence }),
   sections: object({ item4: optionalEvidence, item5: optionalEvidence, item7: optionalEvidence }),
 }));
 type Answer = z.infer<typeof comparableResponse>;
@@ -39,6 +41,7 @@ export type ComparableReview = {
   version: string; feeFactId: string; inputHash: string; reviewedAt: string; brochureDate: string | null;
   scope: { category: Answer["scope"]["category"]; explanation: string; evidence: ReviewCitation | null };
   minimum: { kind: Answer["minimum"]["kind"]; amount: number | null; waivable: boolean; explanation: string; evidence: ReviewCitation | null };
+  pricing: { status: Answer["pricing"]["status"]; explanation: string; evidence: ReviewCitation | null };
   sections: Partial<Record<"item4" | "item5" | "item7", ReviewCitation>>;
   outcome: "pass" | "fail" | "conditional" | "unclear";
   balances: { at1m: "available" | "waiver_required" | "unavailable" | "unclear"; at5m: "available" | "waiver_required" | "unavailable" | "unclear" };
@@ -83,11 +86,13 @@ export function assessComparable(answer: unknown, passages: ReviewPage[], contex
     reviewedAt: new Date().toISOString(), brochureDate: passages.map(p => p.date).sort().at(-1) ?? null,
     scope: { category: "unclear", explanation: "Review could not be grounded", evidence: null },
     minimum: { kind: "unclear", amount: null, waivable: false, explanation: "Account minimum not resolved", evidence: null },
+    pricing: { status: "unclear", explanation: "Existing price consistency not resolved", evidence: null },
     sections: {}, outcome: "unclear", balances: { at1m: "unclear", at5m: "unclear" }, reasons: [...context.gaps] };
   const parsed = comparableResponse.safeParse(answer);
   if (!parsed.success) { review.reasons.push("Invalid or missing comparable-review response"); return review; }
   const value = parsed.data;
   const scope = ground(value.scope.evidence, passages), minimum = ground(value.minimum.evidence, passages);
+  const pricing = ground(value.pricing.evidence, passages);
   for (const key of ["item4", "item5", "item7"] as const) {
     const cited = ground(value.sections[key], passages);
     if (cited) review.sections[key] = cited;
@@ -97,18 +102,25 @@ export function assessComparable(answer: unknown, passages: ReviewPage[], contex
   else review.reasons.push("Scope answer failed quote/page grounding");
   if (minimum) review.minimum = { ...value.minimum, evidence: minimum };
   else review.reasons.push("Minimum answer failed quote/page grounding");
+  if (pricing) review.pricing = { ...value.pricing, evidence: pricing };
+  else review.reasons.push("Price consistency answer failed quote/page grounding");
   if (value.minimum.kind === "account_minimum" && value.minimum.amount === null) review.reasons.push("Account minimum has no amount");
   if (["none_stated", "unclear"].includes(value.minimum.kind) && value.minimum.amount !== null) review.reasons.push("Minimum amount contradicts its category");
   if (!context.complete) review.reasons.push("Stored brochure coverage incomplete");
   if (value.scope.category === "unclear") review.reasons.push(`Scope unclear: ${value.scope.explanation}`);
   if (value.minimum.kind === "unclear") review.reasons.push(`Account minimum unclear: ${value.minimum.explanation}`);
+  if (value.pricing.status === "unclear") review.reasons.push(`Price consistency unclear: ${value.pricing.explanation}`);
   // A grounded restriction is sufficient to exclude a price even when other
   // pages or answers are unreadable. Missing evidence can never approve a price.
   if (scope && ["asset_class", "strategy", "product", "client_type"].includes(value.scope.category)) {
     review.outcome = "fail"; review.balances = { at1m: "unavailable", at5m: "unavailable" };
     review.reasons.push(`Primary limited to ${value.scope.category}`); return review;
   }
-  if (review.reasons.length || !scope || !minimum) return review;
+  if (pricing && value.pricing.status === "contradicted") {
+    review.outcome = "fail"; review.balances = { at1m: "unavailable", at5m: "unavailable" };
+    review.reasons.push(`Stored fee inputs contradicted: ${value.pricing.explanation}`); return review;
+  }
+  if (review.reasons.length || !scope || !minimum || !pricing) return review;
   const minimumAmount = value.minimum.kind === "account_minimum" ? value.minimum.amount! : 0;
   for (const [key, balance] of [["at1m", 1_000_000], ["at5m", 5_000_000]] as const) {
     review.balances[key] = minimumAmount <= balance ? "available" : value.minimum.waivable ? "waiver_required" : "unavailable";
@@ -170,17 +182,21 @@ export async function reviewComparable(db: Db, fee: typeof facts.$inferSelect, c
       "Decide the scope of this exact primary fee schedule, including the assets to which its rates apply. Locate its fee table and applicability text in Item 5, then read Items 4 and 7 for restrictions. A general description of the firm's services cannot broaden the priced schedule.",
       "A single fee schedule covering diversified, balanced or customized multi-asset accounts is general even if it also lists equity or other account types. A firm-wide investing style applied to customized portfolios is general, not a restriction. This requires that the selected rates cover the whole portfolio; the firm's ability to manage several asset classes does not establish that.",
       "Use asset_class when the selected table prices only one asset class or a portfolio component, including when other asset classes have separate tables. Do not apply a component's rates to the whole balance or combine the tables. Cite the table heading or applicability text that establishes the priced asset class in scope.evidence; use sections.item4 for the broader service context. If the priced asset coverage cannot be established, use unclear.",
-      "A schedule limited to one named strategy or product remains strategy/product scoped. Institutional-only, adviser-channel-only and dated client-cohort schedules remain client_type scoped. An ordinary individual/family wealth-management schedule covering the whole portfolio is general. A stored primary role or standard label is not evidence that the schedule is general.",
+      "Assess the selected row and its applicability text rather than a nearby parent heading alone. A row explicitly pricing a balanced or multi-asset portfolio must not be classified as an asset-class component solely because of its placement under an asset-class heading; require evidence that the selected row's rates price only that component.",
+      "Separate prices for optional services, external managers or specialized products do not restrict a general multi-asset schedule to an asset class. Distinguish an ordinary whole-portfolio service with optional extras from a table pricing only one asset-class component.",
+      "A schedule limited to one named strategy or product remains strategy/product scoped. Institutional-only, adviser-channel-only and closed historical client-cohort schedules remain client_type scoped. A current schedule's effective/start date that includes new clients is not a historical-cohort restriction. An ordinary individual/family wealth-management schedule covering the whole portfolio is general. A stored primary role or standard label is not evidence that the schedule is general.",
       "Find account minimums anywhere, including Item 7 and appendices. An account-size or managed-assets minimum is account_minimum and still applies when waivable or reducible: below it is waiver_required when waivable. A net-worth target is net_worth_target, not an account minimum. A relationship size stated only as a preference is relationship_preference, not an account minimum. Retain the target amount for audit, but never translate either into managed account dollars. A right to terminate small accounts is not an account minimum.",
       "For an either/or requirement between managed assets and net worth, keep the assets limb as account_minimum and mark it waivable: a balance below the assets limb is waiver_required; do not discard the assets limb because the net-worth alternative exists.",
       "If both a target/preference and an applicable account-size or managed-assets minimum are present, return account_minimum for the actual requirement. A target or preference must never hide a real minimum.",
       "Only a minimum applicable to this primary schedule and its ordinary clients counts. Do not apply another product/program's minimum. Uncertain applicability must be unclear.",
-      "Only review account minimums here; annual fee minimums and all existing rates/values stay untouched. Diversified multi-asset schedules can be general; a named strategy/product restriction is scoped.",
+      "Separately validate the supplied existing price inputs against explicit brochure terms anywhere, including annual minimum fees outside Item 5. Do not re-extract tiers, calculate replacements or change prices. An existing annual price below an applicable annual fee floor is contradicted even when the adviser may waive or reduce the floor. A published annual floor missing from or higher than existingMinimumAnnualFee also contradicts the stored schedule used for revenue estimates. Cite the applicable rule in pricing.evidence and name the contradiction in pricing.explanation.",
+      "Use pricing.supported only when the existing prices/readings and annual-floor input are supported by the supplied rules, pricing.contradicted for a grounded conflict, and pricing.unclear when applicability or support cannot be established. A balance below an account-size minimum is handled by the minimum answer, not a price contradiction by itself. Genuinely unspecified tier methods may retain both supplied readings; that ambiguity alone is not a contradiction. Optional services' annual minimums must not be applied to this schedule.",
       "Cite an exact quote and its physical page for scope, account-minimum conclusion and each of Items 4, 5, 7. none_stated is allowed only after all supplied pages were checked; cite the relevant client/minimum section as context. If coverage or applicability is unclear, use unclear. Never invent a quote or page.",
       "Unread physical pages are listed separately. Do not infer their contents. A restriction grounded in readable text may still produce fail. Every other outcome must stay unclear while any page is unread. Use null for a citation whose required section or answer cannot be read; never invent a quotation to fill it.",
       JSON.stringify({ unreadPages, coverageGaps: gaps }),
       "Use only ref/page pairs from the supplied physical-page excerpts. The existing fee's citations may use different extraction-window refs; do not copy those refs into this review.",
-      JSON.stringify({ primary, existingAt1m: value.at1m, existingAt5m: value.at5m }),
+      JSON.stringify({ primary, existingAt1m: value.at1m, existingAt5m: value.at5m,
+        existingScenarios: value.scenarios, existingMinimumAnnualFee: value.minimumAnnualFee ?? null }),
       ...passages.map(row => JSON.stringify({ ref: row.ref, page: row.page, text: row.text })),
     ].join("\n\n");
     runId = randomUUID();
