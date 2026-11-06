@@ -9,6 +9,7 @@ import type { Db } from "../db/client.js";
 import { DomainError } from "../domain/errors.js";
 import { logHttpFetch } from "../domain/logging/http.js";
 import { recordEvent } from "./db.js";
+import { sameSiteRedirect } from "./same-site.js";
 
 // The only module allowed to call fetch (enforced by eslint no-restricted-globals).
 
@@ -275,6 +276,9 @@ interface RobotsEntry {
   body: string;
   fetchedAt: number;
   httpStatus?: number;
+  sourceId?: string;
+  error?: string | null;
+  finalUrl?: string;
 }
 
 const robotsCache = new Map<string, RobotsEntry>();
@@ -308,6 +312,7 @@ export interface FetchOptions {
   headers?: Record<string, string>;
   // A bounded site collector can restrict redirects and require reachable robots rules.
   redirectHost?: string;
+  redirectSite?: string;
   strictRobots?: boolean;
 }
 
@@ -320,8 +325,9 @@ interface ResolvedFetchOptions {
   userAgent: string;
   headers: Record<string, string>;
   redirectHost?: string;
+  redirectSite?: string;
   strictRobots?: boolean;
-  redirectAllowed?: (url: URL) => boolean;
+  redirectAllowed?: (url: URL) => boolean | Promise<boolean>;
 }
 
 interface RawResponse {
@@ -362,17 +368,19 @@ async function performRequest(startUrl: string, opts: ResolvedFetchOptions): Pro
     if (url.protocol !== "http:" && url.protocol !== "https:") {
       throw new FetchFailedError("redirect to non-http URL refused");
     }
-    if (hop > 0 && ((opts.redirectHost && url.host !== opts.redirectHost) || opts.redirectAllowed?.(url) === false)) {
+    if (hop > 0 && ((opts.redirectHost && url.host !== opts.redirectHost) ||
+      (opts.redirectSite && !sameSiteRedirect(new URL(opts.redirectSite), url)))) {
       throw new FetchFailedError("redirect outside the allowed site or path");
     }
+    if (hop > 0 && await opts.redirectAllowed?.(url) === false) throw new FetchFailedError("redirect disallowed by robots.txt");
     await assertPublicHost(url.hostname, opts.privateHostAllowlist);
     let res: Response;
     try {
-      res = await fetch(current, {
+      res = await withHostSlot(url.host, () => fetch(current, {
         redirect: "manual",
         signal: AbortSignal.timeout(opts.timeoutMs),
         headers: { "user-agent": opts.userAgent, accept: opts.accept, ...opts.headers },
-      });
+      }));
     } catch (err) {
       if (err instanceof Error && err.name === "TimeoutError") {
         throw new FetchFailedError(`timeout after ${opts.timeoutMs}ms`);
@@ -422,6 +430,7 @@ interface SourceInput {
   status: SourceStatus;
   httpStatus?: number | null;
   error?: string | null;
+  details?: Record<string, unknown>;
   blob?: { body: Buffer; contentType: string | null };
 }
 
@@ -454,6 +463,7 @@ async function writeSource(db: Db, input: SourceInput): Promise<Source> {
       httpStatus: input.httpStatus ?? null,
       error: input.error ? input.error.slice(0, 500) : null,
       blobSha256,
+      details: input.details ?? null,
     })
     .returning();
   if (!source) throw new Error("source insert returned no row");
@@ -479,28 +489,33 @@ async function ensureRobots(
 ): Promise<RobotsEntry> {
   const key = `${target.protocol}//${target.host}`;
   const cached = robotsCache.get(key);
-  if (cached && Date.now() - cached.fetchedAt < ROBOTS_TTL_MS) return cached;
+  if (cached && Date.now() - cached.fetchedAt < ROBOTS_TTL_MS &&
+    (!opts.redirectSite || !cached.finalUrl || sameSiteRedirect(target, new URL(cached.finalUrl)))) return cached;
   const robotsUrl = `${target.protocol}//${target.host}/robots.txt`;
   let entry: RobotsEntry;
   try {
     if (!(await reserveRequestSlot(db, runId))) throw new BudgetExceededError();
-    const res = await withHostSlot(target.host, () => performRequest(robotsUrl, opts));
+    const res = await performRequest(robotsUrl, { ...opts, redirectAllowed: undefined });
     if (res.status >= 200 && res.status < 300) {
       const body = res.body.toString("utf8");
-      entry = { rules: robotsParser(robotsUrl, body), body, fetchedAt: Date.now() };
-      await writeSource(db, {
+      const challenge = isChallengePage(body);
+      entry = { rules: challenge ? null : robotsParser(res.finalUrl, body), body, fetchedAt: Date.now(),
+        finalUrl: res.finalUrl, httpStatus: res.status, error: challenge ? "challenge page" : null };
+      const source = await writeSource(db, {
         runId,
         companyId,
         collector,
         url: robotsUrl,
         finalUrl: res.finalUrl,
-        status: "ok",
+        status: challenge ? "blocked" : "ok",
+        error: entry.error,
         httpStatus: res.status,
         blob: { body: res.body, contentType: res.contentType },
       });
+      entry.sourceId = source.id;
     } else {
       entry = { rules: null, body: "", fetchedAt: Date.now(), httpStatus: res.status };
-      await writeSource(db, {
+      const source = await writeSource(db, {
         runId,
         companyId,
         collector,
@@ -509,11 +524,12 @@ async function ensureRobots(
         status: statusForHttp(res.status),
         httpStatus: res.status,
       });
+      entry.sourceId = source.id;
     }
   } catch (err) {
     if (err instanceof BudgetExceededError) throw err;
-    entry = { rules: null, body: "", fetchedAt: Date.now() };
-    await writeSource(db, {
+    entry = { rules: null, body: "", fetchedAt: Date.now(), error: err instanceof Error ? err.message : String(err) };
+    const source = await writeSource(db, {
       runId,
       companyId,
       collector,
@@ -522,6 +538,7 @@ async function ensureRobots(
       status: "error",
       error: err instanceof Error ? err.message : String(err),
     });
+    entry.sourceId = source.id;
   }
   cacheRobots(key, entry);
   return entry;
@@ -562,6 +579,7 @@ function resolveOptions(req: FetchRequest): ResolvedFetchOptions {
     userAgent: req.userAgent ?? userAgent(),
     headers: req.headers ?? {},
     redirectHost: req.redirectHost,
+    redirectSite: req.redirectSite,
     strictRobots: req.strictRobots,
   };
 }
@@ -644,13 +662,20 @@ async function fetchUrlInner(db: Db, req: FetchRequest): Promise<FetchResult> {
   }
   if (opts.strictRobots && !robots.rules && robots.httpStatus !== 404 && robots.httpStatus !== 410) {
     const status = robots.httpStatus === 401 || robots.httpStatus === 403 ? "blocked" : "error";
-    const source = await writeSource(db, { ...base, status, httpStatus: robots.httpStatus, error: "robots.txt unavailable" });
+    const source = await writeSource(db, { ...base, status, httpStatus: robots.httpStatus, error: "robots.txt unavailable",
+      details: { robotsSourceId: robots.sourceId, robotsError: robots.error ?? null } });
     return { source };
   }
   if (opts.strictRobots) {
-    opts.redirectAllowed = url => url.host === target.host && robots.rules?.isDisallowed(url.href, opts.userAgent) !== true;
+    opts.redirectAllowed = async url => {
+      const redirected = await ensureRobots(db, req.runId, req.companyId, req.collector, url, opts);
+      if (!redirected.rules && redirected.httpStatus !== 404 && redirected.httpStatus !== 410) return false;
+      const path = new URL(url.pathname + url.search, redirected.finalUrl ?? url.href);
+      return redirected.rules?.isDisallowed(path.href, opts.userAgent) !== true;
+    };
   }
-  if (robots.rules && robots.rules.isDisallowed(target.href, opts.userAgent) === true) {
+  const robotsTarget = new URL(target.pathname + target.search, robots.finalUrl ?? target.href);
+  if (robots.rules && robots.rules.isDisallowed(robotsTarget.href, opts.userAgent) === true) {
     const source = await writeSource(db, { ...base, status: "robots_disallowed" });
     return { source };
   }
@@ -663,7 +688,7 @@ async function fetchUrlInner(db: Db, req: FetchRequest): Promise<FetchResult> {
       throw new BudgetExceededError();
     }
     try {
-      res = await withHostSlot(target.host, () => performRequest(target.href, opts));
+      res = await performRequest(target.href, opts);
     } catch (err) {
       return fail(err instanceof Error ? err.message : String(err));
     }

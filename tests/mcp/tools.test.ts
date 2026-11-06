@@ -150,6 +150,7 @@ const EXPECTED_TOOLS = [
   "evidence_library_ensure",
   "sec_adv_snapshot_import",
   "sec_adv_schedules_import",
+  "sec_adv_website_promote",
   "sec_adv_brochures_import",
   "benchmark_fees_run",
   "benchmark_fee_comparable_run",

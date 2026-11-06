@@ -4,6 +4,7 @@ import type { Db } from "../../src/db/client.js";
 import { collectWebsiteSoftware, companyHomepage, inspectWebsiteSoftware, type WebsiteVendorConfig } from "../../src/collect/collectors/website-software.js";
 import type { FetchRequest, FetchResult } from "../../src/collect/fetch.js";
 import { selectWebsiteInputs, websiteCheckKey } from "../../src/domain/benchmark/website-input.js";
+import { coverWebsiteQuote } from "../../src/domain/benchmark/website-address.js";
 
 const config: WebsiteVendorConfig = {
   excludedHosts: ["social.example"],
@@ -30,7 +31,7 @@ it("fetches one homepage and at most one linked client page, with evidence", asy
   const result = await collectWebsiteSoftware(db, { companyId: "company", runId: "run", homepage, config }, async (_db, request: FetchRequest) => {
     calls.push(request.url);
     expect(request.strictRobots).toBe(true);
-    expect(request.redirectHost).toBe("firm.example");
+    expect(request.redirectSite).toBe(homepage.href);
     return { source: { finalUrl: request.url, status: "ok" }, text: calls.length === 1 ? html :
       '<iframe src="https://forms.example/client"></iframe><a href="/login-3">Client login</a>', contentType: "text/html" } as FetchResult;
   });
@@ -84,4 +85,26 @@ it.each(["blocked", "robots_disallowed", "error"])("stops at a %s homepage witho
   });
   expect(calls).toBe(1);
   expect(result.status).toBe(status === "error" ? "robots_unavailable" : status);
+});
+
+it("corroborates only printed website hosts, accepting spaced dots and rejecting email-only evidence", () => {
+  expect(coverWebsiteQuote("Website: WWW . OWN . EXAMPLE", "own.example")).toBe("WWW . OWN . EXAMPLE");
+  expect(coverWebsiteQuote("Contact info@own.example", "own.example")).toBeNull();
+  expect(coverWebsiteQuote("Contact info @ own . example", "own.example")).toBeNull();
+  expect(coverWebsiteQuote("https://not-own.example", "own.example")).toBeNull();
+  expect(coverWebsiteQuote("https://own.example.evil.test", "own.example")).toBeNull();
+});
+
+it("uses a filed address only for missing/shared inputs and rechecks claims outside the batch", () => {
+  const directory = [
+    { id: "missing", website: null, domain: null, sharedDomain: false, filedWebsite: "https://filed.example/" },
+    { id: "shared", website: null, domain: "platform.example", sharedDomain: true, filedWebsite: "https://corporate.example/" },
+    { id: "preferred", website: "https://current.example", domain: null, sharedDomain: false, filedWebsite: "https://alternative.example" },
+    { id: "outside", website: null, domain: null, sharedDomain: false, filedClaims: ["https://www.filed.example/old"] },
+  ];
+  const selected = selectWebsiteInputs(directory, new Set(["missing", "shared", "preferred"]), config);
+  expect(selected.get("missing")).toMatchObject({ home: null, kind: null });
+  expect(selected.get("shared")).toMatchObject({ kind: "filed", shared: false });
+  expect(selected.get("shared")?.home?.href).toBe("https://corporate.example/");
+  expect(selected.get("preferred")?.home?.href).toBe("https://current.example/");
 });

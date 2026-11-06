@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Db } from "../db/client.js";
 import { computeBenchmark } from "../domain/benchmark/compute.js";
 import { runWebsiteSoftware } from "../domain/benchmark/website.js";
+import { promoteFiledWebsites } from "../domain/benchmark/filed-website.js";
 import { benchmarkReport } from "../domain/benchmark/report.js";
 import { importBrochureArchive } from "../domain/benchmark/brochure-archive.js";
 import { saveBrochurePageReview } from "../domain/benchmark/brochure-review.js";
@@ -20,6 +21,14 @@ const secUrl = z.string().url().refine(value => {
 }, "use the official SEC HTTPS URL");
 
 export function registerBenchmarkTools(server: McpServer, db: Db, auth: AuthContext) {
+  registerTool(server, db, auth, "sec_adv_website_promote", {
+    description: "Promote exactly one unshared non-provider filed host corroborated on a stored brochure cover into a separate dated website fact. Never changes company website/domain or fetches a site. Dry run by default.",
+    inputSchema: { sectorId: z.string().uuid(), companyIds: z.array(z.string().uuid()).min(1).max(100).optional(),
+      afterCompanyId: z.string().uuid().optional(), limit: z.number().int().min(1).max(100).optional(), dryRun: z.boolean().optional() },
+  }, async input => wrap(async () => {
+    const data = await promoteFiledWebsites(db, input);
+    return { summary: `${data.written} dated website facts written`, data };
+  }));
   registerTool(server, db, auth, "evidence_library_ensure", {
     description: "Create or resolve the internal evidence library and return its sector and company IDs.",
     inputSchema: {},
