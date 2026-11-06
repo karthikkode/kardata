@@ -14,6 +14,8 @@
 - Local lint, typecheck and build passed. Final full-suite/CI results are recorded in the PR.
 - Plan details: kept the existing dated evidence/fact layer instead of adding company columns or a migration. A durable pre-fetch claim deliberately consumes the single attempt if the process dies after claiming. No fetch workaround or automatic alternate-domain retry was added.
 - Production use was limited to the authorized source-row count. No fee-job access, code/deploy operation or collection was run on production.
+- Review-round sharing measurement used saved directory/filing/software records only, with the sharing rule unchanged and no dated-field promotions: 25/987 usable core inputs become shared (962 remain); 122/4,981 usable eligible inputs become shared (4,859 remain). All 25 newly shared core inputs have collected results; the same 25 are the only affected collected eligible results.
+- Hidden coverage results: two `found`, five `none_found`, nine `robots_unavailable`, three `blocked_redirect`, four `blocked`, one `robots_disallowed`, one `fetch_error`. Records are retained, but current coverage/signals exclude them. The reconstructed 988 current software records match every status count in the saved whole-sector report. Per-firm evidence is private in `var/sources/sec/benchmark-readiness-2026-11-05/website-inputs-filed-claims-impact.json`; this review round made no production calls or fetches.
 
 | Acceptance | Implementation | Proof |
 |---|---|---|
