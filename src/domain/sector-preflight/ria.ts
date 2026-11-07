@@ -5,8 +5,9 @@ import type { RiaThresholds } from "./profile.js";
  * imported SEC facts per docs/sectors/ria/icp.md sections 1-2.
  */
 
-export type RiaReason = "large" | "not_wealth" | "no_staff" | "exempt_or_inactive" | "not_us" | "not_current";
-export type RiaGroup = "P" | "R";
+export type RiaReason = "not_active" | "not_us" | "large" | "no_staff" | "hold_not_wealth";
+export type RiaDecision = "Accept" | "Hold" | "Reject";
+export type RiaTier = 0 | 1 | 2;
 
 export interface RiaFacts {
   aum: number | null;
@@ -16,6 +17,7 @@ export interface RiaFacts {
   registrationStatus: string | null;
   country: string | null;
   state?: string | null;
+  inNewestFile?: boolean;
 }
 
 const US_STATES = new Set(
@@ -25,7 +27,8 @@ const US_STATES = new Set(
 export interface RiaVerdict {
   eligible: boolean;
   reason: RiaReason | null;
-  group: RiaGroup | null;
+  decision: RiaDecision;
+  tier: RiaTier | null;
   detail: string;
 }
 
@@ -40,42 +43,26 @@ export function isUsCountry(country: string | null, state?: string | null): bool
 }
 
 export function evaluateRia(facts: RiaFacts, t: RiaThresholds): RiaVerdict {
+  const reject = (reason: RiaReason, detail: string): RiaVerdict =>
+    ({ eligible: false, decision: "Reject", tier: null, reason, detail });
   const firmType = (facts.firmType ?? "").toLowerCase();
   const status = (facts.registrationStatus ?? "").trim().toLowerCase();
-  if (firmType.includes("exempt")) {
-    return { eligible: false, reason: "exempt_or_inactive", group: null, detail: `exempt firm type (${facts.firmType})` };
+  if (facts.inNewestFile === false || firmType.includes("exempt") || !["approved", "active"].includes(status)) {
+    return reject("not_active", facts.inNewestFile === false ? "missing from newest SEC file" : `registration ${facts.registrationStatus ?? "unknown"}; type ${facts.firmType ?? "unknown"}`);
   }
-  if (status !== "" && status !== "approved" && status !== "active") {
-    return { eligible: false, reason: "exempt_or_inactive", group: null, detail: `registration status ${facts.registrationStatus}` };
-  }
-  if (!isUsCountry(facts.country, facts.state)) {
-    return { eligible: false, reason: "not_us", group: null, detail: `main office country ${facts.country ?? "unknown"}` };
-  }
+  if (!isUsCountry(facts.country, facts.state)) return reject("not_us", `main office country ${facts.country ?? "unknown"}`);
   if ((facts.aum !== null && facts.aum > t.maxAum) || (facts.employees !== null && facts.employees > t.maxEmployees)) {
-    return {
-      eligible: false,
-      reason: "large",
-      group: null,
-      detail: `AUM ${facts.aum ?? "?"} / employees ${facts.employees ?? "?"} over the cap`,
-    };
+    return reject("large", `AUM ${facts.aum ?? "?"} / employees ${facts.employees ?? "?"} over the cap`);
   }
+  if (facts.employees === null || facts.employees < t.minEmployees) return reject("no_staff", `employees ${facts.employees ?? "unknown"}`);
   if (facts.wealthShare === null || facts.wealthShare < t.minWealthShare) {
-    return {
-      eligible: false,
-      reason: "not_wealth",
-      group: null,
-      detail: `wealth share ${facts.wealthShare === null ? "unknown" : facts.wealthShare.toFixed(2)} under ${t.minWealthShare}`,
-    };
+    return { eligible: false, decision: "Hold", tier: null, reason: "hold_not_wealth", detail: `wealth share ${facts.wealthShare ?? "unknown"} under ${t.minWealthShare}` };
   }
-  if (facts.employees === null || facts.employees < t.minEmployees) {
-    return { eligible: false, reason: "no_staff", group: null, detail: `employees ${facts.employees ?? "unknown"} under ${t.minEmployees}` };
-  }
-  const group: RiaGroup = (facts.aum ?? 0) < t.groupSplitAum ? "P" : "R";
-  return { eligible: true, reason: null, group, detail: `eligible group ${group} (AUM ${facts.aum ?? 0})` };
+  const tier: RiaTier = facts.employees === 1 ? 0
+    : (facts.aum ?? 0) >= t.tier2MinAum && facts.employees >= t.tier2MinEmployees ? 2 : 1;
+  return { eligible: true, decision: "Accept", tier, reason: null, detail: `Tier ${tier}: AUM ${facts.aum ?? "unknown"}, employees ${facts.employees}` };
 }
 
-/** Stored eligibilityReason for an RIA verdict: the reason key, or group:P / group:R. */
 export function riaStoredReason(verdict: RiaVerdict): string {
-  if (verdict.eligible && verdict.group) return `group:${verdict.group}`;
-  return verdict.reason ?? "not_wealth";
+  return verdict.decision === "Accept" ? `tier:${verdict.tier}` : verdict.reason!;
 }

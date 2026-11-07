@@ -13,28 +13,30 @@ const base: RiaFacts = {
 };
 
 describe("evaluateRia", () => {
-  it("splits P under $500M and R at or over it", () => {
-    expect(evaluateRia(base, DEFAULT_RIA_THRESHOLDS).group).toBe("P");
-    expect(evaluateRia({ ...base, aum: 500_000_000 }, DEFAULT_RIA_THRESHOLDS).group).toBe("R");
-    expect(evaluateRia({ ...base, aum: 10_000_000_000 }, DEFAULT_RIA_THRESHOLDS).eligible).toBe(true);
-  });
-
-  it("keeps aside each ineligible reason", () => {
-    expect(evaluateRia({ ...base, aum: 10_000_000_001 }, DEFAULT_RIA_THRESHOLDS).reason).toBe("large");
-    expect(evaluateRia({ ...base, employees: 101 }, DEFAULT_RIA_THRESHOLDS).reason).toBe("large");
-    expect(evaluateRia({ ...base, wealthShare: 0.49 }, DEFAULT_RIA_THRESHOLDS).reason).toBe("not_wealth");
-    expect(evaluateRia({ ...base, wealthShare: 0.5 }, DEFAULT_RIA_THRESHOLDS).eligible).toBe(true);
-    expect(evaluateRia({ ...base, employees: 1 }, DEFAULT_RIA_THRESHOLDS).reason).toBe("no_staff");
-    expect(evaluateRia({ ...base, employees: 2 }, DEFAULT_RIA_THRESHOLDS).eligible).toBe(true);
-    expect(evaluateRia({ ...base, firmType: "Exempt Reporting" }, DEFAULT_RIA_THRESHOLDS).reason).toBe("exempt_or_inactive");
-    expect(evaluateRia({ ...base, registrationStatus: "Terminated" }, DEFAULT_RIA_THRESHOLDS).reason).toBe("exempt_or_inactive");
-    expect(evaluateRia({ ...base, country: "Canada" }, DEFAULT_RIA_THRESHOLDS).reason).toBe("not_us");
-  });
-
-  it("treats a blank country with a US state as US", () => {
-    expect(evaluateRia({ ...base, country: null, state: "TX" }, DEFAULT_RIA_THRESHOLDS).eligible).toBe(true);
-    expect(evaluateRia({ ...base, country: "", state: "ca" }, DEFAULT_RIA_THRESHOLDS).eligible).toBe(true);
-    expect(evaluateRia({ ...base, country: null, state: null }, DEFAULT_RIA_THRESHOLDS).reason).toBe("not_us");
-    expect(evaluateRia({ ...base, country: null, state: "ON" }, DEFAULT_RIA_THRESHOLDS).reason).toBe("not_us");
+  it.each([
+    [{ employees: 0 }, "Reject", null, "no_staff"],
+    [{ employees: 1 }, "Accept", 0, null],
+    [{ employees: 2 }, "Accept", 1, null],
+    [{ employees: 10, aum: 500_000_000 }, "Accept", 2, null],
+    [{ employees: 10, aum: 499_999_999 }, "Accept", 1, null],
+    [{ employees: 9, aum: 500_000_000 }, "Accept", 1, null],
+    [{ employees: 100, aum: 10_000_000_000 }, "Accept", 2, null],
+    [{ aum: 10_000_000_001 }, "Reject", null, "large"],
+    [{ employees: 101 }, "Reject", null, "large"],
+    [{ wealthShare: 0.49 }, "Hold", null, "hold_not_wealth"],
+    [{ wealthShare: null }, "Hold", null, "hold_not_wealth"],
+    [{ wealthShare: 0.5 }, "Accept", 1, null],
+    [{ country: "Canada" }, "Reject", null, "not_us"],
+    [{ firmType: "Exempt Reporting" }, "Reject", null, "not_active"],
+    [{ registrationStatus: "Terminated" }, "Reject", null, "not_active"],
+    [{ registrationStatus: null }, "Reject", null, "not_active"],
+    [{ inNewestFile: false }, "Reject", null, "not_active"],
+    [{ country: null, state: "TX" }, "Accept", 1, null],
+    [{ country: null, state: "ON" }, "Reject", null, "not_us"],
+    [{ employees: 0, wealthShare: null }, "Reject", null, "no_staff"],
+    [{ country: "Canada", aum: 11_000_000_000 }, "Reject", null, "not_us"],
+    [{ inNewestFile: false, country: "Canada", employees: 0 }, "Reject", null, "not_active"],
+  ])("applies ordered rules to %j", (patch, decision, tier, reason) => {
+    expect(evaluateRia({ ...base, ...patch }, DEFAULT_RIA_THRESHOLDS)).toMatchObject({ decision, tier, reason, eligible: decision === "Accept" });
   });
 });

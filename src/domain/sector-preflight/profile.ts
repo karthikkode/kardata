@@ -26,7 +26,8 @@ export const riaThresholdsSchema = z
     maxEmployees: z.number().int().positive(),
     minEmployees: z.number().int().min(0),
     minWealthShare: z.number().min(0).max(1),
-    groupSplitAum: z.number().positive(),
+    tier2MinAum: z.number().positive(),
+    tier2MinEmployees: z.number().int().positive(),
   })
   .strict();
 
@@ -35,9 +36,10 @@ export type RiaThresholds = z.infer<typeof riaThresholdsSchema>;
 export const DEFAULT_RIA_THRESHOLDS: RiaThresholds = {
   maxAum: 10_000_000_000,
   maxEmployees: 100,
-  minEmployees: 2,
+  minEmployees: 1,
   minWealthShare: 0.5,
-  groupSplitAum: 500_000_000,
+  tier2MinAum: 500_000_000,
+  tier2MinEmployees: 10,
 };
 
 const DEFAULT_TIERING = {
@@ -136,6 +138,14 @@ export const OTHER_CATEGORY = {
 
 /** Validate and normalize a profile: `other` is always present. */
 export function parseSectorProfile(value: unknown): SectorProfile {
+  if (value && typeof value === "object") {
+    const input = value as Record<string, unknown>;
+    const ria = input.ria as Record<string, unknown> | undefined;
+    if (ria && "groupSplitAum" in ria) {
+      const { groupSplitAum, ...rest } = ria;
+      value = { ...input, ria: { ...rest, minEmployees: 1, tier2MinAum: groupSplitAum, tier2MinEmployees: 10 } };
+    }
+  }
   const parsed = sectorProfileSchema.safeParse(value);
   if (!parsed.success) {
     const first = parsed.error.issues[0];

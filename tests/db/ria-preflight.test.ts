@@ -29,19 +29,19 @@ async function companyIdByCrd(crd: string): Promise<string> {
 }
 
 describe("RIA rule preflight", () => {
-  it("derives groups and reasons from imported facts, override wins", async () => {
+  it("stores tiers and reasons from imported facts; RIA rules determine the decision", async () => {
     const profile = JSON.parse(readFileSync(resolve("docs/sectors/ria/profile.json"), "utf8")) as unknown;
     const { sector } = await createSector(handle.db, { name: "ria-b3", profile });
     await importSec(handle.db, sector.id, fixture, { importDirs: fixtureImportDirs() });
     const p = await companyIdByCrd("900001");
     const r = await companyIdByCrd("900002");
     const large = await companyIdByCrd("900003");
-    expect(await deriveCompany(handle.db, sector.id, p)).toMatchObject({ eligibility: "eligible", reason: "group:P" });
-    expect(await deriveCompany(handle.db, sector.id, r)).toMatchObject({ eligibility: "eligible", reason: "group:R" });
+    expect(await deriveCompany(handle.db, sector.id, p)).toMatchObject({ eligibility: "eligible", reason: "tier:1" });
+    expect(await deriveCompany(handle.db, sector.id, r)).toMatchObject({ eligibility: "eligible", reason: "tier:2" });
     expect(await deriveCompany(handle.db, sector.id, large)).toMatchObject({ eligibility: "ineligible", reason: "large" });
     const overridden = await setOverride(handle.db, sector.id, p, "exclude", "owner call");
-    expect(overridden.eligibility).toBe("ineligible");
+    expect(overridden).toMatchObject({ eligibility: "eligible", decision: "Accept", tier: 1 });
     const cleared = await setOverride(handle.db, sector.id, p, "clear");
-    expect(cleared).toMatchObject({ eligibility: "eligible", reason: "group:P" });
+    expect(cleared).toMatchObject({ eligibility: "eligible", reason: "tier:1" });
   });
 });
