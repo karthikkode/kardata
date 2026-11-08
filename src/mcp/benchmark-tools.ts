@@ -14,6 +14,8 @@ import { importSnapshot } from "../domain/sec-adv/snapshot.js";
 import { registerTool, type AuthContext } from "./auth.js";
 import { comparableJobStatus, enqueueComparableJob } from "../domain/benchmark/comparable-jobs.js";
 import { wrap } from "./result.js";
+import { importOwnerNames, ownerNamesCoverage } from "../domain/sec-adv/owner-names.js";
+import { checkNamesPublic } from "../domain/sec-adv/names-public-check.js";
 
 const secUrl = z.string().url().refine(value => {
   const url = new URL(value);
@@ -21,6 +23,23 @@ const secUrl = z.string().url().refine(value => {
 }, "use the official SEC HTTPS URL");
 
 export function registerBenchmarkTools(server: McpServer, db: Db, auth: AuthContext) {
+  registerTool(server, db, auth, "sec_adv_names_public_check", {
+    description: "Check up to 20 named firms against official public SEC summary/report pages, or check the newer bulk manifest and label archive gaps when inaccessible. SEC User-Agent, robots, delays and no bypass. Saves evidence and ID-only check results; never promotes historical names to confirmed or edits benchmark/job data.",
+    inputSchema: { sectorId: z.string().uuid(), companyIds: z.array(z.string().uuid()).min(1).max(20).optional(), markArchiveGaps: z.boolean().optional() },
+  }, async input => wrap(async () => ({ summary: "Official SEC availability/name checks", data: await checkNamesPublic(db, input) })));
+  registerTool(server, db, auth, "sec_adv_names_import", {
+    description: "Import public, unconfirmed Schedule A people from the latest filing per stored CRD in an allowlisted SEC bulk archive. Accept and Hold firms only. Idempotent, no deletions, no confirmed-contact, benchmark or job changes. Dry run by default.",
+    inputSchema: { sectorId: z.string().uuid(), path: z.string().min(1), sourceUrl: secUrl, dryRun: z.boolean().optional() },
+  }, async input => wrap(async () => {
+    const data = await importOwnerNames(db, input);
+    return { summary: `${data.withNames}/${data.firms} firms with Schedule A people`, data };
+  }));
+  registerTool(server, db, auth, "sec_adv_names_coverage", {
+    description: "Read Schedule A name coverage by tier and Hold, missing reasons and filing years, with a paginated firm-ID list. Historical names are unconfirmed; contactability remains Apollo-only.",
+    annotations: { readOnlyHint: true },
+    inputSchema: { sectorId: z.string().uuid(), tier: z.number().int().min(0).max(2).optional(),
+      missingOnly: z.boolean().optional(), offset: z.number().int().nonnegative().optional(), limit: z.number().int().min(1).max(500).optional() },
+  }, async input => wrap(async () => ({ summary: "Schedule A coverage", data: await ownerNamesCoverage(db, input) })));
   registerTool(server, db, auth, "sec_adv_website_promote", {
     description: "Promote exactly one unshared non-provider filed host corroborated on a stored brochure cover into a separate dated website fact. Never changes company website/domain or fetches a site. Dry run by default.",
     inputSchema: { sectorId: z.string().uuid(), companyIds: z.array(z.string().uuid()).min(1).max(100).optional(),

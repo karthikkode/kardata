@@ -12,6 +12,7 @@ import {
 import { normalizeDomain } from "../lib/apollo/parse.js";
 import { DomainError } from "./errors.js";
 import { sectorCompaniesScope } from "./sectors.js";
+import { bestContact, contactCandidates, filingPeople, FILING_NAMES_STATUS, FILING_PEOPLE, type ContactPerson } from "./sec-adv/contact-people.js";
 
 /**
  * Contact statuses (D-67). A company has one row per status it has reached.
@@ -241,6 +242,9 @@ export interface CompanyContacts {
   statuses: { status: ContactStatus; people: number; source: string; updatedAt: Date }[];
   /** The people bought from Apollo. */
   apollo: ApolloContact[];
+  filingPeople: ContactPerson[];
+  bestPerson: ContactPerson | null;
+  filingNamesStatus: Record<string, unknown> | null;
 }
 
 export async function companyContacts(db: Db, companyId: string): Promise<CompanyContacts> {
@@ -257,7 +261,19 @@ export async function companyContacts(db: Db, companyId: string): Promise<Compan
   const order = [...PUBLIC_CONTACT_STATUSES, ...APOLLO_CONTACT_STATUSES] as ContactStatus[];
   rows.sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status));
   const apollo = await db.select().from(apolloContacts).where(eq(apolloContacts.companyId, companyId));
-  return { companyId, contactable: isContactable(rows.map((r) => r.status)), statuses: rows, apollo };
+  const contactRecords = await db.select({ type: records.type, data: records.data, verification: records.verification,
+    sourceIds: records.sourceIds }).from(records).where(and(eq(records.companyId, companyId),
+    inArray(records.type, ["leader", FILING_PEOPLE, FILING_NAMES_STATUS])));
+  const [membership] = await db.select({ tier: sectorCompanies.riaTier }).from(sectorCompanies)
+    .where(and(eq(sectorCompanies.companyId, companyId), inArray(sectorCompanies.riaDecision, ["Accept", "Hold"])));
+  const candidates = contactCandidates(contactRecords, apollo.flatMap(p => p.name ? [{ name: p.name, title: p.title ?? "",
+    verification: "apollo", source: p.source }] : []));
+  const status = contactRecords.filter(r => r.type === FILING_NAMES_STATUS).sort((a, b) =>
+    String(b.data.filing_date).localeCompare(String(a.data.filing_date)) ||
+    String(b.data.filing_id).localeCompare(String(a.data.filing_id), "en", { numeric: true }))[0];
+  return { companyId, contactable: isContactable(rows.map((r) => r.status)), statuses: rows, apollo,
+    filingPeople: filingPeople(contactRecords), bestPerson: bestContact(candidates, membership?.tier ?? ""),
+    filingNamesStatus: status?.data ?? null };
 }
 
 /** Contact statuses for many companies at once (summaries and lists). */
