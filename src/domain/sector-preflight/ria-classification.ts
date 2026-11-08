@@ -1,7 +1,7 @@
 import { clearHeavyBookCache, refreshTierHeavyBooks, type TierBook } from "./ria-ranking.js";
 import { createHash, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { basename } from "node:path";
+import { basename, resolve } from "node:path";
 import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import type { Db, DbLike } from "../../db/client.js";
 import { benchmarkFeeJobs, companies, facts, factsCurrent, imports, sectorCompanies, sectorPreflight, sectors } from "../../db/schema.js";
@@ -69,7 +69,7 @@ export async function riaProtectedState(db: DbLike, sectorId: string) {
 export async function reclassifyRia(db: Db, input: { sectorId: string; path: string; dryRun?: boolean }) {
   const profile = await getProfile(db, input.sectorId);
   if (profile.playbook !== "ria" || !profile.ria) throw new DomainError("invalid_input", "requires an RIA sector");
-  const [path] = await checkImportPaths([input.path], getImportDirs(), SEC_MAX_FILE_BYTES);
+  const [path] = await checkImportPaths([input.path], [...getImportDirs(), resolve("var/sources/sec")], SEC_MAX_FILE_BYTES);
   const buffer = await readFile(path!);
   const sha256 = createHash("sha256").update(buffer).digest("hex");
   const parsed = parseSecCsv(path!.toLowerCase().endsWith(".zip") ? extractSecCsv(buffer).text : decodeSecCsv(buffer));
@@ -125,7 +125,7 @@ export async function reclassifyRia(db: Db, input: { sectorId: string; path: str
             reason: sql`excluded.reason`, promptVersion: sql`excluded.prompt_version`, profileHash: sql`excluded.profile_hash`, updatedAt: new Date() } });
       }
       await tx.execute(sql`UPDATE company_verdicts v SET status = CASE m.ria_decision
-        WHEN 'Accept' THEN 'icp_accepted' WHEN 'Hold' THEN 'icp_watchlist' ELSE 'icp_rejected' END,
+        WHEN 'Accept' THEN 'icp_accepted' WHEN 'Hold' THEN 'icp_watchlist' ELSE 'icp_rejected' END, updated_at = now(),
         exclusion_reason = CASE WHEN m.ria_decision = 'Accept' THEN NULL ELSE m.eligibility_reason END
         FROM sector_companies m WHERE m.sector_id = ${input.sectorId} AND v.sector_id = m.sector_id AND v.company_id = m.company_id`);
     }

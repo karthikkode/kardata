@@ -60,7 +60,7 @@ export async function refreshTierHeavyBooks(db: DbLike, sectorId: string, books:
   for (let i = 0; i < updates.length; i += 250) {
     const batch = updates.slice(i, i + 250);
     await db.insert(companyIcpChecks).values(batch);
-    await db.execute(sql`UPDATE ${companyVerdicts} v SET score = c.score
+    await db.execute(sql`UPDATE ${companyVerdicts} v SET score = c.score, source = 'ria-tiers-v2:' || c.id::text, updated_at = now()
       FROM ${companyIcpChecks} c WHERE c.id IN (${sql.join(batch.map(c => sql`${c.id}::uuid`), sql`, `)})
       AND v.company_id = c.company_id AND v.sector_id = c.sector_id`);
   }

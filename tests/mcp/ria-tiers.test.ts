@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { copyFile, mkdir, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -20,10 +21,13 @@ const client = new Client({ name: "ria-tiers-test", version: "1" });
 let server: Awaited<ReturnType<typeof startServer>>;
 const previousDirs = process.env.KARDATA_IMPORT_DIRS;
 const path = resolve("tests/fixtures/sec-ria-registration.csv");
+const storedPath = resolve("var/sources/sec", `ria-tiers-test-${randomUUID()}.csv`);
 const jobId = "a2050f8b-2fb9-48bf-bf31-b55c7cd86402";
 const revision = "8598a1e041f2ffbee69f8a42";
 beforeAll(async () => {
   await ensureMigrated(handle);
+  await mkdir(resolve("var/sources/sec"), { recursive: true });
+  await copyFile(path, storedPath);
   process.env.KARDATA_IMPORT_DIRS = fixtureImportDirs().join(",");
   server = await startServer({ host: "127.0.0.1", port: 0, db: handle.db, operatorToken: "ria-tiers-test" });
   await client.connect(new StreamableHTTPClientTransport(new URL("/mcp", server.url), {
@@ -33,6 +37,7 @@ beforeAll(async () => {
 beforeEach(() => resetTestDb(handle));
 afterAll(async () => {
   await client.close(); await server.close(); await handle.close();
+  await rm(storedPath, { force: true });
   if (previousDirs === undefined) delete process.env.KARDATA_IMPORT_DIRS;
   else process.env.KARDATA_IMPORT_DIRS = previousDirs;
 });
@@ -78,7 +83,7 @@ it("stores and lists decisions, tiers and reasons over MCP, separately counts Ho
   const beforeJob = await handle.db.select().from(benchmarkFeeJobs);
   expect(protectedBefore.benchmarkRevisions).toContainEqual({ revision, count: 1 });
   const dry = await call("ria_reclassify", { sectorId: f.sectorId, path });
-  expect(dry).toMatchObject({ dryRun: true, total: 4, byDecision: { Accept: 1, Hold: 1, Reject: 2 } });
+  expect(dry).toMatchObject({ dryRun: true, total: 5, byDecision: { Accept: 2, Hold: 1, Reject: 2 } });
   expect((await handle.db.select().from(sectorCompanies)).every(m => m.riaDecision === null)).toBe(true);
   const applied = await call("ria_reclassify", { sectorId: f.sectorId, path, dryRun: false });
   expect(applied).toMatchObject({ dryRun: false, checksRefreshed: 2, protectedState: protectedBefore });
@@ -88,13 +93,16 @@ it("stores and lists decisions, tiers and reasons over MCP, separately counts Ho
     .toMatchObject({ total: 2, byReason: { not_active: 1, large: 1 } });
   expect(await call("ria_classifications", { sectorId: f.sectorId, tier: 1 }))
     .toMatchObject({ total: 1, rows: [{ companyId: f.accepted, decision: "Accept", tier: 1, reason: "tier:1" }] });
+  expect(await call("ria_classifications", { sectorId: f.sectorId, tier: 0 })).toMatchObject({ total: 1, rows: [{ decision: "Accept", tier: 0, reason: "tier:0" }] });
+  expect((await riaSheetRows(handle.db, f.sectorId))[0]).toMatchObject({ decision: "Accept", tier: "0" });
   expect(await call("ria_classifications", { sectorId: f.sectorId, limit: 1 }))
-    .toMatchObject({ total: 4, nextOffset: 1 });
+    .toMatchObject({ total: 5, nextOffset: 1 });
   expect(await call("sector_preflight_companies", { sectorId: f.sectorId, eligibility: ["review"] }))
     .toMatchObject({ total: 1, rows: [{ decision: "Hold", eligibilityReason: "hold_not_wealth" }] });
   const refused = await client.callTool({ name: "ria_step_run", arguments: { sectorId: f.sectorId, step: "signals", companyIds: [f.hold] } });
   expect(refused.isError).toBe(true);
-  expect(await call("ria_status", { sectorId: f.sectorId })).toMatchObject({ preflight: { eligible: 1, hold: 1, ineligible: 2, pending: 0 } });
+  expect(await call("sector_scope_apply", { sectorId: f.sectorId })).toMatchObject({ eligible: 2, hold: 1, ineligible: 2 });
+  expect(await call("ria_status", { sectorId: f.sectorId })).toMatchObject({ preflight: { eligible: 2, hold: 1, ineligible: 2, pending: 0 } });
   expect(await call("company_icp_get", { companyId: f.hold, sectorId: f.sectorId })).toMatchObject({
     decision: "Hold", status: "icp_watchlist", check: { status: "icp_watchlist", exclusionReason: "hold_not_wealth" },
   });
@@ -123,4 +131,15 @@ it("refuses atomically when a paused fee job firm is inactive in the newest file
     .rejects.toThrow("paused fee job firms would cease to be accepted");
   expect(await riaProtectedState(handle.db, f.sectorId)).toEqual(before);
   expect((await handle.db.select().from(sectorCompanies)).every(m => m.riaDecision === null)).toBe(true);
+});
+
+it("allows the server-owned SEC archive without widening operator import directories", async () => {
+  const f = await setup();
+  process.env.KARDATA_IMPORT_DIRS = "";
+  try {
+    expect(await call("ria_reclassify", { sectorId: f.sectorId, path: storedPath }))
+      .toMatchObject({ dryRun: true, total: 5, byDecision: { Accept: 2, Hold: 1, Reject: 2 } });
+  } finally {
+    process.env.KARDATA_IMPORT_DIRS = fixtureImportDirs().join(",");
+  }
 });

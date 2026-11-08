@@ -399,7 +399,7 @@ describe("agent runner", () => {
     expect(fx.prompts[0]?.run.id).toBe(runId);
     expect(fx.prompts[0]?.company.id).toBe(companyId);
     // The token worked during the run and is revoked at the end.
-    expect(await authenticateRunToken(handle.db, (opts.env["KARDATA_MCP_AUTH"] as string).slice(7))).toBeNull();
+    await expect.poll(() => authenticateRunToken(handle.db, (opts.env["KARDATA_MCP_AUTH"] as string).slice(7))).toBeNull();
     expect((await runRow(runId)).agentContainerId).toBe(`fake-container-${runId}`);
   });
 

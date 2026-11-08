@@ -103,6 +103,8 @@ const EXPECTED_TOOLS = [
   "company_job_cancel",
   "company_jobs_cancel",
   "ria_status",
+  "ria_reclassify",
+  "ria_classifications",
   "ria_officer_titles_clean",
   "ria_brochures_repair",
   "ria_step_run",

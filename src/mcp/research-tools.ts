@@ -2222,7 +2222,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         const result = await rederiveSectorScope(db, sectorId);
         const counts = await eligibilityCounts(db, sectorId);
         return {
-          summary: `${result.eligible} eligible, ${result.ineligible} ineligible (${result.skippedOverride} overrides, ${result.skippedPending} pending kept)`,
+          summary: `${result.eligible} eligible, ${result.ineligible} ineligible${result.hold === undefined ? "" : `, ${result.hold} Hold`} (${result.skippedOverride} overrides, ${result.skippedPending} pending kept)`,
           data: { ...result, counts },
         };
       }),

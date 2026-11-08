@@ -11,7 +11,7 @@ import {
   sectors,
 } from "../../db/schema.js";
 import { DomainError } from "../errors.js";
-import { getProfile, profileHash, type SectorProfile } from "./profile.js";
+import { getProfile, getProfileOrNull, profileHash, type SectorProfile } from "./profile.js";
 import { evaluateRia, riaStoredReason, type RiaFacts } from "./ria.js";
 
 /**
@@ -129,8 +129,8 @@ export async function deriveCompany(db: Db, sectorId: string, companyId: string)
     .from(sectorCompanies)
     .where(and(eq(sectorCompanies.sectorId, sectorId), eq(sectorCompanies.companyId, companyId)));
   if (!membership) throw new DomainError("not_found", "company is not in this sector");
-  const profileForPlaybook = await getProfile(db, sectorId);
-  if (profileForPlaybook.playbook === "ria") return deriveRiaCompany(db, sectorId, companyId, profileForPlaybook);
+  const profileForPlaybook = await getProfileOrNull(db, sectorId);
+  if (profileForPlaybook?.playbook === "ria") return deriveRiaCompany(db, sectorId, companyId, profileForPlaybook);
   const [override] = await db
     .select()
     .from(sectorEligibilityOverrides)
@@ -309,7 +309,7 @@ async function storeTriple(db: Db, sectorId: string, companyId: string, triple: 
 export interface ScopeApplyResult {
   eligible: number;
   ineligible: number;
-  hold: number;
+  hold?: number;
   skippedOverride: number;
   skippedPending: number;
 }
@@ -320,18 +320,18 @@ export interface ScopeApplyResult {
  */
 export async function rederiveSectorScope(db: Db, sectorId: string): Promise<ScopeApplyResult> {
   await loadSector(db, sectorId);
-  await getProfile(db, sectorId);
+  const profile = await getProfile(db, sectorId);
   const members = await db
     .select({ companyId: sectorCompanies.companyId })
     .from(sectorCompanies)
     .where(eq(sectorCompanies.sectorId, sectorId));
-  const result: ScopeApplyResult = { eligible: 0, ineligible: 0, hold: 0, skippedOverride: 0, skippedPending: 0 };
+  const result: ScopeApplyResult = { eligible: 0, ineligible: 0, ...(profile.playbook === "ria" ? { hold: 0 } : {}), skippedOverride: 0, skippedPending: 0 };
   for (const member of members) {
     const triple = await deriveCompany(db, sectorId, member.companyId);
     if (triple.source === "override") result.skippedOverride += 1;
     else if (triple.eligibility === "pending") result.skippedPending += 1;
     else if (triple.eligibility === "eligible") result.eligible += 1;
-    else if (triple.eligibility === "review") result.hold += 1;
+    else if (triple.eligibility === "review") result.hold = (result.hold ?? 0) + 1;
     else result.ineligible += 1;
   }
   return result;
