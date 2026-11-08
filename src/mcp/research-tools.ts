@@ -1930,8 +1930,9 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   );
 
   registerTool(server, db, auth, "ria_reclassify", {
-    description: "Code-only RIA reclassification from stored sizing/wealth facts and registration in the newest stored SEC monthly file. Dry run by default. Preserves benchmark facts, revisions, paused fee jobs and their fixed lists; refuses if a paused fee firm would cease to be accepted.",
-    inputSchema: { sectorId: z.string().uuid(), path: z.string().min(1), dryRun: z.boolean().optional() },
+    description: "Code-only RIA reclassification from stored sizing/wealth facts and registration in the newest stored SEC monthly file. Dry run by default. Preserves benchmark facts, revisions, paused fee jobs and fixed lists. Apply blocks unreviewed paused-cohort rejections; exact missing-file not_active firms may be explicitly acknowledged after review.",
+    inputSchema: { sectorId: z.string().uuid(), path: z.string().min(1), dryRun: z.boolean().optional(),
+      acknowledgeNotActiveCompanyIds: z.array(z.string().uuid()).max(500).optional().describe("Exact reviewed paused-fee cohort firms missing from the newest file. Allows their SEC-required not_active rejection; never changes a job list or its paused state.") },
   }, async input => wrap(async () => {
     const data = await reclassifyRia(db, input);
     return { summary: `${data.byDecision.Accept} Accept, ${data.byDecision.Hold} Hold, ${data.byDecision.Reject} Reject`, data };

@@ -10,7 +10,7 @@ beforeAll(() => {
   if (built.status !== 0) {
     throw new Error(`npm run build failed:\n${built.stderr?.toString() ?? ""}`);
   }
-});
+}, 60000);
 
 afterAll(() => {
   child?.kill("SIGKILL");

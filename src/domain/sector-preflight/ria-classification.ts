@@ -66,7 +66,7 @@ export async function riaProtectedState(db: DbLike, sectorId: string) {
 }
 
 /** Reclassification is atomic, code only, and never writes facts, jobs or saved benchmark revisions. */
-export async function reclassifyRia(db: Db, input: { sectorId: string; path: string; dryRun?: boolean }) {
+export async function reclassifyRia(db: Db, input: { sectorId: string; path: string; dryRun?: boolean; acknowledgeNotActiveCompanyIds?: string[] }) {
   const profile = await getProfile(db, input.sectorId);
   if (profile.playbook !== "ria" || !profile.ria) throw new DomainError("invalid_input", "requires an RIA sector");
   const [path] = await checkImportPaths([input.path], [...getImportDirs(), resolve("var/sources/sec")], SEC_MAX_FILE_BYTES);
@@ -103,8 +103,20 @@ export async function reclassifyRia(db: Db, input: { sectorId: string; path: str
     });
     const jobs = await tx.select().from(benchmarkFeeJobs).where(and(eq(benchmarkFeeJobs.sectorId, input.sectorId), eq(benchmarkFeeJobs.status, "paused")));
     const accepted = new Set(results.filter(r => r.verdict.decision === "Accept").map(r => r.membership.companyId));
-    const protectedFailures = jobs.flatMap(job => job.companyIds.filter(id => !accepted.has(id)).map(companyId => ({ jobId: job.id, companyId })));
-    if (protectedFailures.length) throw new DomainError("conflict", `paused fee job firms would cease to be accepted: ${JSON.stringify(protectedFailures)}`);
+    const classified = new Map(results.map(r => [r.membership.companyId, r]));
+    const protectedFailures = jobs.flatMap(job => job.companyIds.filter(id => !accepted.has(id)).map(companyId => {
+      const result = classified.get(companyId);
+      return { jobId: job.id, companyId, decision: result?.verdict.decision ?? null,
+        reason: result ? riaStoredReason(result.verdict) : "not_in_sector", detail: result?.verdict.detail ?? "not in sector",
+        registration: result?.registration ?? null };
+    }));
+    const acknowledged = new Set(input.acknowledgeNotActiveCompanyIds ?? []);
+    if (acknowledged.size !== (input.acknowledgeNotActiveCompanyIds?.length ?? 0) || [...acknowledged].some(id =>
+      !protectedFailures.some(failure => failure.companyId === id && failure.reason === "not_active" && failure.registration?.present === false))) {
+      throw new DomainError("invalid_input", "acknowledge only distinct reviewed paused-fee firms missing from the newest SEC file");
+    }
+    const unacknowledgedFailures = protectedFailures.filter(failure => !acknowledged.has(failure.companyId));
+    if (unacknowledgedFailures.length && input.dryRun === false) throw new DomainError("conflict", `paused fee job firms would cease to be accepted: ${JSON.stringify(unacknowledgedFailures)}`);
     const protectedBefore = await riaProtectedState(tx, input.sectorId);
     let checksRefreshed = 0;
     if (input.dryRun === false) {
@@ -149,7 +161,7 @@ export async function reclassifyRia(db: Db, input: { sectorId: string; path: str
     const protectedAfter = await riaProtectedState(tx, input.sectorId);
     if (JSON.stringify(protectedBefore) !== JSON.stringify(protectedAfter)) throw new DomainError("conflict", "protected benchmark or job state changed");
     return { sectorId: input.sectorId, dryRun: input.dryRun !== false, file: basename(path!), sha256,
-      total: results.length, byDecision, byTier, byReason, checksRefreshed, protectedState: protectedAfter,
+      total: results.length, byDecision, byTier, byReason, canApply: unacknowledgedFailures.length === 0, protectedFailures, unacknowledgedFailures, acknowledgeNotActiveCompanyIds: [...acknowledged].sort(), checksRefreshed, protectedState: protectedAfter,
       registrationChanges: results.filter(r => riaStoredReason(r.before) !== riaStoredReason(r.verdict)).map(r => ({
         companyId: r.membership.companyId, before: riaStoredReason(r.before), decision: r.verdict.decision,
         tier: r.verdict.tier, reason: riaStoredReason(r.verdict), detail: r.verdict.detail })) };
