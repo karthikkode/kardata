@@ -1,13 +1,21 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Db } from "../db/client.js";
-import { callBriefsStatus, exportCallBriefs, prepareCallBriefs } from "../domain/call-briefs/prepare.js";
+import { callBriefAttempts, callBriefsStatus, exportCallBriefs, prepareCallBriefs, saveCallBriefFromAttempt } from "../domain/call-briefs/prepare.js";
 import { registerTool, type AuthContext } from "./auth.js";
 import { wrap } from "./result.js";
 import { monthlySourceRow } from "../domain/call-briefs/evidence.js";
 
 const batch = { sectorId: z.string().uuid(), companyIds: z.array(z.string().uuid()).min(1).max(100), callDate: z.string() };
 export function registerCallBriefTools(server: McpServer, db: Db, auth: AuthContext) {
+  registerTool(server, db, auth, "ria_call_brief_save", {
+    description: "Save an operator-reviewed Codex response against its exact stored input/evidence, without new fetches/models. Enforces company/date scope, source quotes, supporting fact IDs and private ordered export. Useful for correcting a rejected draft without refetching blocked pages.",
+    inputSchema: { ...batch, companyId: z.string().uuid(), attemptId: z.number().int().positive(), response: z.unknown() },
+  }, async input => wrap(async () => ({ summary: "Reviewed call brief saved", data: await saveCallBriefFromAttempt(db, input) })));
+  registerTool(server, db, auth, "ria_call_brief_attempts", {
+    description: "Read recent stored Codex JSON responses for one company to inspect call-brief validation failures. Read only: no models, fetches or provider changes.",
+    annotations: { readOnlyHint: true }, inputSchema: { companyId: z.string().uuid(), limit: z.number().int().min(1).max(5).optional(), includeContext: z.boolean().optional() },
+  }, async input => wrap(async () => ({ summary: "Stored Codex responses", data: await callBriefAttempts(db, input) })));
   registerTool(server, db, auth, "sec_adv_monthly_row", {
     description: "Read one firm's raw row from its verified retained SEC monthly source, after canonical file digest and stored CRD checks. Supports manual source checks; no fetches, model calls or data changes.",
     annotations: { readOnlyHint: true }, inputSchema: { companyId: z.string().uuid(), sourceId: z.string().uuid() },

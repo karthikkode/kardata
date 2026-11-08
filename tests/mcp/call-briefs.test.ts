@@ -107,6 +107,9 @@ it("prepares the first window first, stores dated cited briefs, reads/exports in
   expect(content).not.toContain("9,999,999");
   expect(content).toContain("owner not found");
   expect(content).toContain("**Guess:** May need account-list checks");
+  expect(await data("ria_call_brief_attempts", { companyId: f.ids[0], limit: 1 })).toMatchObject({
+    attempts: [{ model: "gpt-6.1-terra", response: { facts: [{ id: "x1", label: "services" }] } }],
+  });
   expect(await data("ria_call_briefs_status", f.args)).toMatchObject({ prepared: 1, websitesRead: 1, brochuresFound: 0,
     items: [{ companyId: f.ids[0], status: "ready" }, { companyId: f.ids[1], status: "pending" }] });
   const second = await data<{ directory: string; csvPath: string }>("ria_call_briefs_prepare", { ...f.args, offset: 1, limit: 1 });
@@ -147,6 +150,25 @@ it("stores parallel firms without racing the first record-type registration", as
   outputDirs.add(result.directory);
   expect(result).toMatchObject({ prepared: 2, errors: [] });
   expect(await handle.db.select().from(records).where(eq(records.type, "solo_call_brief"))).toHaveLength(2);
+});
+
+it("reviews a stored attempt without refetching or making another model call and rejects bad evidence/date/company scope", async () => {
+  const f = await setup();
+  const prepared = await data<{ directory: string }>("ria_call_briefs_prepare", { ...f.args, limit: 1 });
+  outputDirs.add(prepared.directory);
+  const attempts = await data<{ attempts: { id: number; response: Record<string, unknown>; context: { callDate: string } }[] }>("ria_call_brief_attempts", {
+    companyId: f.ids[0], includeContext: true, limit: 1,
+  });
+  const attempt = attempts.attempts[0]!;
+  expect(attempt.context.callDate).toBe(f.args.callDate);
+  const calls = f.model.mock.calls.length, fetches = f.fetched.mock.calls.length;
+  expect(await data("ria_call_brief_save", { ...f.args, companyId: f.ids[0], attemptId: attempt.id, response: attempt.response })).toMatchObject({ companyId: f.ids[0], ready: 1 });
+  expect(f.model).toHaveBeenCalledTimes(calls); expect(f.fetched).toHaveBeenCalledTimes(fetches);
+  const wrongCompany = await client.callTool({ name: "ria_call_brief_save", arguments: { ...f.args, companyId: f.ids[1], attemptId: attempt.id, response: attempt.response } });
+  expect(wrongCompany.isError).toBe(true);
+  const badQuote = { ...attempt.response, facts: [{ id: "bad", label: "services", text: "invented", evidenceId: "absent", quote: "invented quote" }] };
+  expect((await client.callTool({ name: "ria_call_brief_save", arguments: { ...f.args, companyId: f.ids[0], attemptId: attempt.id, response: badQuote } })).isError).toBe(true);
+  expect((await client.callTool({ name: "ria_call_brief_save", arguments: { ...f.args, callDate: "2026-11-10", companyId: f.ids[0], attemptId: attempt.id, response: attempt.response } })).isError).toBe(true);
 });
 
 it("reads stored raw HTML for a public-link check without fetching or exposing binary data", async () => {

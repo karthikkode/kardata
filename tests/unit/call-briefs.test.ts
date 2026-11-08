@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { CALL_OPENER, groundBrief, reasonLine, renderBrief, type BriefResponse, type CitedFact, type Evidence } from "../../src/domain/call-briefs/brief.js";
-import { changePercent, firmBrochureCover, publicLinks, registrationAge } from "../../src/domain/call-briefs/evidence.js";
+import { changePercent, filedServices, firmBrochureCover, publicLinks, registrationAge } from "../../src/domain/call-briefs/evidence.js";
 
 const evidence: Evidence[] = [{ id: "web", sourceId: "source", url: "https://example.test/services", date: "2026-11-08", dateKind: "read",
   kind: "website", text: "We provide financial planning and charge a flat fee." }];
@@ -37,6 +37,13 @@ it("rejects ungrounded facts, invented references, asserted problems and guesses
   expect(() => groundBrief({ ...response, facts: [{ ...response.facts[0], text: "2% annual fee" }] }, evidence, baseFacts)).toThrow("number not supported");
 });
 
+it("accepts descriptive fact IDs while retaining collision and citation checks", () => {
+  const descriptive = { ...response, facts: [{ ...response.facts[0]!, id: "services-planning" }],
+    tasks: [response.tasks[0]!, { ...response.tasks[1]!, factIds: ["services-planning"] }] };
+  expect(groundBrief(descriptive, evidence, baseFacts).facts[0]?.id).toBe("services-planning");
+  expect(() => groundBrief({ ...descriptive, facts: [{ ...descriptive.facts[0]!, id: "accounts" }] }, evidence, baseFacts)).toThrow("duplicate brief fact ID");
+});
+
 it("computes snapshot changes without inventing percentages from zero, and registration tenure at call date", () => {
   expect(changePercent(65, 251)).toBe("+286.2%");
   expect(changePercent(0, 251)).toBeNull();
@@ -55,4 +62,10 @@ it("does not treat a personnel supplement's reference to Part 2A as a firm broch
   expect(firmBrochureCover("Form ADV Part 2B Brochure Supplement. This accompanies the Form ADV Part 2A.")).toBe(false);
   expect(firmBrochureCover("Wrap Fee Program Brochure Form ADV Part 2A Appendix 1")).toBe(false);
   expect(firmBrochureCover("Form ADV Part 2A Firm Brochure")).toBe(true);
+});
+
+it("labels checked SEC services explicitly without inferring services from fee types", () => {
+  expect(filedServices({ "5G(1)": "Y", "5G(2)": "Y", "5G(6)": "N", "5G(7)": "" })).toEqual([
+    { field: "5G(1)", value: "Y", label: "financial planning" }, { field: "5G(2)", value: "Y", label: "individual/small-business portfolios" },
+  ]);
 });

@@ -14,7 +14,7 @@ export interface CitedFact { id: string; label: string; text: string; evidenceId
 const grounded = z.object({ text: z.string().min(1).max(180), evidenceId: z.string(), quote: z.string().min(5).max(700) });
 const linked = z.object({ text: z.string().min(1).max(150), factIds: z.array(z.string()).min(1).max(4) });
 export const briefResponse = z.object({
-  facts: z.array(grounded.extend({ id: z.string().regex(/^x[0-9]+$/), label: z.enum(SECTIONS) })).max(8),
+  facts: z.array(grounded.extend({ id: z.string().regex(/^[a-z][a-z0-9._-]{0,79}$/i), label: z.enum(SECTIONS) })).max(8),
   tasks: z.array(linked).min(2).max(3),
   guesses: z.array(linked).max(3),
   questions: z.array(linked).length(3),
@@ -100,7 +100,8 @@ export function renderBrief(input: { companyId: string; name: string; order: num
   const lines = [`# ${String(input.order).padStart(2, "0")} · ${input.name}`, `Call ${input.callDate}, from 19:30 IST · ${input.companyId}`, "",
     `**Who:** ${input.baseFacts.filter(f => f.label === "owner").map(fact).join("; ") || "owner not found"} · ${input.baseFacts.filter(f => f.label === "registration").map(fact).join("; ") || "registration not found"}.`,
     `**What:** ${["services", "clients", "fees", "custodian", "software"].map(label => {
-      const found = facts.filter(f => f.label === label); return `${label}: ${found.length ? found.map(fact).join("; ") : "not found"}`;
+      const preferred = label === "services" ? input.response.facts.filter(f => f.label === label) : [];
+      const found = preferred.length ? preferred : facts.filter(f => f.label === label); return `${label}: ${found.length ? found.map(fact).join("; ") : "not found"}`;
     }).join(" · ")}.`,
     `**Size/change:** ${input.baseFacts.filter(f => ["size", "change"].includes(f.label)).map(fact).join(" · ") || "not found"}.`, "",
     ...input.response.guesses.map(g => `- **Guess:** ${g.text} ${cite(g.factIds)}`), "",

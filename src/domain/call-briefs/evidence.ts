@@ -12,7 +12,7 @@ import { decodeSecCsv, extractSecCsv, parseSecCsv, parseSecDate, type SecCompany
 import { pdfReviewPages } from "../../lib/sec/pdf-text.js";
 import { bestContact, contactCandidates, FILING_NAMES_STATUS, FILING_PEOPLE } from "../sec-adv/contact-people.js";
 import { brochureKind } from "../ria-steps/brochure.js";
-import { SNAPSHOT_FIELDS } from "../sec-adv/fields.js";
+import { advBoolean, SNAPSHOT_FIELDS } from "../sec-adv/fields.js";
 import { normalizeCrd } from "../sec-adv/snapshot.js";
 import { extractText } from "../research/reads.js";
 import { saveDocument } from "../research/documents.js";
@@ -29,6 +29,17 @@ type FactRow = typeof facts.$inferSelect;
 export const factValue = (f: FactRow) => f.valueNum !== null ? Number(f.valueNum) : f.valueText ?? f.valueDate ?? f.valueBool ?? f.valueJson;
 const money = (n: number) => n >= 1e6 ? `$${(n / 1e6).toFixed(2).replace(/\.00$/, "")}m` : `$${n.toLocaleString("en-US")}`;
 const scalar = (value: unknown) => typeof value === "number" ? value.toLocaleString("en-US") : Array.isArray(value) ? value.join(", ") : String(value);
+// Form ADV Part 1A Item 5.G, SEC 1707 (07-24), pp.14-15.
+const SERVICE_LABELS = ["financial planning", "individual/small-business portfolios", "investment-company portfolios", "pooled-vehicle portfolios",
+  "business/institutional portfolios", "pension consulting", "selecting other advisers", "newsletters", "security ratings/pricing", "market timing", "seminars/workshops", "other services"];
+export function filedServices(raw: Record<string, unknown>) {
+  return SERVICE_LABELS.flatMap((label, index) => {
+    const field = `5G(${index + 1})`, value = String(raw[field] ?? "");
+    if (advBoolean(value) !== true) return [];
+    const other = index === 11 ? String(raw["5G(12)-Other"] ?? "").trim() : "";
+    return [{ field, value, label: other ? `other: ${other.slice(0, 90)}` : label }];
+  });
+}
 const monthlyRows = new Map<string, Promise<Map<string, SecCompany>>>();
 
 /** Verify the retained canonical file before using a raw column not represented by a fact. */
@@ -127,6 +138,16 @@ export async function storedBriefEvidence(db: Db, companyId: string, callDate: s
       locator: `SEC Status Effective Date: ${raw["SEC Status Effective Date"]}${canonical ? `, CSV row ${canonical.rowNumber}` : ""}; earlier state registration not found`,
     });
   } else gaps.push("SEC registration effective date not found");
+  if (canonical && canonicalSource) {
+    const services = filedServices(canonical.raw);
+    if (services.length) {
+      const text = services.map(s => `${s.field}=${s.value}`).join("; ");
+      add("sec-services", "services", `SEC service boxes: ${services.slice(0, 4).map(s => s.label).join("; ")}${services.length > 4 ? `; +${services.length - 4} other checked services` : ""}`, {
+        id: "sec-services", sourceId: canonicalSource.id, url: canonicalSource.url, date: canonical.filingDate ?? canonicalSource.fetchedAt.toISOString().slice(0, 10),
+        dateKind: "as filed", kind: "sec", text, locator: `${text}, CSV row ${canonical.rowNumber}`,
+      });
+    }
+  }
   const usable = rows.filter(f => f.asOf && f.sourceIds.some(id => sourceMap.has(id)));
   const current = currentSnapshot(usable);
   const selected = new Map<string, FactRow>();
@@ -154,7 +175,7 @@ export async function storedBriefEvidence(db: Db, companyId: string, callDate: s
   else gaps.push("client count not found");
   const compensation = selected.get("firm.compensation_types");
   if (compensation) {
-    const terms = scalar(factValue(compensation)).replace(/percentage_of_aum/g, "% of assets").replace(/_/g, " ");
+    const terms = scalar(factValue(compensation)).replace(/percentage_of_aum/g, "% of assets").replace(/\bsubscription\b/g, "newsletter/periodical subscriptions").replace(/_/g, " ");
     add("sec-fees", "fees", `SEC fee boxes: ${terms}`, evidenceFor(compensation));
   }
   const individual = selected.get("firm.client_individuals"), hnw = selected.get("firm.client_hnw");
@@ -166,7 +187,7 @@ export async function storedBriefEvidence(db: Db, companyId: string, callDate: s
   const currentMonth = current[0]?.qualifiers.snapshot;
   const previous = [...new Set(usable.map(f => f.qualifiers.snapshot).filter((s): s is string => !!s && !!currentMonth && s < currentMonth))].sort();
   for (const month of [...new Set([previous.at(-1), previous.length > 1 ? previous[0] : undefined])].filter((s): s is string => !!s)) {
-    for (const key of ["firm.regulatory_aum", "firm.accounts"]) {
+    for (const key of month === previous.at(-1) ? ["firm.regulatory_aum", "firm.accounts", "firm.client_total"] : ["firm.regulatory_aum"]) {
       const before = usable.find(f => f.key === key && f.qualifiers.snapshot === month), after = selected.get(key);
       if (!before || !after) continue;
       const first = factValue(before), last = factValue(after);
