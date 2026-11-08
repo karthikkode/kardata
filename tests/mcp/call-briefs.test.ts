@@ -185,6 +185,10 @@ it("verifies raw registration dates against the canonical stored SEC file by CRD
   const text = await readFile(result.items[0]!.path!, "utf8");
   expect(text).toContain("SEC status since 2015-06-01");
   expect(text).not.toContain("SEC status since 2001-01-01");
+  expect(await data("sec_adv_monthly_row", { companyId: f.ids[0], sourceId: child!.id })).toMatchObject({
+    crd: "910001", rowNumber: 1, raw: { "SEC Status Effective Date": "06/01/2015" },
+  });
+  expect((await client.callTool({ name: "sec_adv_monthly_row", arguments: { companyId: f.ids[1], sourceId: child!.id } })).isError).toBe(true);
   const current = (await handle.db.select().from(sources).where(eq(sources.id, child!.id)))[0]!;
   await handle.db.update(sources).set({ details: { digest: "0".repeat(64) } }).where(eq(sources.id, parentId));
   await expect(verifiedMonthlyRow(handle.db, current, "910001")).rejects.toThrow("digest differs");

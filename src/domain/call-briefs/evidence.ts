@@ -18,6 +18,7 @@ import { extractText } from "../research/reads.js";
 import { saveDocument } from "../research/documents.js";
 import { parseBrochureChoice } from "../ria-steps/handlers.js";
 import type { CitedFact, Evidence } from "./brief.js";
+import { DomainError } from "../errors.js";
 
 export interface FetchNote { url: string; status: string; reason: string | null; sourceId: string | null }
 export type DeniedHosts = Map<string, string>;
@@ -55,6 +56,16 @@ export async function verifiedMonthlyRow(db: Db, source: typeof sources.$inferSe
     pending.catch(() => monthlyRows.delete(key));
   }
   return (await pending).get(normalizeCrd(crd)!) ?? null;
+}
+
+export async function monthlySourceRow(db: Db, input: { companyId: string; sourceId: string }) {
+  const [company] = await db.select({ crd: companies.secCrd }).from(companies).where(eq(companies.id, input.companyId));
+  const [source] = await db.select().from(sources).where(and(eq(sources.id, input.sourceId), eq(sources.companyId, input.companyId), eq(sources.status, "ok")));
+  if (!company || !source) throw new DomainError("not_found", "company-owned SEC source not found");
+  const row = await verifiedMonthlyRow(db, source, company.crd);
+  if (!row) throw new DomainError("not_found", "verified stored SEC monthly row not available");
+  return { companyId: input.companyId, sourceId: source.id, url: source.url, crd: row.crd,
+    rowNumber: row.rowNumber, filingDate: row.filingDate, raw: row.raw };
 }
 export function changePercent(before: number, after: number): string | null {
   if (!Number.isFinite(before) || !Number.isFinite(after) || before <= 0) return null;
