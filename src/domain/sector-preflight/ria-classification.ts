@@ -103,8 +103,14 @@ export async function reclassifyRia(db: Db, input: { sectorId: string; path: str
     });
     const jobs = await tx.select().from(benchmarkFeeJobs).where(and(eq(benchmarkFeeJobs.sectorId, input.sectorId), eq(benchmarkFeeJobs.status, "paused")));
     const accepted = new Set(results.filter(r => r.verdict.decision === "Accept").map(r => r.membership.companyId));
-    const protectedFailures = jobs.flatMap(job => job.companyIds.filter(id => !accepted.has(id)).map(companyId => ({ jobId: job.id, companyId })));
-    if (protectedFailures.length) throw new DomainError("conflict", `paused fee job firms would cease to be accepted: ${JSON.stringify(protectedFailures)}`);
+    const classified = new Map(results.map(r => [r.membership.companyId, r]));
+    const protectedFailures = jobs.flatMap(job => job.companyIds.filter(id => !accepted.has(id)).map(companyId => {
+      const result = classified.get(companyId);
+      return { jobId: job.id, companyId, decision: result?.verdict.decision ?? null,
+        reason: result ? riaStoredReason(result.verdict) : "not_in_sector", detail: result?.verdict.detail ?? "not in sector",
+        registration: result?.registration ?? null };
+    }));
+    if (protectedFailures.length && input.dryRun === false) throw new DomainError("conflict", `paused fee job firms would cease to be accepted: ${JSON.stringify(protectedFailures)}`);
     const protectedBefore = await riaProtectedState(tx, input.sectorId);
     let checksRefreshed = 0;
     if (input.dryRun === false) {
@@ -149,7 +155,7 @@ export async function reclassifyRia(db: Db, input: { sectorId: string; path: str
     const protectedAfter = await riaProtectedState(tx, input.sectorId);
     if (JSON.stringify(protectedBefore) !== JSON.stringify(protectedAfter)) throw new DomainError("conflict", "protected benchmark or job state changed");
     return { sectorId: input.sectorId, dryRun: input.dryRun !== false, file: basename(path!), sha256,
-      total: results.length, byDecision, byTier, byReason, checksRefreshed, protectedState: protectedAfter,
+      total: results.length, byDecision, byTier, byReason, canApply: protectedFailures.length === 0, protectedFailures, checksRefreshed, protectedState: protectedAfter,
       registrationChanges: results.filter(r => riaStoredReason(r.before) !== riaStoredReason(r.verdict)).map(r => ({
         companyId: r.membership.companyId, before: riaStoredReason(r.before), decision: r.verdict.decision,
         tier: r.verdict.tier, reason: riaStoredReason(r.verdict), detail: r.verdict.detail })) };
