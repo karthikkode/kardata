@@ -17,7 +17,7 @@ import { activeMembers, normalizeCrd, snapshotDefinitions, writeSnapshotFacts } 
 const CUTOFF = "2024-12-31";
 const HISTORY = "20111105_20241231";
 type Row = Record<string, string>;
-type Filing = { id: string; crd: string; date: string; time: number; base: Row; baseB?: Row };
+export type Filing = { id: string; crd: string; date: string; time: number; base: Row; baseB?: Row };
 type Section = "owners" | "offices" | "websites" | "sma" | "affiliates";
 const TABLES = [
   { section: "owners", part: 0, name: "IA_Schedule_A_B", headers: ["FilingID", "Schedule", "Full Legal Name", "Ownership Code"] },

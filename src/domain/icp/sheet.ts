@@ -2,7 +2,7 @@ import { SNAPSHOT_COLLECTOR } from "../sec-adv/evidence.js";
 import { FULL_BROCHURE_PATH } from "../ria-steps/brochure.js";
 import { and, desc, eq, inArray, ne } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
-import { companies, companyIcpChecks, documents, facts, factsCurrent, records, riaStepRuns, RIA_STEPS, type CompanyIcpCheck } from "../../db/schema.js";
+import { apolloContacts, companies, companyIcpChecks, documents, facts, factsCurrent, records, riaStepRuns, RIA_STEPS, type CompanyIcpCheck } from "../../db/schema.js";
 import { sectorSheetRows, type SheetRow } from "../tiering.js";
 import type { EvidenceItem } from "./evidence.js";
 import type { BucketResult } from "./judge.js";
@@ -10,7 +10,7 @@ import { hasTechTeam, latestIcpCheck, sectorIcpCompanies, signalsMet, type Secto
 import { RIA_LEAD_PRIORITY, RIA_SIGNAL_RULES } from "./ria-rules.js";
 import { SIGNAL_RULES } from "./rules.js";
 import { custodianCountNames } from "../ria-steps/custodians.js";
-import { isContactName } from "../../lib/contact-name.js";
+import { bestContact, contactCandidates, FILING_NAMES_STATUS, FILING_PEOPLE, type ContactRecord, type ContactPerson } from "../sec-adv/contact-people.js";
 
 const ALL_SIGNAL_RULES = [...SIGNAL_RULES, ...RIA_SIGNAL_RULES];
 
@@ -165,19 +165,8 @@ export function timeZoneForState(state: string | null): string {
   return STATE_TZ[state.trim().toUpperCase()] ?? "";
 }
 
-const OPS_TITLE = /\b(coo|chief operating|director of operations|head of operations|operations)\b/i;
-const CCO_TITLE = /\b(compliance officer|chief compliance|cco)\b/i;
-const FOUNDER_TITLE = /\b(founder|managing partner|president|ceo|owner)\b/i;
-
 export function pickContact(leaders: { name: string; title: string }[], tier: string): { name: string; title: string } | null {
-  // A two-letter fragment (e.g. "CO" from "CO-FOUNDER") is not a name.
-  leaders = leaders.filter((l) => isContactName(l.name));
-  const order = tier === "2" ? [OPS_TITLE, CCO_TITLE, FOUNDER_TITLE] : [FOUNDER_TITLE, OPS_TITLE];
-  for (const pattern of order) {
-    const found = leaders.find((l) => pattern.test(l.title));
-    if (found) return found;
-  }
-  return leaders[0] ?? null;
+  return bestContact(leaders, tier);
 }
 
 export interface RiaSheetRow {
@@ -194,6 +183,13 @@ export interface RiaSheetRow {
   leadSignal: string;
   contactName: string;
   contactTitle: string;
+  contactSource?: string;
+  contactFilingId?: string;
+  contactFilingDate?: string;
+  contactVerification?: string;
+  contactUncertainty?: string;
+  contactOwnershipRange?: string;
+  contactControlPerson?: string;
   phone: string;
   website: string;
   aum: string;
@@ -219,6 +215,13 @@ export const RIA_HEADER = [
   "Lead signal",
   "Contact name",
   "Contact title",
+  "Contact source",
+  "Contact filing ID",
+  "Contact filing date",
+  "Contact verification",
+  "Contact uncertainty",
+  "Contact ownership range",
+  "Contact control person",
   "Main phone",
   "Website",
   "AUM",
@@ -267,7 +270,8 @@ export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRo
   // rarest-signal lead.
   const checks = new Map<string, CompanyIcpCheck | null>();
   const companyById = new Map<string, { state: string | null; phone: string | null; website: string | null }>();
-  const leadersById = new Map<string, { data: Record<string, unknown> }[]>();
+  const leadersById = new Map<string, ContactRecord[]>();
+  const apolloById = new Map<string, ContactPerson[]>();
   const factsById = new Map<string, (typeof factsCurrent.$inferSelect)[]>();
   const historyById = new Map<string, { key: string; valueNum: string | null; asOf: string | null }[]>();
   const brochuresById = new Map<string, { title: string; path: string | null }[]>();
@@ -285,8 +289,14 @@ export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRo
     for (const check of latest) checks.set(check.companyId, check);
     for (const row of await db.select({ id: companies.id, state: companies.state, phone: companies.phone, website: companies.website })
       .from(companies).where(inArray(companies.id, ids))) companyById.set(row.id, row);
-    for (const row of await db.select({ companyId: records.companyId, data: records.data }).from(records)
-      .where(and(inArray(records.companyId, ids), eq(records.type, "leader"))).orderBy(records.createdAt, records.id)) append(leadersById, row.companyId, row);
+    for (const row of await db.select({ companyId: records.companyId, type: records.type, data: records.data,
+      verification: records.verification, sourceIds: records.sourceIds }).from(records)
+      .where(and(inArray(records.companyId, ids), inArray(records.type, ["leader", FILING_PEOPLE, FILING_NAMES_STATUS])))
+      .orderBy(records.createdAt, records.id)) append(leadersById, row.companyId, row);
+    for (const row of await db.select({ companyId: apolloContacts.companyId, name: apolloContacts.name,
+      title: apolloContacts.title, source: apolloContacts.source }).from(apolloContacts).where(inArray(apolloContacts.companyId, ids))) {
+      if (row.name) append(apolloById, row.companyId, { name: row.name, title: row.title ?? "", source: row.source, verification: "apollo" });
+    }
     for (const row of await db.select().from(factsCurrent).where(and(inArray(factsCurrent.companyId, ids), ne(factsCurrent.createdBy, SNAPSHOT_COLLECTOR),
       inArray(factsCurrent.key, ["firm.regulatory_aum", "financials.employees", "ria.fee_schedule", "firm.fee_schedule", "firm.custodians", "ria.custodians_named"])))) append(factsById, row.companyId, row);
     for (const row of await db.select({ companyId: facts.companyId, key: facts.key, valueNum: facts.valueNum, asOf: facts.asOf }).from(facts)
@@ -319,12 +329,9 @@ export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRo
   for (const row of base) {
     const company = companyById.get(row.companyId);
     const leaderRows = leadersById.get(row.companyId) ?? [];
-    const leaders = leaderRows
-      .map((r) => r.data as Record<string, unknown>)
-      .filter((d) => typeof d["name"] === "string")
-      .map((d) => ({ name: String(d["name"]), title: String(d["title"] ?? d["role"] ?? "") }));
+    const leaders = contactCandidates(leaderRows, apolloById.get(row.companyId));
     const check = checks.get(row.companyId) ?? null;
-    const contact = pickContact(leaders, row.tier);
+    const contact = bestContact(leaders, row.tier);
     const factRows = factsById.get(row.companyId) ?? [];
     const byKey = new Map(factRows.map((f) => [f.key, f]));
     const numOf = (key: string): number | null => {
@@ -383,6 +390,13 @@ export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRo
       leadSignal: check ? riaTopSignals(check, tierFrequency(row.tier)).lead : "",
       contactName: contact?.name ?? "",
       contactTitle: contact?.title ?? "",
+      contactSource: contact?.source ?? "",
+      contactFilingId: contact?.filingId ?? "",
+      contactFilingDate: contact?.filingDate ?? "",
+      contactVerification: contact?.verification ?? "",
+      contactUncertainty: contact?.uncertainty ?? "",
+      contactOwnershipRange: contact?.ownershipRange ?? "",
+      contactControlPerson: contact?.controlPerson === true ? "Yes" : contact?.controlPerson === false ? "No" : "",
       phone: company?.phone ?? "",
       website: company?.website ?? "",
       aum: numOf("firm.regulatory_aum") !== null ? String(Math.round(numOf("firm.regulatory_aum") as number)) : "",
@@ -416,6 +430,13 @@ export function riaCsv(rows: RiaSheetRow[]): string {
         cell(r.leadSignal),
         cell(r.contactName),
         cell(r.contactTitle),
+        cell(r.contactSource ?? ""),
+        cell(r.contactFilingId ?? ""),
+        cell(r.contactFilingDate ?? ""),
+        cell(r.contactVerification ?? ""),
+        cell(r.contactUncertainty ?? ""),
+        cell(r.contactOwnershipRange ?? ""),
+        cell(r.contactControlPerson ?? ""),
         cell(r.phone),
         cell(r.website),
         r.aum,
