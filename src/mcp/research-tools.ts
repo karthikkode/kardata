@@ -1,3 +1,4 @@
+import { reclassifyRia, riaClassifications } from "../domain/sector-preflight/ria-classification.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Db } from "../db/client.js";
@@ -1928,6 +1929,26 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       }),
   );
 
+  registerTool(server, db, auth, "ria_reclassify", {
+    description: "Code-only RIA reclassification from stored sizing/wealth facts and registration in the newest stored SEC monthly file. Dry run by default. Preserves benchmark facts, revisions, paused fee jobs and their fixed lists; refuses if a paused fee firm would cease to be accepted.",
+    inputSchema: { sectorId: z.string().uuid(), path: z.string().min(1), dryRun: z.boolean().optional() },
+  }, async input => wrap(async () => {
+    const data = await reclassifyRia(db, input);
+    return { summary: `${data.byDecision.Accept} Accept, ${data.byDecision.Hold} Hold, ${data.byDecision.Reject} Reject`, data };
+  }));
+
+  registerTool(server, db, auth, "ria_classifications", {
+    description: "Read stored RIA decisions, tiers and reason counts with a paginated firm-ID list. Hold is separate from Reject. Filters combine; counts cover all matching firms, independently of research coverage.",
+    annotations: { readOnlyHint: true },
+    inputSchema: { sectorId: z.string().uuid(), decision: z.enum(["Accept", "Hold", "Reject"]).optional(),
+      tier: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(), reason: z.string().optional(),
+      companyIds: z.array(z.string().uuid()).max(500).optional(), offset: z.number().int().nonnegative().optional(),
+      limit: z.number().int().min(1).max(500).optional() },
+  }, async input => wrap(async () => {
+    const data = await riaClassifications(db, input);
+    return { summary: `${data.total} matching RIA firms`, data };
+  }));
+
   registerTool(server, db, auth,
     "sector_preflight_summary",
     {
@@ -2034,7 +2055,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       inputSchema: {
         sectorId: z.string().describe("Sector UUID"),
         status: z.array(z.enum(["icp_accepted", "icp_watchlist", "icp_rejected", "research_incomplete"])).optional(),
-        tier: z.array(z.enum(["A", "B", "C"])).optional(),
+        tier: z.array(z.enum(["A", "B", "C", "0", "1", "2"])).optional(),
         minScore: z.number().int().min(0).max(6).optional(),
         limit: z.number().int().optional().describe("1..500, default 50"),
         offset: z.number().int().min(0).optional(),
