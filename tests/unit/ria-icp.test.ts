@@ -82,6 +82,10 @@ describe("RIA ICP (Stage 5.7 B6)", () => {
     expect(decision.exclusionReason).toBe("large");
   });
 
+  it("keeps Hold distinct from rejection", () => {
+    expect(decideRia({ ...pack(), riaHold: "hold_not_wealth" }, judgement())).toMatchObject({ status: "icp_watchlist", exclusionReason: "hold_not_wealth" });
+  });
+
   it("builds the ria schema with the 7 signals", () => {
     const schema = JSON.parse(icpSchema("ria")) as { properties: { signals: { required: string[] } } };
     expect(schema.properties.signals.required).toHaveLength(7);
@@ -105,19 +109,19 @@ describe("RIA ICP (Stage 5.7 B6)", () => {
     expect(built.buckets["recent_deal"]?.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("maps states to time zones and picks contacts by group", () => {
+  it("maps states to time zones and picks contacts by tier", () => {
     expect(timeZoneForState("TX")).toBe("America/Chicago");
     expect(timeZoneForState("CA")).toBe("America/Los_Angeles");
     const leaders = [
       { name: "A Founder", title: "Founder" },
       { name: "B Ops", title: "Director of Operations" },
     ];
-    expect(pickContact([{ name: "CO", title: "FOUNDER" }], "R")).toBeNull();
-    expect(pickContact([{ name: "A Founder", title: "Founder" }, { name: "B Compliance", title: "Manager Compliance Officer" }], "R")?.name).toBe("B Compliance");
-    expect(pickContact(leaders, "R")?.name).toBe("B Ops");
-    expect(pickContact(leaders, "P")?.name).toBe("A Founder");
+    expect(pickContact([{ name: "CO", title: "FOUNDER" }], "2")).toBeNull();
+    expect(pickContact([{ name: "A Founder", title: "Founder" }, { name: "B Compliance", title: "Manager Compliance Officer" }], "2")?.name).toBe("B Compliance");
+    expect(pickContact(leaders, "2")?.name).toBe("B Ops");
+    expect(pickContact(leaders, "1")?.name).toBe("A Founder");
     const entities = [{ name: "Example Holdings, LLC", title: "OWNER COMPLIANCE OFFICER" }];
-    expect(pickContact(entities, "R")).toBeNull();
-    expect(pickContact([...entities, ...leaders], "R")?.name).toBe("B Ops");
+    expect(pickContact(entities, "2")).toBeNull();
+    expect(pickContact([...entities, ...leaders], "2")?.name).toBe("B Ops");
   });
 });

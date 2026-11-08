@@ -1,3 +1,4 @@
+import { DomainError } from "../errors.js";
 import { eq } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
 import { harnessSettings, type RiaStep } from "../../db/schema.js";
@@ -70,7 +71,10 @@ export async function runRiaStep(
   const handler = handlers[input.step];
   if (!handler) throw new Error(`no handler for ria step ${input.step}`);
   const explicit = input.companyIds !== undefined;
-  let ids: string[] = explicit ? [...new Set(input.companyIds ?? [])] : await eligibleCompanyIds(db, input.sectorId);
+  const eligible = await eligibleCompanyIds(db, input.sectorId);
+  let ids: string[] = explicit ? [...new Set(input.companyIds ?? [])] : eligible;
+  const accepted = new Set(eligible);
+  if (ids.some(id => !accepted.has(id))) throw new DomainError("invalid_input", "RIA steps accept eligible sector members only (Hold and Reject are excluded)");
   if (input.limit !== undefined) ids = ids.slice(0, input.limit);
   const outcome: RunStepOutcome = {
     step: input.step,

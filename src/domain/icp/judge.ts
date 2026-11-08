@@ -351,6 +351,7 @@ export function decideRia(pack: EvidencePack, judgement: Judgement): IcpDecision
     return result;
   });
   const score = signals.filter((s) => s.counted).length;
+  if (pack.riaHold) return { score, status: "icp_watchlist", exclusionReason: pack.riaHold, signals, exclusions: [], flags: [] };
   if (pack.riaExclusion) {
     return { score, status: "icp_rejected", exclusionReason: pack.riaExclusion, signals, exclusions: [], flags: [] };
   }

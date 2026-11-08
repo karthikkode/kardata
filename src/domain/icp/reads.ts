@@ -51,6 +51,8 @@ export interface CompanyIcpView {
   check: CompanyIcpCheck | null;
   checks: number;
   tier: string | null;
+  decision?: import("../sector-preflight/ria.js").RiaDecision;
+  reason?: string | null;
   layer: number | null;
   status: IcpStatus;
   revenueUsed: number | null;
@@ -75,6 +77,7 @@ export async function companyIcpView(db: Db, companyId: string, sectorId: string
     check,
     checks: Number(count?.n ?? 0),
     tier: truth.tier,
+    ...(truth.decision ? { decision: truth.decision, reason: truth.reason } : {}),
     layer: truth.layer,
     status: truth.status,
     revenueUsed: truth.revenueUsed,
@@ -85,7 +88,7 @@ export async function companyIcpView(db: Db, companyId: string, sectorId: string
 export interface SectorIcpCompaniesInput {
   sectorId: string;
   status?: IcpStatus[];
-  tier?: ("A" | "B" | "C")[];
+  tier?: ("A" | "B" | "C" | "0" | "1" | "2")[];
   minScore?: number;
   limit?: number;
   offset?: number;
@@ -100,6 +103,8 @@ export interface SectorIcpCompanyRow {
   score: number;
   status: IcpStatus;
   tier: string | null;
+  decision?: import("../sector-preflight/ria.js").RiaDecision;
+  reason?: string | null;
   layer: number | null;
   exclusionReason: string | null;
   signalsMet: string[];
@@ -148,6 +153,7 @@ export async function sectorIcpCompanies(
       score: c.check.score,
       status: truth.status,
       tier: truth.tier,
+      ...(truth.decision ? { decision: truth.decision, reason: truth.reason } : {}),
       layer: truth.layer,
       exclusionReason: truth.exclusionReason,
       signalsMet: signalsMet(c.check),

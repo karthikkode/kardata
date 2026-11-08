@@ -11,7 +11,7 @@ import {
   sectors,
 } from "../../db/schema.js";
 import { DomainError } from "../errors.js";
-import { getProfile, profileHash, type SectorProfile } from "./profile.js";
+import { getProfile, getProfileOrNull, profileHash, type SectorProfile } from "./profile.js";
 import { evaluateRia, riaStoredReason, type RiaFacts } from "./ria.js";
 
 /**
@@ -97,7 +97,9 @@ export function evaluateSectorScope(
 }
 
 export interface DerivedTriple {
-  eligibility: "pending" | "eligible" | "ineligible";
+  eligibility: "pending" | "eligible" | "review" | "ineligible";
+  decision?: import("./ria.js").RiaDecision;
+  tier?: import("./ria.js").RiaTier | null;
   source: "rule" | "override" | null;
   reason: string | null;
 }
@@ -127,6 +129,8 @@ export async function deriveCompany(db: Db, sectorId: string, companyId: string)
     .from(sectorCompanies)
     .where(and(eq(sectorCompanies.sectorId, sectorId), eq(sectorCompanies.companyId, companyId)));
   if (!membership) throw new DomainError("not_found", "company is not in this sector");
+  const profileForPlaybook = await getProfileOrNull(db, sectorId);
+  if (profileForPlaybook?.playbook === "ria") return deriveRiaCompany(db, sectorId, companyId, profileForPlaybook);
   const [override] = await db
     .select()
     .from(sectorEligibilityOverrides)
@@ -142,10 +146,6 @@ export async function deriveCompany(db: Db, sectorId: string, companyId: string)
     const triple: DerivedTriple = { eligibility: "ineligible", source: "override", reason: override.note || "owner exclude" };
     await storeTriple(db, sectorId, companyId, triple);
     return triple;
-  }
-  const profileForPlaybook = await getProfile(db, sectorId);
-  if (profileForPlaybook.playbook === "ria") {
-    return deriveRiaCompany(db, sectorId, companyId, profileForPlaybook);
   }
   const [classification] = await db
     .select()
@@ -236,23 +236,17 @@ export async function deriveRiaCompany(
 ): Promise<DerivedTriple> {
   const thresholds = profile.ria;
   if (!thresholds) throw new DomainError("invalid_input", "ria sector has no ria thresholds");
-  // Absent from the latest SEC file: no longer current (Stage 5.8 B1).
-  const [membershipRow] = await db
-    .select({ lastImportId: sectorCompanies.lastImportId })
-    .from(sectorCompanies)
+  const [membership] = await db.select().from(sectorCompanies)
     .where(and(eq(sectorCompanies.sectorId, sectorId), eq(sectorCompanies.companyId, companyId)));
-  const { latestImportId } = await import("../ria-steps/status.js");
-  const latestId = await latestImportId(db, sectorId);
-  if (membershipRow?.lastImportId && latestId && membershipRow.lastImportId !== latestId) {
-    const tripleNc: DerivedTriple = { eligibility: "ineligible", source: "rule", reason: "not_current" };
-    await storeTriple(db, sectorId, companyId, tripleNc);
-    return tripleNc;
-  }
-  const { facts, hasFacts } = await loadRiaFacts(db, companyId);
-  if (!hasFacts) {
-    const triple: DerivedTriple = { eligibility: "pending", source: null, reason: null };
-    await storeTriple(db, sectorId, companyId, triple);
-    return triple;
+  const { facts } = await loadRiaFacts(db, companyId);
+  if (membership?.riaRegistration) {
+    facts.inNewestFile = membership.riaRegistration.present;
+    facts.registrationStatus = membership.riaRegistration.status;
+    facts.firmType = membership.riaRegistration.firmType;
+  } else {
+    const { latestImportId } = await import("../ria-steps/status.js");
+    const latest = await latestImportId(db, sectorId);
+    facts.inNewestFile = !latest || membership?.lastImportId === latest;
   }
   const verdict = evaluateRia(facts, thresholds);
   const category = profile.scope.coreCategories[0] ?? "wealth_management";
@@ -273,7 +267,7 @@ export async function deriveRiaCompany(
       quote: null,
       quoteSourceId: null,
       verification: "verified",
-      promptVersion: "ria-rules-v1",
+      promptVersion: "ria-tiers-v2",
       profileHash: profileHash(profile),
     })
     .onConflictDoUpdate({
@@ -289,13 +283,15 @@ export async function deriveRiaCompany(
         quote: null,
         quoteSourceId: null,
         verification: "verified",
-        promptVersion: "ria-rules-v1",
+        promptVersion: "ria-tiers-v2",
         profileHash: profileHash(profile),
         updatedAt: new Date(),
       },
     });
   const triple: DerivedTriple = {
-    eligibility: verdict.eligible ? "eligible" : "ineligible",
+    eligibility: verdict.decision === "Accept" ? "eligible" : verdict.decision === "Hold" ? "review" : "ineligible",
+    decision: verdict.decision,
+    tier: verdict.tier,
     source: "rule",
     reason: riaStoredReason(verdict),
   };
@@ -306,13 +302,14 @@ export async function deriveRiaCompany(
 async function storeTriple(db: Db, sectorId: string, companyId: string, triple: DerivedTriple): Promise<void> {
   await db
     .update(sectorCompanies)
-    .set({ eligibility: triple.eligibility, eligibilitySource: triple.source, eligibilityReason: triple.reason })
+    .set({ eligibility: triple.eligibility, eligibilitySource: triple.source, eligibilityReason: triple.reason, ...(triple.decision ? { riaDecision: triple.decision, riaTier: triple.tier ?? null } : {}) })
     .where(and(eq(sectorCompanies.sectorId, sectorId), eq(sectorCompanies.companyId, companyId)));
 }
 
 export interface ScopeApplyResult {
   eligible: number;
   ineligible: number;
+  hold?: number;
   skippedOverride: number;
   skippedPending: number;
 }
@@ -323,17 +320,18 @@ export interface ScopeApplyResult {
  */
 export async function rederiveSectorScope(db: Db, sectorId: string): Promise<ScopeApplyResult> {
   await loadSector(db, sectorId);
-  await getProfile(db, sectorId);
+  const profile = await getProfile(db, sectorId);
   const members = await db
     .select({ companyId: sectorCompanies.companyId })
     .from(sectorCompanies)
     .where(eq(sectorCompanies.sectorId, sectorId));
-  const result: ScopeApplyResult = { eligible: 0, ineligible: 0, skippedOverride: 0, skippedPending: 0 };
+  const result: ScopeApplyResult = { eligible: 0, ineligible: 0, ...(profile.playbook === "ria" ? { hold: 0 } : {}), skippedOverride: 0, skippedPending: 0 };
   for (const member of members) {
     const triple = await deriveCompany(db, sectorId, member.companyId);
     if (triple.source === "override") result.skippedOverride += 1;
     else if (triple.eligibility === "pending") result.skippedPending += 1;
     else if (triple.eligibility === "eligible") result.eligible += 1;
+    else if (triple.eligibility === "review") result.hold = (result.hold ?? 0) + 1;
     else result.ineligible += 1;
   }
   return result;

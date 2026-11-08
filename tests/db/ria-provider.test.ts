@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { companies, harnessSettings, providerCalls } from "../../src/db/schema.js";
+import { companies, harnessSettings, providerCalls, sectorCompanies } from "../../src/db/schema.js";
 import type { DbHandle } from "../../src/db/client.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
 import { createSector } from "../../src/domain/sectors.js";
@@ -52,6 +52,7 @@ it("pins the chosen provider for a step even if Muse recovers while the handler 
   const { sector } = await createSector(handle.db, { name: "Synthetic provider" });
   const id = randomUUID();
   await handle.db.insert(companies).values({ id, source: "sec", secCrd: "999921", name: "Synthetic Provider Firm", country: "United States" });
+  await handle.db.insert(sectorCompanies).values({ sectorId: sector.id, companyId: id, addedVia: "manual", eligibility: "eligible", riaDecision: "Accept", riaTier: 1 });
   mocks.codex.mockResolvedValue({ json: {}, usage: undefined });
   const result = await runRiaStep(handle.db, { sectorId: sector.id, step: "ops_read", companyIds: [id] }, {
     ops_read: async () => {
@@ -84,6 +85,7 @@ it("holds Codex on its real exhaustion without overwriting Muse's breaker", asyn
   const { sector } = await createSector(handle.db, { name: "Synthetic quota isolation" });
   const id = randomUUID();
   await handle.db.insert(companies).values({ id, source: "sec", secCrd: "999922", name: "Synthetic Quota Firm", country: "United States" });
+  await handle.db.insert(sectorCompanies).values({ sectorId: sector.id, companyId: id, addedVia: "manual", eligibility: "eligible", riaDecision: "Accept", riaTier: 1 });
   mocks.codex.mockRejectedValue(new CodexCallError("quota"));
   mocks.status.mockResolvedValue({ checkedAt: new Date().toISOString(), authenticated: true, modelAvailable: true, error: null,
     primary: { usedPercent: 100, windowMinutes: 300, resetsAt: new Date(Date.now()+3600000).toISOString() }, secondary: null });

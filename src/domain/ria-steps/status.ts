@@ -64,7 +64,7 @@ export interface RiaStatusView {
   eligible: number;
   steps: Record<RiaStep, { done: number; gap: number; failed: number; pending: number; gapReasons: Record<string, number>; failedReasons: Record<string, number> }>;
   latestImport: { filename: string; createdAt: string; rowsRead: number } | null;
-  preflight: { eligible: number; ineligible: number; pending: number };
+  preflight: { eligible: number; hold: number; ineligible: number; pending: number };
   details?: { companyId: string; step: RiaStep; status: string; reason: string | null; inputHash: string | null; tokensUsed: number | null; updatedAt: Date }[];
 }
 
@@ -124,8 +124,9 @@ export async function riaStatus(db: Db, sectorId: string, companyIds?: string[])
       : null,
     preflight: {
       eligible: byElig.get("eligible") ?? 0,
+      hold: byElig.get("review") ?? 0,
       ineligible: byElig.get("ineligible") ?? 0,
-      pending: totalMembers - (byElig.get("eligible") ?? 0) - (byElig.get("ineligible") ?? 0),
+      pending: totalMembers - (byElig.get("eligible") ?? 0) - (byElig.get("ineligible") ?? 0) - (byElig.get("review") ?? 0),
     },
   };
 }

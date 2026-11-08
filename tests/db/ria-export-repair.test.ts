@@ -169,7 +169,7 @@ it("exports more than500 firms with bounded reads while preserving scoped truth,
   await signalsStep(handle.db, f.sectorId, f.companyId);
   const batch = Array.from({ length: 502 }, (_, i) => ({ id: randomUUID(), source: "manual" as const, name: `Synthetic Batch ${i}`, state: "TX", website: `https://batch${i}.example.test` }));
   await handle.db.insert(companies).values(batch);
-  await handle.db.insert(sectorCompanies).values(batch.map((c, i) => ({ companyId: c.id, sectorId: f.sectorId, addedVia: "manual" as const, eligibility: "eligible" as const, removedAt: i === 501 ? new Date() : null })));
+  await handle.db.insert(sectorCompanies).values(batch.map((c, i) => ({ companyId: c.id, sectorId: f.sectorId, addedVia: "manual" as const, eligibility: "eligible" as const, riaDecision: i === 500 ? "Reject" as const : "Accept" as const, riaTier: i === 500 ? null : i % 2 ? 2 as const : 1 as const, eligibilityReason: i === 500 ? "not_us" : `tier:${i % 2 ? 2 : 1}`, removedAt: i === 501 ? new Date() : null })));
   await handle.db.insert(companyVerdicts).values(batch.map((c, i) => ({ companyId: c.id, sectorId: f.sectorId, score: i % 7, status: i === 500 ? "icp_rejected" : "icp_accepted", source: "test" })));
   await handle.db.insert(facts).values(batch.flatMap((c, i) => [
     { id: randomUUID(), companyId: c.id, key: "firm.regulatory_aum", valueNum: String(i % 2 ? 600000000 : 100000000), sourceIds: [f.sourceId], confidence: "high" as const, createdBy: "test", asOf: "2026-01-01" },
@@ -190,7 +190,7 @@ it("exports more than500 firms with bounded reads while preserving scoped truth,
   const readCount = selects.mock.calls.length;
   selects.mockRestore();
   expect(readCount).toBeLessThan(50);
-  expect(new Set(rows.map((r) => r.companyId))).toEqual(new Set([f.companyId, ...batch.slice(0, 500).map((c) => c.id)]));
+  expect(new Set(rows.map((r) => r.companyId))).toEqual(new Set([f.companyId, f.otherId, ...batch.slice(0, 500).map((c) => c.id)]));
   const selected = rows.find((r) => r.companyId === last.id)!;
   expect(selected.contactName).toBe("Earlier Synthetic Officer");
   expect(selected.researchStatus).toBe("Pending");

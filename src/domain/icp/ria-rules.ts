@@ -90,7 +90,7 @@ const RIA_RULES_LIST = [
   {
     key: "heavy_book",
     label: "Heavy book",
-    question: "Accounts or clients per employee in the top quarter of its size group (P or R)? State both numbers.",
+    question: "Accounts or clients per employee in the top quarter of its tier (0, 1 or 2)? State both numbers.",
     routes: [{ factKeys: ["firm.accounts", "firm.client_total", "financials.employees"] }],
   },
   {
