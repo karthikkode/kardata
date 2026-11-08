@@ -17,7 +17,7 @@ import { isValidDateString } from "../research/validate.js";
 import { sectorSlug } from "../sectors.js";
 import { lockEvidence } from "../sec-adv/evidence.js";
 import { BRIEF_TYPE, BRIEF_VERSION, briefPrompt, csvCell, groundBrief, renderBrief, responseSchema, type BriefResponse, type CitedFact, type Evidence } from "./brief.js";
-import { publicBriefEvidence, storedBriefEvidence, type DeniedHosts, type FetchNote } from "./evidence.js";
+import { confirmedBrochureEvidence, publicBriefEvidence, storedBriefEvidence, type DeniedHosts, type FetchNote } from "./evidence.js";
 
 export interface BriefBatch { sectorId: string; companyIds: string[]; callDate: string }
 interface SavedBrief {
@@ -99,13 +99,16 @@ export async function saveCallBriefFromAttempt(db: Db, input: BriefBatch & { com
   const current = await storedBriefEvidence(db, input.companyId, input.callDate);
   for (const fact of current.baseFacts) if (!context.facts.some(f => f.id === fact.id)) context.facts.push(fact);
   for (const evidence of current.evidence) if (!context.evidence.some(e => e.id === evidence.id)) context.evidence.push(evidence);
+  const checked = confirmedBrochureEvidence(context.evidence);
+  context.evidence = checked.evidence;
   const response = groundBrief(input.response, context.evidence, context.facts);
   const previous = (await savedBriefs(db, input)).get(input.companyId);
   const owner = context.facts.find(f => f.label === "owner")?.text.split(" — ")[0] ?? null;
   const data = await persistBrief(db, { companyId: input.companyId, runId: call.runId, name: context.firm.name,
     order: input.companyIds.indexOf(input.companyId) + 1, callDate: input.callDate, owner,
-    baseFacts: context.facts, evidence: context.evidence, response, gaps: previous?.gaps ?? [], fetches: previous?.fetches ?? [],
-    brochureFound: previous?.brochureFound ?? context.evidence.some(e => e.kind === "brochure"),
+    baseFacts: context.facts, evidence: context.evidence, response,
+    gaps: [...new Set([...(previous?.gaps ?? []), ...(checked.dropped && !checked.brochureFound ? ["Form ADV Part 2A not found; relationship summary or other PDF excluded"] : [])])], fetches: previous?.fetches ?? [],
+    brochureFound: checked.brochureFound,
     websiteRead: previous?.websiteRead ?? context.evidence.some(e => e.kind === "website") });
   return { companyId: input.companyId, documentId: data.documentId, ...await exportCallBriefs(db, input) };
 }

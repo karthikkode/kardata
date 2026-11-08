@@ -224,8 +224,19 @@ export function publicLinks(html: string, base: string) {
 }
 
 export function firmBrochureCover(cover: string) {
+  // A CRS cover can refer readers to Part 2A later; that reference is not its title.
+  const summary = /\b(?:form\s+adv\s+part\s*3|(?:customer\s+)?relationship\s+summary|form\s+crs)\b/i.exec(cover);
+  const brochure = /\b(?:form\s+adv\s+part\s*2\s*a|firm\s+brochure)\b/i.exec(cover);
+  if (summary && (!brochure || summary.index < brochure.index)) return false;
   const kind = brochureKind(cover);
   return kind === "firm" || (kind === "unknown" && /form\s+adv[\s\S]{0,80}part\s+2a/i.test(cover));
+}
+
+export function confirmedBrochureEvidence(evidence: Evidence[]) {
+  const brochures = new Set(evidence.filter(e => e.kind === "brochure").map(e => e.sourceId));
+  const accepted = new Set([...brochures].filter(id => firmBrochureCover(evidence.filter(e => e.sourceId === id && (e.page ?? 1) <= 2).map(e => e.text).join("\n"))));
+  return { evidence: evidence.filter(e => e.kind !== "brochure" || accepted.has(e.sourceId)), brochureFound: accepted.size > 0,
+    dropped: accepted.size !== brochures.size };
 }
 
 export async function publicBriefEvidence(db: Db, input: { companyId: string; runId: string; website: string | null;
