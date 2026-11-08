@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { CALL_OPENER, groundBrief, reasonLine, renderBrief, type BriefResponse, type CitedFact, type Evidence } from "../../src/domain/call-briefs/brief.js";
-import { changePercent, publicLinks, registrationAge } from "../../src/domain/call-briefs/evidence.js";
+import { changePercent, firmBrochureCover, publicLinks, registrationAge } from "../../src/domain/call-briefs/evidence.js";
 
 const evidence: Evidence[] = [{ id: "web", sourceId: "source", url: "https://example.test/services", date: "2026-11-08", dateKind: "read",
   kind: "website", text: "We provide financial planning and charge a flat fee." }];
@@ -49,4 +49,10 @@ it("prioritises brochure/services pages while excluding social and login links",
   const links = publicLinks(`<a href="/services">Services</a><a href="/adv.pdf">Form ADV</a>
     <a href="/login">Login</a><a href="https://linkedin.com/firm">About us</a><a href="https://other.test/services">Services</a>`, "https://example.test/");
   expect(links.map(l => l.url)).toEqual(["https://example.test/adv.pdf", "https://example.test/services"]);
+});
+
+it("does not treat a personnel supplement's reference to Part 2A as a firm brochure", () => {
+  expect(firmBrochureCover("Form ADV Part 2B Brochure Supplement. This accompanies the Form ADV Part 2A.")).toBe(false);
+  expect(firmBrochureCover("Wrap Fee Program Brochure Form ADV Part 2A Appendix 1")).toBe(false);
+  expect(firmBrochureCover("Form ADV Part 2A Firm Brochure")).toBe(true);
 });

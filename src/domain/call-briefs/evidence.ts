@@ -202,14 +202,18 @@ export function publicLinks(html: string, base: string) {
   return [...new Map(result.sort((a, b) => b.score - a.score).map(r => [r.url, r])).values()];
 }
 
+export function firmBrochureCover(cover: string) {
+  const kind = brochureKind(cover);
+  return kind === "firm" || (kind === "unknown" && /form\s+adv[\s\S]{0,80}part\s+2a/i.test(cover));
+}
+
 export async function publicBriefEvidence(db: Db, input: { companyId: string; runId: string; website: string | null;
   crd: string | null; denied: DeniedHosts }, fetchPage = fetchUrl) {
   const evidence: Evidence[] = [], notes: FetchNote[] = [], gaps: string[] = [];
   let brochureFound = false, websiteRead = false;
   const addPdf = async (source: typeof sources.$inferSelect, body: Buffer, date: string, dateKind: Evidence["dateKind"]) => {
     const pages = await pdfReviewPages(body);
-    const kind = brochureKind(pages.slice(0, 2).join("\n"));
-    if (kind !== "firm" && !/form\s+adv[\s\S]{0,80}part\s+2a/i.test(pages.slice(0, 2).join(" "))) return false;
+    if (!firmBrochureCover(pages.slice(0, 2).join("\n"))) return false;
     brochureFound = true;
     let chars = 0;
     for (const [i, text] of pages.entries()) {
