@@ -821,7 +821,7 @@ export async function blobText(db: Db, sha256: string, pdfPage?: number): Promis
   };
 }
 
-export async function getSourceExcerpt(db: Db, input: { sourceId: string; maxChars?: number; offset?: number; pdfPage?: number; companyScope?: string }) {
+export async function getSourceExcerpt(db: Db, input: { sourceId: string; maxChars?: number; offset?: number; pdfPage?: number; rawText?: boolean; companyScope?: string }) {
   const maxChars = input.maxChars ?? 5000;
   const offset = input.offset ?? 0;
   if (maxChars < 1 || maxChars > 5000) throw new DomainError("invalid_input", "maxChars must be 1..5000");
@@ -837,7 +837,15 @@ export async function getSourceExcerpt(db: Db, input: { sourceId: string; maxCha
   let totalChars: number | null = null;
   let pdfPage: { pageNumber: number; totalPages: number } | null = null;
   if (source.blobSha256) {
-    const blob = await blobText(db, source.blobSha256, input.pdfPage);
+    let blob: { text: string; pdfPage?: { pageNumber: number; totalPages: number } } | null;
+    if (input.rawText) {
+      if (input.pdfPage !== undefined) throw new DomainError("invalid_input", "rawText and pdfPage cannot be combined");
+      const [stored] = await db.select().from(blobs).where(eq(blobs.sha256, source.blobSha256));
+      if (!stored || !/^(?:text\/|application\/(?:json|xml|javascript))/i.test(stored.contentType ?? "")) {
+        throw new DomainError("invalid_input", "rawText supports stored text/HTML/JSON only");
+      }
+      blob = { text: gunzipSync(stored.gzip).toString("utf8") };
+    } else blob = await blobText(db, source.blobSha256, input.pdfPage);
     if (blob) {
       text = blob.text.slice(offset, offset + maxChars);
       totalChars = blob.text.length;

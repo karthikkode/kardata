@@ -419,21 +419,23 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   registerTool(server, db, auth, 
     "source_get",
     {
-      description: "Source metadata plus a paged excerpt of stored text, without fetching again. Optional pdfPage reads a physical PDF page beyond the default bounded text extraction; offset/totalChars then refer to that page. Without pdfPage, totalChars describes the bounded extracted text, not necessarily the entire PDF.",
+      description: "Source metadata plus a paged excerpt of stored text, without fetching again. Optional pdfPage reads a physical PDF page. rawText returns original stored HTML/JSON/text for checking public link URLs; never executes it. Without pdfPage, totalChars describes bounded extracted text unless rawText is requested.",
       inputSchema: {
         sourceId: z.string().describe("Source UUID"),
         maxChars: z.number().int().optional().describe("1..5000, default 5000"),
         offset: z.number().int().optional().describe("Stored-text character offset, default 0"),
         pdfPage: z.number().int().min(1).optional().describe("Optional physical PDF page, 1-based; returns pageNumber and totalPages"),
+        rawText: z.boolean().optional().describe("Read original stored HTML/text/JSON instead of readable text; no network; excludes PDF/binary"),
       },
     },
-    async ({ sourceId, maxChars, offset, pdfPage }) =>
+    async ({ sourceId, maxChars, offset, pdfPage, rawText }) =>
       wrap(async () => {
         const source = await getSourceExcerpt(db, {
           sourceId,
           maxChars: maxChars ?? undefined,
           offset: offset ?? undefined,
           pdfPage: pdfPage ?? undefined,
+          rawText: rawText ?? undefined,
           companyScope: auth.kind === "run" ? auth.companyId : undefined,
         });
         return { summary: `${source.url} (${source.status})`, data: source };
@@ -540,9 +542,10 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         runId: runId.optional().describe("Defaults to today's manual run for the company"),
         maxChars: z.number().int().optional().describe("1..20000, default 5000"),
         offset: z.number().int().optional().describe("Character offset, default 0"),
+        strictRobots: z.boolean().optional().describe("Skip when robots rules cannot be read (including robots HTTP 403); use for strict public research"),
       },
     },
-    async ({ companyId, url, runId: givenRunId, maxChars, offset }) =>
+    async ({ companyId, url, runId: givenRunId, maxChars, offset, strictRobots }) =>
       wrap(async () => {
         const max = maxChars ?? 5000;
         if (max < 1 || max > 20000) throw new Error("maxChars must be 1..20000");
@@ -554,6 +557,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
           collector: "agent",
           url,
           ...sourceFetchPolicy(url),
+          strictRobots: strictRobots ?? undefined,
           privateHostAllowlist: privateHostAllowlist(),
         });
         let text: string | null = null;
