@@ -69,3 +69,15 @@ it("retains confirmed names and titles when the filing disagrees and selects onl
   expect(filingPeople(rows)[0]).toMatchObject({ title: "Outdated Owner", filingId: "10", verification: "unconfirmed_public_filing" });
   expect(JSON.stringify(rows)).toBe(before);
 });
+
+it("keeps every reported role when one filed person has multiple statuses", () => {
+  const rows = [
+    { type: FILING_NAMES_STATUS, data: { filing_id: "10", filing_date: "2024-12-31" } },
+    ...[{ name: "Alex Example", title: "Founder" }, { name: "Alex Example", title: "COO" },
+      { name: "Sam Example", title: "CCO" }].map(p => ({ type: FILING_PEOPLE,
+      data: { ...p, filing_id: "10", filing_date: "2024-12-31" } })),
+  ];
+  expect(filingPeople(rows)).toHaveLength(3);
+  expect(contactCandidates(rows)).toHaveLength(2);
+  expect(bestContact(contactCandidates(rows), 2)).toMatchObject({ name: "Alex Example", title: "COO; Founder" });
+});

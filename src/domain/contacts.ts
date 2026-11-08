@@ -260,10 +260,10 @@ export async function companyContacts(db: Db, companyId: string): Promise<Compan
     .where(eq(companyContactStatuses.companyId, companyId));
   const order = [...PUBLIC_CONTACT_STATUSES, ...APOLLO_CONTACT_STATUSES] as ContactStatus[];
   rows.sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status));
-  const apollo = await db.select().from(apolloContacts).where(eq(apolloContacts.companyId, companyId));
+  const apollo = await db.select().from(apolloContacts).where(eq(apolloContacts.companyId, companyId)).orderBy(apolloContacts.apolloId);
   const contactRecords = await db.select({ type: records.type, data: records.data, verification: records.verification,
     sourceIds: records.sourceIds }).from(records).where(and(eq(records.companyId, companyId),
-    inArray(records.type, ["leader", FILING_PEOPLE, FILING_NAMES_STATUS])));
+    inArray(records.type, ["leader", FILING_PEOPLE, FILING_NAMES_STATUS]))).orderBy(records.createdAt, records.id);
   const [membership] = await db.select({ tier: sectorCompanies.riaTier }).from(sectorCompanies)
     .where(and(eq(sectorCompanies.companyId, companyId), inArray(sectorCompanies.riaDecision, ["Accept", "Hold"])));
   const candidates = contactCandidates(contactRecords, apollo.flatMap(p => p.name ? [{ name: p.name, title: p.title ?? "",

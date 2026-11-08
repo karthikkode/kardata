@@ -294,7 +294,7 @@ export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRo
       .where(and(inArray(records.companyId, ids), inArray(records.type, ["leader", FILING_PEOPLE, FILING_NAMES_STATUS])))
       .orderBy(records.createdAt, records.id)) append(leadersById, row.companyId, row);
     for (const row of await db.select({ companyId: apolloContacts.companyId, name: apolloContacts.name,
-      title: apolloContacts.title, source: apolloContacts.source }).from(apolloContacts).where(inArray(apolloContacts.companyId, ids))) {
+      title: apolloContacts.title, source: apolloContacts.source }).from(apolloContacts).where(inArray(apolloContacts.companyId, ids)).orderBy(apolloContacts.apolloId)) {
       if (row.name) append(apolloById, row.companyId, { name: row.name, title: row.title ?? "", source: row.source, verification: "apollo" });
     }
     for (const row of await db.select().from(factsCurrent).where(and(inArray(factsCurrent.companyId, ids), ne(factsCurrent.createdBy, SNAPSHOT_COLLECTOR),
