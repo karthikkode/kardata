@@ -2,7 +2,7 @@
 
 PR #189 merged and deployed at ee6737d. Import, gap marking, checks and export used standard MCP tools; no paid/model calls.
 Code: `src/domain/sec-adv/owner-names.ts` (latest stored CRD filing, individuals only); `contact-people.ts` (tier selection/provenance).
-Validation: full suite 130 files / 1,170 tests passed, 1 optional live test skipped; CI passed. Ordering follow-up: 13 targeted tests, lint and typecheck passed.
+Validation: local full suite 130 files / 1,170 tests passed, 1 optional live test skipped; initial CI passed. Selection follow-up: 19 targeted tests, lint and typecheck passed.
 Unit/MCP evidence: `tests/unit/sec-owner-names.test.ts`, `tests/mcp/sec-owner-names.test.ts`; contacts and existing RIA/skincare tests passed.
 
 | Cohort | Firms | Named person | Missing |
@@ -24,7 +24,7 @@ Tier 0 unavailable IDs: 03b2d1d9-d4b5-4b6c-b394-86df5270bff8, 03c27f16-8510-485b
 Tier 2 unavailable IDs: 000ed8f4-d12a-4b1e-8174-4eb319c82835, 005f369b-5e1b-452f-bb83-7c59247b6caf, 006949e2-5115-4a0c-97fd-8f782cfe2efc, 008dafb1-937b-44d1-b0e5-6650c1c46016, 008fdd99-f2e5-406b-984d-f9038fe8dc22.
 Tier 2 unavailable IDs: 0090e79f-270a-4bd1-a531-409598903860, 00a60914-5c48-476e-b5ed-a22491ab5f39, 00c18ea1-cc13-46c7-8579-65dedc1df8d9, 010f2bad-2592-4aca-9f69-0ae41e1f9e19, 014acffc-95c7-49c5-8d5a-df96a1b51bf5.
 MCP contacts read-back verified provenance for 20/20; CSV exports 8,841 accepted firms with selected contact and filing metadata.
-Output-order discrepancy at firm 005ad947-eb7f-4a06-b3eb-763af3d57e8e: duplicate leaders read in different orders; this follow-up makes MCP/CSV ordering identical, with a regression test.
+Output-order discrepancy at firm 005ad947-eb7f-4a06-b3eb-763af3d57e8e: one person has multiple Schedule A statuses; this follow-up combines reported roles and gives MCP/CSV identical ordering, with regression tests.
 Re-run: 0 written, 13,728 unchanged; no duplicate contacts. Confirmed contacts are preserved; filing names remain unconfirmed/may be out of date. Apollo-only contactability unchanged.
 All 8,642,495 facts, all saved revisions (including 8598a1e041f2ffbee69f8a42), and all fee-job rows/lists unchanged; paused job retains its 8,403 IDs.
 Unfinished: names for 1,761 firms and current-report comparisons for 20 firms remain unavailable because the newer SEC source blocks robots access.

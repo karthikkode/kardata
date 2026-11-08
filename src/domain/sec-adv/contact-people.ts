@@ -60,7 +60,17 @@ export function contactCandidates(rows: ContactRecord[], others: ContactPerson[]
     name: text(r.data.name), title: text(r.data.title ?? r.data.role), source: "leader records",
     verification: r.verification, sourceIds: r.sourceIds,
   }));
-  const filed = filingPeople(rows);
+  const byPerson = new Map<string, ContactPerson>();
+  for (const person of filingPeople(rows)) {
+    const key = nameKey(person.name);
+    const existing = byPerson.get(key);
+    if (!existing) { byPerson.set(key, { ...person }); continue; }
+    // Several Schedule A statuses can name the same person. Keep every
+    // reported role available to tier selection; raw rows remain in filingPeople.
+    existing.title = [...new Set([existing.title, person.title].flatMap(t => t.split("; ")).filter(Boolean))].sort().join("; ");
+    existing.sourceIds = [...new Set([...(existing.sourceIds ?? []), ...(person.sourceIds ?? [])])];
+  }
+  const filed = [...byPerson.values()];
   const all: ContactPerson[] = [...others, ...leaders, ...filed].map(p => ({ ...p })).sort((a, b) => Number(confirmed(b)) - Number(confirmed(a)) ||
     Number(b.verification === "unconfirmed_public_filing") - Number(a.verification === "unconfirmed_public_filing"));
   const seen = new Set<string>();
