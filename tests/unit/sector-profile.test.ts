@@ -118,7 +118,7 @@ describe("playbook (Stage 5.7 B1)", () => {
   it("parses a minimal ria profile without D2C-only fields", () => {
     const profile = parseSectorProfile(riaInput);
     expect(profile.playbook).toBe("ria");
-    expect(profile.ria).toEqual(riaInput.ria);
+    expect(profile.ria).toMatchObject({ minEmployees: 1, tier2MinAum: 500_000_000, tier2MinEmployees: 10 });
     expect(profile.scope.businessTypes).toEqual([]);
     expect(profile.scope.requireSellsOwnProducts).toBe(false);
     expect(categoryKeys(profile)).toEqual(["wealth_management", "other"]);
@@ -131,9 +131,9 @@ describe("playbook (Stage 5.7 B1)", () => {
     expect(profile.playbook).toBe("ria");
     expect(profile.ria?.maxAum).toBe(10_000_000_000);
     expect(profile.ria?.maxEmployees).toBe(100);
-    expect(profile.ria?.minEmployees).toBe(2);
+    expect(profile.ria?.minEmployees).toBe(1);
     expect(profile.ria?.minWealthShare).toBe(0.5);
-    expect(profile.ria?.groupSplitAum).toBe(500_000_000);
+    expect(profile.ria?.tier2MinAum).toBe(500_000_000);
   });
 
   it("parses the skincare profile unchanged as d2c", () => {

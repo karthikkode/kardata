@@ -64,7 +64,7 @@ describe("RIA step status (B1)", () => {
     const absent = rows.find((r) => r.sec_crd === "900002");
     if (!absent) throw new Error("missing firm");
     const triple = await deriveCompany(handle.db, sector.id, absent.id);
-    expect(triple).toMatchObject({ eligibility: "ineligible", reason: "not_current" });
+    expect(triple).toMatchObject({ eligibility: "ineligible", reason: "not_active" });
   });
 });
 

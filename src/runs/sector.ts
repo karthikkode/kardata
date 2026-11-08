@@ -359,6 +359,9 @@ export interface SectorSummaryBucket {
   primaryCategory: string;
   eligibility: string;
   count: number;
+  decision?: string | null;
+  tier?: number | null;
+  classificationReason?: string | null;
   examples: { companyId: string; name: string | null; reason: string; quote: string | null }[];
 }
 
@@ -372,6 +375,9 @@ export async function sectorPreflightSummary(db: Db, sectorId: string): Promise<
       reason: sectorPreflight.reason,
       quote: sectorPreflight.quote,
       eligibility: sectorCompanies.eligibility,
+      decision: sectorCompanies.riaDecision,
+      tier: sectorCompanies.riaTier,
+      classificationReason: sectorCompanies.eligibilityReason,
     })
     .from(sectorPreflight)
     .innerJoin(
@@ -386,13 +392,14 @@ export async function sectorPreflightSummary(db: Db, sectorId: string): Promise<
   const buckets = new Map<string, SectorSummaryBucket>();
   const ordered = [...rows].sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
   for (const row of ordered) {
-    const key = `${row.businessType}|${row.primaryCategory}|${row.eligibility}`;
+    const key = `${row.businessType}|${row.primaryCategory}|${row.eligibility}|${row.decision ?? ""}|${row.tier ?? ""}|${row.decision ? row.classificationReason : ""}`;
     let bucket = buckets.get(key);
     if (!bucket) {
       bucket = {
         businessType: row.businessType,
         primaryCategory: row.primaryCategory,
         eligibility: row.eligibility,
+        ...(row.decision ? { decision: row.decision, tier: row.tier, classificationReason: row.classificationReason } : {}),
         count: 0,
         examples: [],
       };
@@ -431,6 +438,9 @@ export interface SectorPreflightCompanyRow {
   employees: number | null;
   eligibility: string;
   eligibilityReason: string | null;
+  decision: string | null;
+  tier: number | null;
+  classificationReason: string | null;
   businessType: string;
   primaryCategory: string;
   sellsOwnProducts: boolean;
@@ -470,6 +480,9 @@ export async function sectorPreflightCompanies(
       country: companies.country,
       employees: companies.employees,
       eligibility: sectorCompanies.eligibility,
+      decision: sectorCompanies.riaDecision,
+      tier: sectorCompanies.riaTier,
+      classificationReason: sectorCompanies.eligibilityReason,
       eligibilityReason: sectorCompanies.eligibilityReason,
       businessType: sectorPreflight.businessType,
       primaryCategory: sectorPreflight.primaryCategory,

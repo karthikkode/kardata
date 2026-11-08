@@ -71,7 +71,7 @@ export function buyerOrder(staff: number | null): string {
 
 /** Counted signals as "label (date): observation url", strongest evidence first. */
 export function observations(check: CompanyIcpCheck): string[] {
-  const results = (check.results as { signals?: BucketResult[] }).signals ?? [];
+  const results = (check.results as { signals?: BucketResult[] } | undefined)?.signals ?? [];
   const evidence = new Map((check.evidence as EvidenceItem[]).map((e) => [e.ref, e]));
   const out: string[] = [];
   for (const s of results) {
@@ -149,7 +149,7 @@ export async function allCheckedRows(db: Db, sectorId: string): Promise<SectorIc
   return rows;
 }
 
-// ---- RIA sheet (Stage 5.7 B6): firm, state, time zone, group, layer ----
+// ---- RIA sheet (Stage 5.7 B6): firm, state, time zone, tier, layer ----
 
 const STATE_TZ: Record<string, string> = {};
 for (const s of ["ME", "VT", "NH", "MA", "RI", "CT", "NY", "NJ", "PA", "DE", "MD", "VA", "WV", "OH", "MI", "IN", "KY", "TN", "SC", "NC", "GA", "FL", "DC"]) STATE_TZ[s] = "America/New_York";
@@ -169,10 +169,10 @@ const OPS_TITLE = /\b(coo|chief operating|director of operations|head of operati
 const CCO_TITLE = /\b(compliance officer|chief compliance|cco)\b/i;
 const FOUNDER_TITLE = /\b(founder|managing partner|president|ceo|owner)\b/i;
 
-export function pickContact(leaders: { name: string; title: string }[], group: string): { name: string; title: string } | null {
+export function pickContact(leaders: { name: string; title: string }[], tier: string): { name: string; title: string } | null {
   // A two-letter fragment (e.g. "CO" from "CO-FOUNDER") is not a name.
   leaders = leaders.filter((l) => isContactName(l.name));
-  const order = group === "R" ? [OPS_TITLE, CCO_TITLE, FOUNDER_TITLE] : [FOUNDER_TITLE, OPS_TITLE];
+  const order = tier === "2" ? [OPS_TITLE, CCO_TITLE, FOUNDER_TITLE] : [FOUNDER_TITLE, OPS_TITLE];
   for (const pattern of order) {
     const found = leaders.find((l) => pattern.test(l.title));
     if (found) return found;
@@ -185,7 +185,9 @@ export interface RiaSheetRow {
   firm: string;
   state: string;
   timeZone: string;
-  group: string;
+  decision: "Accept";
+  tier: string;
+  reason: string;
   layer: number;
   score: number;
   signals: string[];
@@ -208,7 +210,9 @@ export const RIA_HEADER = [
   "Firm",
   "State",
   "Time zone",
-  "Group",
+  "Decision",
+  "Tier",
+  "Reason",
   "Layer",
   "Score",
   "Signals",
@@ -229,15 +233,15 @@ export const RIA_HEADER = [
   ...TRACKING_COLUMNS,
 ];
 
-export function riaTopSignals(check: CompanyIcpCheck, groupFrequency?: Map<string, number>): { top: string[]; lead: string } {
-  const results = (check.results as { signals?: BucketResult[] }).signals ?? [];
+export function riaTopSignals(check: CompanyIcpCheck, tierFrequency?: Map<string, number>): { top: string[]; lead: string } {
+  const results = (check.results as { signals?: BucketResult[] } | undefined)?.signals ?? [];
   const evidence = new Map((check.evidence as EvidenceItem[]).map((e) => [e.ref, e]));
   const counted = results.filter((s) => s.counted);
   // Lead = the firm's rarest counted signal (frequency over all eligible
-  // firms of its group); the fixed priority only breaks ties.
+  // firms of its tier); the fixed priority only breaks ties.
   counted.sort((a, b) => {
-    const fa = groupFrequency?.get(a.key) ?? 0;
-    const fb = groupFrequency?.get(b.key) ?? 0;
+    const fa = tierFrequency?.get(a.key) ?? 0;
+    const fb = tierFrequency?.get(b.key) ?? 0;
     if (fa !== fb) return fa - fb;
     const ia = (RIA_LEAD_PRIORITY as readonly string[]).indexOf(a.key);
     const ib = (RIA_LEAD_PRIORITY as readonly string[]).indexOf(b.key);
@@ -259,7 +263,7 @@ export function riaTopSignals(check: CompanyIcpCheck, groupFrequency?: Map<strin
 
 export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRow[]> {
   const base = await sectorSheetRows(db, sectorId);
-  // Group signal frequencies (over checked firms of each group) for the
+  // Tier signal frequencies (over checked firms of each tier) for the
   // rarest-signal lead.
   const checks = new Map<string, CompanyIcpCheck | null>();
   const companyById = new Map<string, { state: string | null; phone: string | null; website: string | null }>();
@@ -291,20 +295,19 @@ export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRo
       .where(and(inArray(documents.companyId, ids), eq(documents.isCurrent, true), inArray(documents.path, ["financials/brochure-item-5.md", FULL_BROCHURE_PATH])))) append(brochuresById, row.companyId, row);
     for (const row of await db.select().from(riaStepRuns).where(and(eq(riaStepRuns.sectorId, sectorId), inArray(riaStepRuns.companyId, ids), inArray(riaStepRuns.step, [...RIA_STEPS])))) append(stepsById, row.companyId, row);
   }
-  const freqByGroup = new Map<string, Map<string, number>>();
+  const freqByTier = new Map<string, Map<string, number>>();
   for (const row of base) {
     const check = checks.get(row.companyId);
-    if (!check) continue;
-    const denom = (freqByGroup.get(row.tier)?.get("__n") ?? 0) + 1;
-    const map = freqByGroup.get(row.tier) ?? new Map<string, number>();
+    const denom = (freqByTier.get(row.tier)?.get("__n") ?? 0) + 1;
+    const map = freqByTier.get(row.tier) ?? new Map<string, number>();
     map.set("__n", denom);
-    for (const s of ((check.results as { signals?: BucketResult[] }).signals ?? [])) {
+    for (const s of ((check?.results as { signals?: BucketResult[] } | undefined)?.signals ?? [])) {
       if (s.counted) map.set(s.key, (map.get(s.key) ?? 0) + 1);
     }
-    freqByGroup.set(row.tier, map);
+    freqByTier.set(row.tier, map);
   }
-  const groupFrequency = (tier: string): Map<string, number> => {
-    const map = freqByGroup.get(tier);
+  const tierFrequency = (tier: string): Map<string, number> => {
+    const map = freqByTier.get(tier);
     const out = new Map<string, number>();
     if (!map) return out;
     const n = map.get("__n") ?? 0;
@@ -371,11 +374,13 @@ export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRo
       firm: row.company,
       state: company?.state ?? "",
       timeZone: timeZoneForState(company?.state ?? null),
-      group: row.tier,
+      decision: "Accept",
+      tier: row.tier,
+      reason: `tier:${row.tier}`,
       layer: row.layer,
       score: row.score,
-      signals: check ? riaTopSignals(check, groupFrequency(row.tier)).top : [],
-      leadSignal: check ? riaTopSignals(check, groupFrequency(row.tier)).lead : "",
+      signals: check ? riaTopSignals(check, tierFrequency(row.tier)).top : [],
+      leadSignal: check ? riaTopSignals(check, tierFrequency(row.tier)).lead : "",
       contactName: contact?.name ?? "",
       contactTitle: contact?.title ?? "",
       phone: company?.phone ?? "",
@@ -390,7 +395,7 @@ export async function riaSheetRows(db: Db, sectorId: string): Promise<RiaSheetRo
       brochureDate,
     });
   }
-  rows.sort((a, b) => (a.group === b.group ? a.layer - b.layer || b.score - a.score : a.group.localeCompare(b.group)));
+  rows.sort((a, b) => (a.tier === b.tier ? a.layer - b.layer || b.score - a.score : a.tier.localeCompare(b.tier)));
   return rows;
 }
 
@@ -402,7 +407,9 @@ export function riaCsv(rows: RiaSheetRow[]): string {
         cell(r.firm),
         cell(r.state),
         cell(r.timeZone),
-        r.group,
+        r.decision,
+        r.tier,
+        r.reason,
         r.layer,
         r.score,
         cell(r.signals.join(" | ")),

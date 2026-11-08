@@ -25,7 +25,7 @@ markdown.
 
 ## Sector preflight (context only, not evidence)
 
-For advisers the preflight is rule-based: size group P (under $500M AUM) or R ($500M-$10B) replaces the revenue tier. Score 0 is still called, last (layer 8).
+For advisers the preflight is rule-based: the decision is Accept, Hold or Reject. Accepted firms get Tier 0 (one employee), Tier 2 ($500M–$10B AUM and 10–100 employees), or Tier 1 (every other accepted firm). Hold is never rejected. Score 0 is still called, last (layer 8).
 
 {{preflight}}
 

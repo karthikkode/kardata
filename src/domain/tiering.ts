@@ -1,3 +1,5 @@
+import { evaluateRia, type RiaDecision, type RiaTier } from "./sector-preflight/ria.js";
+import { loadRiaFacts } from "./sector-preflight/eligibility.js";
 import { SNAPSHOT_COLLECTOR } from "./sec-adv/evidence.js";
 import { requireProspectCompany, requireProspectSector } from "./evidence-library.js";
 import { and, eq, inArray, ne } from "drizzle-orm";
@@ -129,7 +131,7 @@ export function classifyRevenueSourceKind(
 export function isPublicKind(kind: RevenueSourceKind): boolean {
   return kind !== "vendor_estimate";
 }
-export type Tier = "A" | "B" | "C" | null;
+export type Tier = "A" | "B" | "C" | "0" | "1" | "2" | null;
 /**
  * Lowest score that is ICP accepted (D-64): one signal is a Layer 6 discovery
  * call; score 0 goes to the ICP watchlist (D-67).
@@ -170,6 +172,8 @@ export interface RevenueTruth {
   rejected: { amount: number; source: string; reason: string } | null;
   staff: StaffCount | null;
   tier: Tier;
+  decision?: RiaDecision;
+  reason?: string | null;
   score: number | null;
   layer: number | null;
   status: IcpStatus;
@@ -407,24 +411,13 @@ function factAmount(row: { valueNum: unknown; valueJson: unknown }): number | nu
   return null;
 }
 
-function riaRevenueTruth(companyId: string, groupSplitAum: number, aum: number | null, staffCandidates: StaffCount[],
+function riaRevenueTruth(companyId: string, classification: { decision: RiaDecision; tier: RiaTier | null; reason: string | null }, aum: number | null, staffCandidates: StaffCount[],
   verdict: { score: number; status: string; exclusionReason: string | null } | null | undefined): RevenueTruth & { companyId: string } {
   const score = verdict ? verdict.score : null;
-  const group = aum === null ? null : aum < groupSplitAum ? "P" : "R";
   const revenueUsed = aum === null ? null : Math.round(aum * 0.008);
-  let status: IcpStatus;
-  let exclusionReason: string | null = null;
-  if (verdict?.status === "icp_rejected") {
-    status = "icp_rejected";
-    exclusionReason = verdict.exclusionReason ?? "rejected";
-  } else if (verdict?.status === "research_incomplete") {
-    status = "research_incomplete";
-  } else if (score === null) {
-    status = "icp_watchlist";
-  } else {
-    // Advisers: score 0 is still called, last (layer 8).
-    status = "icp_accepted";
-  }
+  const status: IcpStatus = classification.decision === "Accept" ? "icp_accepted"
+    : classification.decision === "Hold" ? "icp_watchlist" : "icp_rejected";
+  const exclusionReason = classification.decision === "Accept" ? null : classification.reason;
   return {
     companyId,
     revenueUsed,
@@ -434,9 +427,11 @@ function riaRevenueTruth(companyId: string, groupSplitAum: number, aum: number |
     flaggedFigure: null,
     rejected: null,
     staff: pickStaff(staffCandidates),
-    tier: group as Tier,
+    tier: classification.tier === null ? null : String(classification.tier) as Tier,
+    decision: classification.decision,
+    reason: classification.reason,
     score,
-    layer: score === null ? null : 8 - score,
+    layer: classification.decision === "Accept" ? 8 - (score ?? 0) : null,
     status,
     exclusionReason,
     flags: revenueUsed === null ? ["no AUM basis"] : [`revenue estimated as AUM x 0.8%: $${revenueUsed.toLocaleString("en-US")}`],
@@ -527,7 +522,10 @@ export async function companyRevenueTruth(db: Db, companyId: string, sectorId: s
       .from(factsCurrent)
       .where(and(eq(factsCurrent.companyId, companyId), ne(factsCurrent.createdBy, SNAPSHOT_COLLECTOR), eq(factsCurrent.key, "firm.regulatory_aum")));
     const aum = aumRow ? factAmount(aumRow) : null;
-    return riaRevenueTruth(companyId, profile.ria.groupSplitAum, aum, staffCandidates, verdict);
+    const [membership] = await db.select().from(sectorCompanies).where(and(eq(sectorCompanies.sectorId, sectorId!), eq(sectorCompanies.companyId, companyId)));
+    const classification = membership?.riaDecision ? { decision: membership.riaDecision, tier: membership.riaTier, reason: membership.eligibilityReason }
+      : evaluateRia((await loadRiaFacts(db, companyId)).facts, profile.ria);
+    return riaRevenueTruth(companyId, classification, aum, staffCandidates, verdict);
   }
 
   const truth = computeRevenueTruth({
@@ -571,6 +569,11 @@ export async function sectorSheetRows(db: Db, sectorId: string): Promise<SheetRo
       name: companies.name,
       domain: companies.domain,
       country: companies.country,
+      state: companies.state,
+      employees: companies.employees,
+      riaDecision: sectorCompanies.riaDecision,
+      riaTier: sectorCompanies.riaTier,
+      reason: sectorCompanies.eligibilityReason,
     })
     .from(sectorCompanies)
     .innerJoin(companies, eq(sectorCompanies.companyId, companies.id))
@@ -583,7 +586,7 @@ export async function sectorSheetRows(db: Db, sectorId: string): Promise<SheetRo
     for (let offset = 0; offset < members.length; offset += 500) {
       const ids = members.slice(offset, offset + 500).map((m) => m.companyId);
       const current = await db.select().from(factsCurrent).where(and(inArray(factsCurrent.companyId, ids), ne(factsCurrent.createdBy, SNAPSHOT_COLLECTOR),
-        inArray(factsCurrent.key, ["firm.regulatory_aum", "financials.employees"])));
+        inArray(factsCurrent.key, ["firm.regulatory_aum", "financials.employees", "firm.wealth_share", "firm.firm_type", "firm.registration_status"])));
       const verdicts = await db.select().from(companyVerdicts).where(and(eq(companyVerdicts.sectorId, sectorId), inArray(companyVerdicts.companyId, ids)));
       const verdictById = new Map(verdicts.map((v) => [v.companyId, v]));
       const factById = new Map<string, typeof current>();
@@ -597,7 +600,15 @@ export async function sectorSheetRows(db: Db, sectorId: string): Promise<SheetRo
           staffCandidates.push({ count: Math.round(n), source: sourceRaw === "companies_house" ? "companies_house" : sourceRaw === "apollo" ? "apollo" : "other", asOf: row.asOf ? String(row.asOf).slice(0, 10) : null });
         }
         const aum = list.find((r) => r.key === "firm.regulatory_aum");
-        riaTruths.set(id, riaRevenueTruth(id, profile.ria.groupSplitAum, aum ? factAmount(aum) : null, staffCandidates, verdictById.get(id)));
+        const membership = members.find(m => m.companyId === id)!;
+        const classification = membership.riaDecision ? { decision: membership.riaDecision, tier: membership.riaTier, reason: membership.reason }
+          : evaluateRia({ aum: aum ? factAmount(aum) : null,
+              employees: pickStaff(staffCandidates)?.count ?? membership.employees,
+              wealthShare: factAmount(list.find(r => r.key === "firm.wealth_share") ?? { valueNum: null, valueJson: null }),
+              firmType: list.find(r => r.key === "firm.firm_type")?.valueText ?? null,
+              registrationStatus: list.find(r => r.key === "firm.registration_status")?.valueText ?? null,
+              country: membership.country, state: membership.state }, profile.ria);
+        riaTruths.set(id, riaRevenueTruth(id, classification, aum ? factAmount(aum) : null, staffCandidates, verdictById.get(id)));
       }
     }
   }
@@ -626,7 +637,7 @@ export async function sectorSheetRows(db: Db, sectorId: string): Promise<SheetRo
       staff: truth.staff?.count ?? null,
     });
   }
-  const tierOrder: Record<string, number> = { A: 0, B: 1, C: 2 };
+  const tierOrder: Record<string, number> = { A: 0, B: 1, C: 2, "0": 0, "1": 1, "2": 2 };
   rows.sort(
     (a, b) =>
       (tierOrder[a.tier] ?? 9) - (tierOrder[b.tier] ?? 9) ||
@@ -672,6 +683,7 @@ export interface SectorTierSummary {
   /** D-67: companies per contact status, and how many have an Apollo-verified email. */
   byContactStatus: Record<string, number>;
   contactable: number;
+  classification?: { byDecision: Record<string, number>; byTier: Record<string, number>; byReason: Record<string, number> };
 }
 
 export async function sectorTierSummary(db: Db, sectorId: string): Promise<SectorTierSummary> {
@@ -711,7 +723,11 @@ export async function sectorTierSummary(db: Db, sectorId: string): Promise<Secto
     for (const s of statuses) byContactStatus[s] = (byContactStatus[s] ?? 0) + 1;
     if (isContactable(statuses)) contactable += 1;
   }
+  const profile = await getProfileOrNull(db, sectorId);
+  const classification = profile?.playbook === "ria"
+    ? await (await import("./sector-preflight/ria-classification.js")).riaClassifications(db, { sectorId, limit: 1 }) : null;
   return {
+    ...(classification ? { classification: { byDecision: classification.byDecision, byTier: classification.byTier, byReason: classification.byReason } } : {}),
     sectorId,
     companiesWithVerdicts: withVerdicts,
     byTierLayer,

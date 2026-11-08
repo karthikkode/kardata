@@ -1,6 +1,7 @@
+import { heavyBookCache as heavyCache, p75 } from "../sector-preflight/ria-ranking.js";
 import { SNAPSHOT_COLLECTOR } from "../sec-adv/evidence.js";
 import { createHash, randomUUID } from "node:crypto";
-import { and, asc, eq, inArray, ne } from "drizzle-orm";
+import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 import { load } from "cheerio";
 import type { Db } from "../../db/client.js";
 import { companies, documents, facts, factsCurrent, records, researchRuns, sectorCompanies } from "../../db/schema.js";
@@ -748,20 +749,12 @@ export function custodianNames(raw: { valueText: string | null; valueJson: unkno
   return [...seen.values()];
 }
 
-const heavyCache = new Map<string, { at: number; accountsP75: number; clientsP75: number }>();
-
-function p75(values: number[]): number {
-  if (values.length === 0) return Number.POSITIVE_INFINITY;
-  const sorted = [...values].sort((a, b) => a - b);
-  return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.75))] as number;
-}
-
-async function heavyThresholds(db: Db, sectorId: string, group: string | null): Promise<{ accountsP75: number; clientsP75: number }> {
-  const cacheKey = `${sectorId}:${group ?? "all"}`;
+async function heavyThresholds(db: Db, sectorId: string, tier: number | null): Promise<{ accountsP75: number; clientsP75: number }> {
+  const cacheKey = `${sectorId}:${tier ?? "all"}`;
   const hit = heavyCache.get(cacheKey);
   if (hit && Date.now() - hit.at < 10 * 60_000) return hit;
-  const members = await db.select({ companyId: sectorCompanies.companyId, reason: sectorCompanies.eligibilityReason }).from(sectorCompanies).where(eq(sectorCompanies.sectorId, sectorId));
-  const ids = members.filter((m) => group === null || m.reason === `group:${group}`).map((m) => m.companyId);
+  const members = await db.select({ companyId: sectorCompanies.companyId, tier: sectorCompanies.riaTier, decision: sectorCompanies.riaDecision }).from(sectorCompanies).where(and(eq(sectorCompanies.sectorId, sectorId), eq(sectorCompanies.riaDecision, "Accept"), sql`${sectorCompanies.removedAt} is null`));
+  const ids = members.filter((m) => m.decision === "Accept" && m.tier === tier).map((m) => m.companyId);
   const per = new Map<string, { accounts?: number; clients?: number; staff?: number }>();
   if (ids.length > 0) {
     const rows = await db
@@ -847,13 +840,13 @@ export const signalsStep: StepHandler = async (db, sectorId, companyId) => {
   const growthStaffPct = staffSeries ? (staffSeries.last - staffSeries.first) / staffSeries.first : null;
   const growthStaffDelta = staffSeries ? staffSeries.last - staffSeries.first : null;
 
-  // Heavy book: top quartile of accounts/clients per employee in the group.
+  // Heavy book: top quartile of accounts/clients per employee in the tier.
   const [membership] = await db
-    .select({ reason: sectorCompanies.eligibilityReason })
+    .select({ tier: sectorCompanies.riaTier, decision: sectorCompanies.riaDecision })
     .from(sectorCompanies)
     .where(and(eq(sectorCompanies.sectorId, sectorId), eq(sectorCompanies.companyId, companyId)));
-  const group = membership?.reason === "group:P" ? "P" : membership?.reason === "group:R" ? "R" : null;
-  const thresholds = await heavyThresholds(db, sectorId, group);
+  const tier = membership?.tier ?? null;
+  const thresholds = await heavyThresholds(db, sectorId, tier);
   const staff = numOf("financials.employees");
   const accounts = numOf("firm.accounts");
   const clients = numOf("firm.client_total");
@@ -883,7 +876,7 @@ export const signalsStep: StepHandler = async (db, sectorId, companyId) => {
     systemCount: systemNames.size,
   });
   const observations: Record<string, string> = {
-    heavy_book: accountsPer !== null ? `${Math.round(accountsPer)} accounts per employee (top quartile of ${group ?? "group"})` : clientsPer !== null ? `${Math.round(clientsPer)} clients per employee (top quartile of ${group ?? "group"})` : "",
+    heavy_book: accountsPer !== null ? `${Math.round(accountsPer)} accounts per employee (top quartile of Tier ${tier ?? "unknown"})` : clientsPer !== null ? `${Math.round(clientsPer)} clients per employee (top quartile of Tier ${tier ?? "unknown"})` : "",
     multi_custodian: custodians.join(", "),
     growth:
       growthAumPct !== null && growthAumPct >= 0.3

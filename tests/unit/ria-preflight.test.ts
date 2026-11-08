@@ -16,6 +16,7 @@ describe("evaluateRia", () => {
   it.each([
     [{ employees: 0 }, "Reject", null, "no_staff"],
     [{ employees: 1 }, "Accept", 0, null],
+    [{ employees: 1, aum: 500_000_000 }, "Accept", 0, null],
     [{ employees: 2 }, "Accept", 1, null],
     [{ employees: 10, aum: 500_000_000 }, "Accept", 2, null],
     [{ employees: 10, aum: 499_999_999 }, "Accept", 1, null],

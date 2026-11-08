@@ -85,7 +85,7 @@ describe("synthetic RIA sector end to end (Stage 5.7 B7)", () => {
     const membership = (await db.execute(
       sql`SELECT eligibility, eligibility_reason FROM sector_companies WHERE sector_id = ${sector.id} AND company_id = ${companyId}`,
     )) as unknown as { eligibility: string; eligibility_reason: string }[];
-    expect(membership[0]).toMatchObject({ eligibility: "eligible", eligibility_reason: "group:P" });
+    expect(membership[0]).toMatchObject({ eligibility: "eligible", eligibility_reason: "tier:1" });
 
     // Collect (fake site).
     const [collectRun] = await db
@@ -197,10 +197,11 @@ describe("synthetic RIA sector end to end (Stage 5.7 B7)", () => {
     expect(icp.decision.score).toBeGreaterThanOrEqual(1);
 
     const truth = await companyRevenueTruth(db, companyId, sector.id);
-    expect(truth.tier).toBe("P");
+    expect(truth.tier).toBe("1");
     const sheet = await riaSheetRows(db, sector.id);
-    expect(sheet).toHaveLength(1);
-    expect(sheet[0]).toMatchObject({ firm: "Test Wealth One LLC", group: "P", contactName: "Fake Founder" });
+    expect(sheet).toHaveLength(2);
+    expect(sheet.find(r => r.firm === "Test Wealth Two LLC")).toMatchObject({ decision: "Accept", tier: "2", score: 0 });
+    expect(sheet[0]).toMatchObject({ firm: "Test Wealth One LLC", decision: "Accept", tier: "1", contactName: "Fake Founder" });
     void eq;
   });
 });

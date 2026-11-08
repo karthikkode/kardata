@@ -294,6 +294,7 @@ export interface EvidencePack extends BuiltPack {
   playbook?: "d2c" | "ria";
   /** Preflight reason key when the ria preflight kept the firm aside. */
   riaExclusion?: string | null;
+  riaHold?: string | null;
 }
 
 /* Fact/record routing is derived per playbook inside icpEvidence. */
@@ -447,5 +448,6 @@ export async function icpEvidence(db: Db, sectorId: string, companyId: string, n
     },
     playbook,
     riaExclusion,
+    riaHold: playbook === "ria" && membership?.eligibility === "review" ? membership.eligibilityReason : null,
   };
 }
