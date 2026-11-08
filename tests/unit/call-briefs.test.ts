@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { CALL_OPENER, groundBrief, reasonLine, renderBrief, type BriefResponse, type CitedFact, type Evidence } from "../../src/domain/call-briefs/brief.js";
-import { changePercent, filedServices, firmBrochureCover, publicLinks, registrationAge } from "../../src/domain/call-briefs/evidence.js";
+import { changePercent, confirmedBrochureEvidence, filedServices, firmBrochureCover, publicLinks, registrationAge } from "../../src/domain/call-briefs/evidence.js";
 
 const evidence: Evidence[] = [{ id: "web", sourceId: "source", url: "https://example.test/services", date: "2026-11-08", dateKind: "read",
   kind: "website", text: "We provide financial planning and charge a flat fee." }];
@@ -20,6 +20,8 @@ it("uses the owner's exact new opener and reason shape, with no retired pitch", 
   expect(reasonLine(response)).toBe("Most solo advisers I talk to lose hours a week on checking account lists or organising planning documents. Which one takes most of your time?");
   expect(rendered.markdown).toContain("owner not found");
   expect(rendered.markdown).toContain("custodian: not found");
+  expect(rendered.markdown).toContain("client count not found");
+  expect(rendered.markdown).not.toContain("[1][1]");
   expect(rendered.markdown).toContain("**Guess:** May need separate account checks [1]");
   expect(rendered.markdown).toContain("read 2026-11-08");
   expect(rendered.markdown).toContain("<details>");
@@ -62,6 +64,10 @@ it("does not treat a personnel supplement's reference to Part 2A as a firm broch
   expect(firmBrochureCover("Form ADV Part 2B Brochure Supplement. This accompanies the Form ADV Part 2A.")).toBe(false);
   expect(firmBrochureCover("Wrap Fee Program Brochure Form ADV Part 2A Appendix 1")).toBe(false);
   expect(firmBrochureCover("Form ADV Part 2A Firm Brochure")).toBe(true);
+  expect(firmBrochureCover("Form ADV Part 3: Relationship Summary. See our Form ADV Part 2A Firm Brochure for details.")).toBe(false);
+  const crs: Evidence = { ...evidence[0]!, id: "crs", kind: "brochure", page: 1,
+    text: "Form ADV Part 3: Relationship Summary. See our Form ADV Part 2A Firm Brochure." };
+  expect(confirmedBrochureEvidence([crs])).toEqual({ evidence: [], brochureFound: false, dropped: true });
 });
 
 it("labels checked SEC services explicitly without inferring services from fee types", () => {

@@ -196,7 +196,7 @@ it("verifies raw registration dates against the canonical stored SEC file by CRD
   const [child] = await handle.db.select().from(sources).where(eq(sources.companyId, f.ids[0]!));
   const name = `brief-registration-${randomUUID()}.csv`, path = resolve("var/sources/sec", name);
   sourceFiles.add(path); await mkdir(resolve("var/sources/sec"), { recursive: true });
-  const csv = 'Organization CRD#,Primary Business Name,SEC Status Effective Date,Latest ADV Filing Date\n910001,Different name is not a match key,06/01/2015,07/01/2026\n999999,Synthetic adviser 0,01/01/2001,07/01/2026\n';
+  const csv = 'Organization CRD#,Primary Business Name,SEC Status Effective Date,Latest ADV Filing Date\n910001,Different name is not a match key,06/01/2015,07/01/2026\n999999,Synthetic adviser 0,01/01/2001,07/01/2026\n999999,Ambiguous other row,01/01/2002,07/01/2026\n';
   await writeFile(path, csv);
   const parentId = randomUUID(), url = `https://www.sec.gov/${name}`;
   await handle.db.insert(sources).values({ id: parentId, companyId: f.ids[0]!, runId: child!.runId, url, finalUrl: url,
@@ -212,6 +212,14 @@ it("verifies raw registration dates against the canonical stored SEC file by CRD
   });
   expect((await client.callTool({ name: "sec_adv_monthly_row", arguments: { companyId: f.ids[1], sourceId: child!.id } })).isError).toBe(true);
   const current = (await handle.db.select().from(sources).where(eq(sources.id, child!.id)))[0]!;
+  expect(await verifiedMonthlyRow(handle.db, current, "999999")).toBeNull();
+  const convertedUrl = "https://www.sec.gov/synthetic-older.xlsx";
+  await handle.db.update(sources).set({ url: convertedUrl, finalUrl: convertedUrl }).where(eq(sources.id, child!.id));
+  await handle.db.update(sources).set({ url: convertedUrl, finalUrl: convertedUrl,
+    details: { digest: createHash("sha256").update(csv).digest("hex"), member: name } }).where(eq(sources.id, parentId));
+  expect(await data("sec_adv_monthly_row", { companyId: f.ids[0], sourceId: child!.id })).toMatchObject({ crd: "910001", rowNumber: 1 });
+  await handle.db.update(sources).set({ url, finalUrl: url }).where(eq(sources.id, child!.id));
+  await handle.db.update(sources).set({ url, finalUrl: url }).where(eq(sources.id, parentId));
   await handle.db.update(sources).set({ details: { digest: "0".repeat(64) } }).where(eq(sources.id, parentId));
   await expect(verifiedMonthlyRow(handle.db, current, "910001")).rejects.toThrow("digest differs");
 });
