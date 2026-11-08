@@ -49,7 +49,10 @@ export async function verifiedMonthlyRow(db: Db, source: typeof sources.$inferSe
   const [file] = await db.select().from(sources).where(eq(sources.id, fileId));
   const digest = file?.details?.digest;
   if (!file || file.url !== source.url || file.collector !== "sec_adv_snapshot" || typeof digest !== "string" || !/^[a-f0-9]{64}$/.test(digest)) return null;
-  const url = new URL(file.url), name = basename(url.pathname);
+  const url = new URL(file.url), originalName = basename(url.pathname);
+  // Older imports retain a canonical CSV conversion and its digest under member.
+  const converted = /\.xlsx$/i.test(originalName) && typeof file.details?.member === "string" && /^[a-z0-9][a-z0-9._-]*\.csv$/i.test(file.details.member) ? file.details.member : null;
+  const name = converted ?? originalName;
   if (url.protocol !== "https:" || !(url.hostname === "sec.gov" || url.hostname.endsWith(".sec.gov")) || !/\.(?:zip|csv)$/i.test(name)) return null;
   const key = `${fileId}:${digest}`;
   let pending = monthlyRows.get(key);
@@ -58,8 +61,14 @@ export async function verifiedMonthlyRow(db: Db, source: typeof sources.$inferSe
       const body = await readFile(resolve("var/sources/sec", name));
       if (createHash("sha256").update(body).digest("hex") !== digest) throw new Error("stored SEC file digest differs from source");
       const parsed = parseSecCsv(/\.zip$/i.test(name) ? extractSecCsv(body).text : decodeSecCsv(body));
-      const rows = new Map(parsed.rows.flatMap(row => normalizeCrd(row.crd) ? [[normalizeCrd(row.crd)!, row] as const] : []));
-      if (parsed.skipped.length || rows.size !== parsed.rows.length) throw new Error("invalid or duplicate CRDs in stored SEC file");
+      const rows = new Map<string, SecCompany>();
+      const duplicates = new Set<string>();
+      for (const row of parsed.rows) {
+        const id = normalizeCrd(row.crd); if (!id) continue;
+        if (rows.has(id)) duplicates.add(id); else rows.set(id, row);
+      }
+      for (const id of duplicates) rows.delete(id);
+      if (parsed.skipped.length) throw new Error("invalid rows in stored SEC file");
       return rows;
     })();
     if (monthlyRows.size >= 8) monthlyRows.delete(monthlyRows.keys().next().value!);

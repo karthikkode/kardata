@@ -20,6 +20,8 @@ it("uses the owner's exact new opener and reason shape, with no retired pitch", 
   expect(reasonLine(response)).toBe("Most solo advisers I talk to lose hours a week on checking account lists or organising planning documents. Which one takes most of your time?");
   expect(rendered.markdown).toContain("owner not found");
   expect(rendered.markdown).toContain("custodian: not found");
+  expect(rendered.markdown).toContain("client count not found");
+  expect(rendered.markdown).not.toContain("[1][1]");
   expect(rendered.markdown).toContain("**Guess:** May need separate account checks [1]");
   expect(rendered.markdown).toContain("read 2026-11-08");
   expect(rendered.markdown).toContain("<details>");

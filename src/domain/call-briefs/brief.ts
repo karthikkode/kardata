@@ -91,9 +91,10 @@ export function renderBrief(input: { companyId: string; name: string; order: num
   const byEvidence = new Map(input.evidence.map(e => [e.id, e]));
   const referenceKey = (e: Evidence) => `${e.sourceId}|${e.date}|${e.page ?? ""}`;
   const references = [...new Map(used.map(id => [referenceKey(byEvidence.get(id)!), byEvidence.get(id)!])).values()];
-  const ref = (id: string) => (byFact.get(id)?.evidenceIds ?? [byFact.get(id)?.evidenceId ?? ""]).map(e =>
-    `[${references.findIndex(r => referenceKey(r) === referenceKey(byEvidence.get(e)!)) + 1}]`).join("");
-  const cite = (ids: string[]) => [...new Set(ids.map(ref))].join("");
+  const referenceNumbers = (id: string) => (byFact.get(id)?.evidenceIds ?? [byFact.get(id)?.evidenceId ?? ""]).map(e =>
+    references.findIndex(r => referenceKey(r) === referenceKey(byEvidence.get(e)!)) + 1);
+  const cite = (ids: string[]) => [...new Set(ids.flatMap(referenceNumbers))].map(n => `[${n}]`).join("");
+  const ref = (id: string) => cite([id]);
   const fact = (f: CitedFact) => `${f.text} ${ref(f.id)}`;
   const ownerName = input.owner?.split(/\s+/)[0] ?? "[name]";
   const opener = CALL_OPENER.replace("[name]", ownerName);
@@ -103,7 +104,7 @@ export function renderBrief(input: { companyId: string; name: string; order: num
       const preferred = label === "services" ? input.response.facts.filter(f => f.label === label) : [];
       const found = preferred.length ? preferred : facts.filter(f => f.label === label); return `${label}: ${found.length ? found.map(fact).join("; ") : "not found"}`;
     }).join(" · ")}.`,
-    `**Size/change:** ${input.baseFacts.filter(f => ["size", "change"].includes(f.label)).map(fact).join(" · ") || "not found"}.`, "",
+    `**Size/change:** ${[...input.baseFacts.filter(f => ["size", "change"].includes(f.label)).map(fact), ...(!input.baseFacts.some(f => f.id === "clients") ? ["client count not found"] : [])].join(" · ") || "not found"}.`, "",
     ...input.response.guesses.map(g => `- **Guess:** ${g.text} ${cite(g.factIds)}`), "",
     `**Opener:** ${opener}`, `**Reason:** ${reasonLine(input.response)} ${cite(input.response.tasks.flatMap(t => t.factIds))}`, "",
     ...input.response.questions.map((q, i) => `${i + 1}. ${q.text} ${cite(q.factIds)}`), "",
