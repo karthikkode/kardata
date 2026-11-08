@@ -1,12 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { parse } from "csv-parse/sync";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
-import { benchmarkFeeJobs, companies, factKeys, facts, harnessSettings, records, researchRuns, sectorCompanies, sectors, sources } from "../../src/db/schema.js";
+import { apolloContacts, benchmarkFeeJobs, companies, factKeys, facts, harnessSettings, records, researchRuns, sectorCompanies, sectors, sources } from "../../src/db/schema.js";
 import { startServer } from "../../src/server.js";
 import * as codex from "../../src/harness/codex-extract.js";
 import * as readiness from "../../src/harness/codex-status.js";
@@ -91,7 +91,7 @@ async function setup() {
       avoid: [],
     } };
   });
-  return { ids, sectorId, model, fetched, args: { sectorId, companyIds: ids, callDate: "2026-11-09" } };
+  return { ids, sectorId, model, fetched, args: { sectorId, companyIds: ids, callDate: "2026-11-10" } };
 }
 
 it("prepares the first window first, stores dated cited briefs, reads/exports in list order, reruns without model calls, and preserves provider/breaker/fee/facts", async () => {
@@ -110,13 +110,13 @@ it("prepares the first window first, stores dated cited briefs, reads/exports in
   expect(await data("ria_call_brief_attempts", { companyId: f.ids[0], limit: 1 })).toMatchObject({
     attempts: [{ model: "gpt-6.1-terra", response: { facts: [{ id: "x1", label: "services" }] } }],
   });
-  expect(await data("ria_call_briefs_status", f.args)).toMatchObject({ prepared: 1, websitesRead: 1, brochuresFound: 0,
+  expect(await data("ria_call_briefs_status", f.args)).toMatchObject({ prepared: 1, websitesRead: 1, brochuresFound: 0, namesMissing: 1,
     items: [{ companyId: f.ids[0], status: "ready" }, { companyId: f.ids[1], status: "pending" }] });
   const second = await data<{ directory: string; csvPath: string }>("ria_call_briefs_prepare", { ...f.args, offset: 1, limit: 1 });
   outputDirs.add(second.directory);
   const csv = parse(await readFile(second.csvPath, "utf8"), { columns: true }) as Record<string, string>[];
   expect(csv.map(r => r.company_id)).toEqual(f.ids);
-  expect(csv[0]?.opener).toContain("Most solo advisers I talk to lose hours a week on");
+  expect(csv[0]?.opener).toContain("Can I take 20 seconds");
   expect(csv[0]?.["top guess"]).toContain("Guess:");
   const callCount = f.model.mock.calls.length;
   expect(await data("ria_call_briefs_prepare", f.args)).toMatchObject({ prepared: 0, reused: 2 });
@@ -125,7 +125,7 @@ it("prepares the first window first, stores dated cited briefs, reads/exports in
   const briefRecord = (await handle.db.select().from(records).where(eq(records.companyId, f.ids[0]!)))[0]!;
   expect(briefRecord.verification).toBe("doc_only");
   const doc = await data<{ contentMd: string }>("document_get", { documentId: briefRecord.data.documentId });
-  expect(doc.contentMd ?? JSON.stringify(doc)).toContain("Most solo advisers");
+  expect(doc.contentMd ?? JSON.stringify(doc)).toContain("**Backup:**");
   for (const [, req] of f.fetched.mock.calls) {
     expect(req).toMatchObject({ strictRobots: true, userAgent: "Kardata karthik@kardata.co" });
     expect(req.url).not.toMatch(/linkedin|\/login/);
@@ -134,14 +134,16 @@ it("prepares the first window first, stores dated cited briefs, reads/exports in
   expect({ settings: await handle.db.select().from(harnessSettings), jobs: await handle.db.select().from(benchmarkFeeJobs), facts: await handle.db.select().from(facts) }).toEqual(before);
 });
 
-it("retains an explicit per-firm reason when grounded generation fails", async () => {
+it("stores an explicitly basic SEC-only brief with the true reason when detailed generation fails", async () => {
   const f = await setup();
   f.model.mockResolvedValue({ usage: undefined, json: {} });
   const result = await data<{ directory: string; errors: unknown[]; items: { path?: string; status: string }[] }>("ria_call_briefs_prepare", { ...f.args, limit: 1 });
   outputDirs.add(result.directory);
   expect(result.errors).toHaveLength(1);
-  expect(result.items[0]?.status).toBe("failed");
-  expect(await readFile(result.items[0]!.path!, "utf8")).toContain("Brief not ready");
+  expect(result.items[0]?.status).toBe("ready");
+  expect(await readFile(result.items[0]!.path!, "utf8")).toContain("**Brief:** Basic");
+  expect(await data("ria_call_briefs_status", f.args)).toMatchObject({ ready: 1, detailed: 0, basic: 1, validationPassed: 0,
+    items: [{ detailLevel: "basic", generationAttempts: 2 }, { status: "pending" }] });
 });
 
 it("stores parallel firms without racing the first record-type registration", async () => {
@@ -168,7 +170,7 @@ it("reviews a stored attempt without refetching or making another model call and
   expect(wrongCompany.isError).toBe(true);
   const badQuote = { ...attempt.response, facts: [{ id: "bad", label: "services", text: "invented", evidenceId: "absent", quote: "invented quote" }] };
   expect((await client.callTool({ name: "ria_call_brief_save", arguments: { ...f.args, companyId: f.ids[0], attemptId: attempt.id, response: badQuote } })).isError).toBe(true);
-  expect((await client.callTool({ name: "ria_call_brief_save", arguments: { ...f.args, callDate: "2026-11-10", companyId: f.ids[0], attemptId: attempt.id, response: attempt.response } })).isError).toBe(true);
+  expect((await client.callTool({ name: "ria_call_brief_save", arguments: { ...f.args, callDate: "2026-11-11", companyId: f.ids[0], attemptId: attempt.id, response: attempt.response } })).isError).toBe(true);
 });
 
 it("reads stored raw HTML for a public-link check without fetching or exposing binary data", async () => {
@@ -222,4 +224,64 @@ it("verifies raw registration dates against the canonical stored SEC file by CRD
   await handle.db.update(sources).set({ url, finalUrl: url }).where(eq(sources.id, parentId));
   await handle.db.update(sources).set({ details: { digest: "0".repeat(64) } }).where(eq(sources.id, parentId));
   await expect(verifiedMonthlyRow(handle.db, current, "910001")).rejects.toThrow("digest differs");
+});
+
+it("uses the stored contacts bestPerson when Schedule A is missing, cites its date/source as unconfirmed, flags scale and preserves confirmed contacts", async () => {
+  const f = await setup();
+  await data("apollo_contacts_import", { source: "synthetic stored pull", pulledAt: "2026-11-01", contacts: [{
+    apolloId: "synthetic-owner", companyId: f.ids[0], name: "Morgan Example", title: "Founder",
+    email: "confirmed@example.test", emailStatus: "verified",
+  }] });
+  const contactsBefore = await handle.db.select().from(apolloContacts);
+  expect(await data("company_contacts_get", { companyId: f.ids[0] })).toMatchObject({ bestPerson: { name: "Morgan Example" }, contactable: true });
+  await handle.db.insert(factKeys).values({ key: "financials.employees", valueType: "number", description: "staff", createdBy: "test" }).onConflictDoNothing();
+  const [source] = await handle.db.select().from(sources).where(eq(sources.companyId, f.ids[0]!));
+  await handle.db.insert(facts).values({ id: randomUUID(), companyId: f.ids[0]!, key: "financials.employees", valueNum: "1", sourceIds: [source!.id],
+    qualifiers: { snapshot: "2026-11" }, asOf: "2026-07-01", confidence: "high", verification: "verified", createdBy: "test" });
+  await handle.db.update(facts).set({ valueNum: "1000000001" }).where(eq(facts.key, "firm.regulatory_aum"));
+  const result = await data<{ directory: string; items: { path: string }[] }>("ria_call_briefs_prepare", { ...f.args, limit: 1 });
+  outputDirs.add(result.directory);
+  const text = await readFile(result.items[0]!.path, "utf8");
+  expect(text).toContain("Morgan Example — Founder (unconfirmed; synthetic stored pull, stored 2026-11-01)");
+  expect(text).toContain("**Check:** SEC reports 1 staff");
+  expect(text.indexOf("**Check:**")).toBeLessThan(text.indexOf("**Who:**"));
+  expect(text).toContain("Hi Morgan, Karthik from Kardata");
+  expect(text).not.toContain("confirmed@example.test");
+  expect(await handle.db.select().from(apolloContacts)).toEqual(contactsBefore);
+  expect(await data("company_contacts_get", { companyId: f.ids[0] })).toMatchObject({ contactable: true });
+});
+
+it("keeps a detailed response despite a formerly invalid alias or base-ID collision and reports its pass without retries", async () => {
+  const f = await setup();
+  const original = f.model.getMockImplementation()!;
+  f.model.mockImplementation(async req => {
+    const result = await original(req);
+    const json = result.json as { facts: { id: string; label: string; text: string; quote: string; evidenceId: string }[]; tasks: { factIds: string[] }[] };
+    const fact = json.facts[0]!;
+    json.facts = [{ ...fact, id: "service / planning" }, { ...fact, id: "size-firm.accounts" }];
+    json.tasks[1]!.factIds = ["service / planning", "size-firm.accounts"];
+    return result;
+  });
+  const result = await data<{ directory: string }>("ria_call_briefs_prepare", { ...f.args, limit: 1 });
+  outputDirs.add(result.directory);
+  expect(f.model).toHaveBeenCalledTimes(1);
+  expect(await data("ria_call_briefs_status", f.args)).toMatchObject({ ready: 1, detailed: 1, basic: 0, validationPassed: 1,
+    items: [{ detailLevel: "detailed", validationPassed: true, generationAttempts: 1 }, { status: "pending" }] });
+  const [row] = await handle.db.select().from(records).where(eq(records.type, "solo_call_brief"));
+  expect((row!.data.response as { facts: { id: string }[] }).facts.map(f => f.id)).toEqual(["detail-1", "detail-2"]);
+});
+
+it("preserves the operator-edited previous-day folder when preparing and exporting a different call date", async () => {
+  const f = await setup();
+  const sector = (await handle.db.select().from(sectors).where(eq(sectors.id, f.sectorId)))[0]!;
+  const oldDir = resolve("var/sectors", sector.name, "analysis/call-briefs-2026-11-09");
+  outputDirs.add(oldDir); await mkdir(oldDir, { recursive: true });
+  const path = resolve(oldDir, `01-${f.ids[0]}.md`), csv = resolve(oldDir, "call-briefs.csv");
+  await writeFile(path, "Owner edited this brief.\n"); await writeFile(csv, "Owner edited this CSV.\n");
+  const before = [(await stat(path)).mtimeMs, (await stat(csv)).mtimeMs];
+  const result = await data<{ directory: string }>("ria_call_briefs_prepare", { ...f.args, limit: 1 });
+  outputDirs.add(result.directory); await data("ria_call_briefs_export", f.args);
+  expect(await readFile(path, "utf8")).toBe("Owner edited this brief.\n");
+  expect(await readFile(csv, "utf8")).toBe("Owner edited this CSV.\n");
+  expect([(await stat(path)).mtimeMs, (await stat(csv)).mtimeMs]).toEqual(before);
 });

@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
-import { CALL_OPENER, groundBrief, reasonLine, renderBrief, type BriefResponse, type CitedFact, type Evidence } from "../../src/domain/call-briefs/brief.js";
-import { changePercent, confirmedBrochureEvidence, filedServices, firmBrochureCover, publicLinks, registrationAge } from "../../src/domain/call-briefs/evidence.js";
+import { CALL_OPENER, CALL_PITCH, groundBrief, backupLine, renderBrief, validateCallScript, type BriefResponse, type CitedFact, type Evidence } from "../../src/domain/call-briefs/brief.js";
+import { changePercent, confirmedBrochureEvidence, filedServices, firmBrochureCover, publicLinks, registrationAge, soloSizeCheck } from "../../src/domain/call-briefs/evidence.js";
 
 const evidence: Evidence[] = [{ id: "web", sourceId: "source", url: "https://example.test/services", date: "2026-11-08", dateKind: "read",
   kind: "website", text: "We provide financial planning and charge a flat fee." }];
@@ -13,11 +13,18 @@ const response: BriefResponse = {
   avoid: [],
 };
 
-it("uses the owner's exact new opener and reason shape, with no retired pitch", () => {
+it("uses the exact fixed opener/pitch and a separately cited backup", () => {
   const rendered = renderBrief({ companyId: "synthetic", name: "Synthetic firm", order: 2, callDate: "2026-11-09",
     owner: null, baseFacts, evidence, response, gaps: [] });
   expect(rendered.markdown).toContain(CALL_OPENER);
-  expect(reasonLine(response)).toBe("Most solo advisers I talk to lose hours a week on checking account lists or organising planning documents. Which one takes most of your time?");
+  expect(CALL_OPENER).toBe("Hi [name], Karthik from Kardata. This is a cold call. Can I take 20 seconds to tell you why, and then you can decide?");
+  expect(CALL_PITCH).toBe("(if yes) I help solo advisers cut the office work. Things like: forms the custodian sends back, typing up meeting notes, quarterly billing. Any of those take up much of your time?");
+  expect(rendered.markdown).toContain(CALL_PITCH);
+  expect(backupLine(response)).toBe('If none of the three: "What about checking account lists? Does that take much of your time?"');
+  expect(() => validateCallScript(rendered.markdown.replace("20 seconds", "a minute"), null)).toThrow("fixed call script");
+  for (const claim of ["I talk to advisers", "Most advisers I've spoken with agree", "Most advisers I’ve spoken with agree"]) {
+    expect(() => validateCallScript(`${rendered.markdown}\n${claim}`, null)).toThrow("prior conversations");
+  }
   expect(rendered.markdown).toContain("owner not found");
   expect(rendered.markdown).toContain("custodian: not found");
   expect(rendered.markdown).toContain("client count not found");
@@ -31,7 +38,7 @@ it("uses the owner's exact new opener and reason shape, with no retired pitch", 
 });
 
 it("rejects ungrounded facts, invented references, asserted problems and guesses without conditional wording", () => {
-  expect(groundBrief(response, evidence, baseFacts)).toEqual(response);
+  expect(groundBrief(response, evidence, baseFacts).facts[0]?.id).toBe("detail-1");
   expect(() => groundBrief({ ...response, facts: [{ ...response.facts[0], quote: "Not present in the source" }] }, evidence, baseFacts)).toThrow("quote not found");
   expect(() => groundBrief({ ...response, tasks: [{ text: "invented task", factIds: ["unknown"] }, response.tasks[1]] }, evidence, baseFacts)).toThrow("unknown supporting fact");
   expect(() => groundBrief({ ...response, guesses: [{ text: "They waste time", factIds: ["accounts"] }] }, evidence, baseFacts)).toThrow("every guess");
@@ -39,11 +46,20 @@ it("rejects ungrounded facts, invented references, asserted problems and guesses
   expect(() => groundBrief({ ...response, facts: [{ ...response.facts[0], text: "2% annual fee" }] }, evidence, baseFacts)).toThrow("number not supported");
 });
 
-it("accepts descriptive fact IDs while retaining collision and citation checks", () => {
-  const descriptive = { ...response, facts: [{ ...response.facts[0]!, id: "services-planning" }],
-    tasks: [response.tasks[0]!, { ...response.tasks[1]!, factIds: ["services-planning"] }] };
-  expect(groundBrief(descriptive, evidence, baseFacts).facts[0]?.id).toBe("services-planning");
-  expect(() => groundBrief({ ...descriptive, facts: [{ ...descriptive.facts[0]!, id: "accounts" }] }, evidence, baseFacts)).toThrow("duplicate brief fact ID");
+it("assigns IDs and rewrites references for formerly invalid aliases and collisions without weakening evidence checks", () => {
+  const raw = { ...response, facts: [
+    { ...response.facts[0]!, id: "services / planning" },
+    { ...response.facts[0]!, id: "accounts" },
+    { ...response.facts[0]!, id: "accounts", text: "flat fee", quote: "charge a flat fee" },
+  ], tasks: [{ text: "gathering plan documents", factIds: ["services / planning"] },
+    { text: "reviewing plan fees", factIds: ["accounts"] }] };
+  const grounded = groundBrief(raw, evidence, baseFacts);
+  expect(grounded.facts.map(f => f.id)).toEqual(["detail-1", "detail-2", "detail-3"]);
+  expect(grounded.tasks.map(t => t.factIds)).toEqual([["detail-1"], ["detail-2", "detail-3"]]);
+  expect(baseFacts[0]?.text).toBe("100 accounts");
+  expect(raw.facts[0]?.id).toBe("services / planning");
+  expect(() => groundBrief({ ...raw, facts: [{ ...raw.facts[1], quote: "invented" }] }, evidence, baseFacts)).toThrow("quote not found");
+  expect(() => groundBrief({ ...raw, facts: [{ ...raw.facts[1], text: "5% fee" }] }, evidence, baseFacts)).toThrow("number not supported");
 });
 
 it("computes snapshot changes without inventing percentages from zero, and registration tenure at call date", () => {
@@ -74,4 +90,12 @@ it("labels checked SEC services explicitly without inferring services from fee t
   expect(filedServices({ "5G(1)": "Y", "5G(2)": "Y", "5G(6)": "N", "5G(7)": "" })).toEqual([
     { field: "5G(1)", value: "Y", label: "financial planning" }, { field: "5G(2)", value: "Y", label: "individual/small-business portfolios" },
   ]);
+});
+
+it("flags only one-staff firms over the stated AUM or account boundaries", () => {
+  expect(soloSizeCheck(1, 1e9, 1000)).toBe(false);
+  expect(soloSizeCheck(1, 1e9 + 1, 1000)).toBe(true);
+  expect(soloSizeCheck(1, 1e9, 1001)).toBe(true);
+  expect(soloSizeCheck(2, 2e9, 2000)).toBe(false);
+  expect(soloSizeCheck(null, 2e9, 2000)).toBe(false);
 });

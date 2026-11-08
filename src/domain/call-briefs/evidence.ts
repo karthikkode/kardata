@@ -1,5 +1,5 @@
 import { gunzipSync } from "node:zlib";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 import { and, desc, eq, inArray } from "drizzle-orm";
@@ -19,6 +19,10 @@ import { saveDocument } from "../research/documents.js";
 import { parseBrochureChoice } from "../ria-steps/handlers.js";
 import type { CitedFact, Evidence } from "./brief.js";
 import { DomainError } from "../errors.js";
+import { companyContacts } from "../contacts.js";
+import { storeBlob } from "../research/sources.js";
+import { getOrCreateManualRun } from "../../runs/queue.js";
+import { lockEvidence } from "../sec-adv/evidence.js";
 
 export interface FetchNote { url: string; status: string; reason: string | null; sourceId: string | null }
 export type DeniedHosts = Map<string, string>;
@@ -104,6 +108,37 @@ export function registrationAge(date: string, callDate: string) {
   return `${Math.floor(months / 12)}y ${months % 12}m at call date`;
 }
 
+export function soloSizeCheck(staff: unknown, aum: unknown, accounts: unknown) {
+  return staff === 1 && ((typeof aum === "number" && aum > 1e9) || (typeof accounts === "number" && accounts > 1000));
+}
+
+/** Cite only the already stored name/role; no enrichment, emails, phones or contact updates. */
+async function storedContact(db: Db, companyId: string) {
+  const view = await companyContacts(db, companyId);
+  const person = view.bestPerson;
+  if (!person) return null;
+  const apollo = view.apollo.find(p => p.name === person.name && (p.title ?? "") === person.title);
+  const [leader] = await db.select().from(records).where(and(eq(records.companyId, companyId), eq(records.type, "leader")))
+    .then(rows => rows.filter(r => r.data.name === person.name && (r.data.title ?? r.data.role ?? "") === person.title));
+  const sourceDate = apollo?.pulledAt.toISOString().slice(0, 10) ?? leader?.createdAt.toISOString().slice(0, 10) ?? person.filingDate;
+  if (!sourceDate) return null;
+  const origin = person.source ?? "stored DB contact";
+  const text = `${person.name}; ${person.title}; source ${origin}; stored contact date ${sourceDate}; unconfirmed`;
+  const sha = await storeBlob(db, "text/plain", Buffer.from(text));
+  const runId = await getOrCreateManualRun(db, companyId);
+  const url = `kardata:company_contacts/${companyId}/${sha}`;
+  const source = await db.transaction(async tx => {
+    await lockEvidence(tx, `brief-contact:${companyId}`);
+    const [prior] = await tx.select().from(sources).where(and(eq(sources.companyId, companyId), eq(sources.url, url)));
+    if (prior) return prior;
+    return (await tx.insert(sources).values({ id: randomUUID(), companyId, runId, url, finalUrl: url,
+      collector: "stored_company_contact", status: "ok", blobSha256: sha,
+      details: { origin, sourceDate, verification: "unconfirmed", originalSourceIds: person.sourceIds ?? leader?.sourceIds ?? [],
+        contactId: apollo?.apolloId ?? leader?.id ?? person.filingId ?? null, ...(leader ? { recordId: leader.id } : {}) } }).returning())[0]!;
+  });
+  return { person, source, sourceDate, origin, text, recordId: leader?.id };
+}
+
 export async function storedBriefEvidence(db: Db, companyId: string, callDate: string) {
   const company = (await db.select().from(companies).where(eq(companies.id, companyId)))[0]!;
   const rows = await db.select().from(facts).where(and(eq(facts.companyId, companyId), inArray(facts.key, KEYS), inArray(facts.verification, [...TRUSTED])))
@@ -111,7 +146,8 @@ export async function storedBriefEvidence(db: Db, companyId: string, callDate: s
   const peopleRows = await db.select({ id: records.id, type: records.type, data: records.data, sourceIds: records.sourceIds,
     verification: records.verification }).from(records).where(and(eq(records.companyId, companyId), inArray(records.type, [FILING_PEOPLE, FILING_NAMES_STATUS])))
     .orderBy(records.createdAt, records.id);
-  const owner = bestContact(contactCandidates(peopleRows), 0);
+  const filedOwner = bestContact(contactCandidates(peopleRows), 0);
+  let owner = filedOwner;
   const sourceIds = [...new Set([...rows.flatMap(f => f.sourceIds), ...peopleRows.flatMap(r => r.sourceIds)])];
   const sourceRows = sourceIds.length ? await db.select().from(sources).where(and(eq(sources.companyId, companyId), eq(sources.status, "ok"), inArray(sources.id, sourceIds))) : [];
   const sourceMap = new Map(sourceRows.map(s => [s.id, s]));
@@ -121,13 +157,24 @@ export async function storedBriefEvidence(db: Db, companyId: string, callDate: s
   };
   if (owner?.filingId && owner.filingDate && owner.sourceIds?.[0] && sourceMap.has(owner.sourceIds[0])) {
     const source = sourceMap.get(owner.sourceIds[0])!;
-    const record = peopleRows.find(r => r.type === FILING_PEOPLE && r.data.filing_id === owner.filingId && String(r.data.name).toLowerCase() === owner.name.toLowerCase());
+    const filingId = owner.filingId, ownerName = owner.name;
+    const record = peopleRows.find(r => r.type === FILING_PEOPLE && r.data.filing_id === filingId && String(r.data.name).toLowerCase() === ownerName.toLowerCase());
     add("owner", "owner", `${owner.name} — ${owner.title || "title not found"} (as filed ${owner.filingDate}, unconfirmed)`, {
       id: "owner", sourceId: source.id, url: source.url, date: owner.filingDate, dateKind: "as filed", kind: "schedule_a",
       text: `${owner.name}; ${owner.title}; filing ${owner.filingId}; ${owner.filingDate}`, recordId: record?.id,
       locator: `filing ${owner.filingId}, Schedule A, Full Legal Name: ${String(record?.data.raw_name ?? owner.name)}`,
     });
-  } else gaps.push("Schedule A owner name not found in stored contacts");
+  } else {
+    const fallback = await storedContact(db, companyId);
+    if (fallback) {
+      owner = fallback.person;
+      add("owner", "owner", `${owner.name} — ${owner.title || "title not found"} (unconfirmed; ${fallback.origin}, stored ${fallback.sourceDate})`, {
+        id: "owner", sourceId: fallback.source.id, url: fallback.source.url, date: fallback.sourceDate,
+        dateKind: "stored", kind: "stored_contact", text: fallback.text, recordId: fallback.recordId,
+        locator: `company_contacts_get bestPerson; ${fallback.origin}; contact stored ${fallback.sourceDate}; current owner role unconfirmed`,
+      });
+    } else { owner = null; gaps.push("Owner name not found in Schedule A or stored DB contacts"); }
+  }
   const canonicalSource = currentSnapshot(rows).flatMap(f => f.sourceIds).map(id => sourceMap.get(id)).find(s => s?.collector === "sec_adv_snapshot" && s.details?.fileSourceId);
   let canonical: SecCompany | null = null;
   if (canonicalSource) {
@@ -174,6 +221,13 @@ export async function storedBriefEvidence(db: Db, companyId: string, callDate: s
     if (!f) { gaps.push(`${labels[key]} not found`); continue; }
     const value = factValue(f);
     add(`size-${key}`, "size", `${labels[key]} ${key === "firm.regulatory_aum" && typeof value === "number" ? money(value) : scalar(value)}`, evidenceFor(f));
+  }
+  const staffFact = selected.get("financials.employees"), aumFact = selected.get("firm.regulatory_aum"), accountsFact = selected.get("firm.accounts");
+  if (soloSizeCheck(staffFact ? factValue(staffFact) : null, aumFact ? factValue(aumFact) : null, accountsFact ? factValue(accountsFact) : null)) {
+    const large = [aumFact, accountsFact].filter((f): f is FactRow => !!f && Number(factValue(f)) > (f.key === "firm.regulatory_aum" ? 1e9 : 1000));
+    const refs = [evidenceFor(staffFact!), ...large.map(evidenceFor)];
+    baseFacts.push({ id: "size-check", label: "check", text: `SEC reports 1 staff with ${large.map(f => `${labels[f.key]} ${f.key === "firm.regulatory_aum" ? money(Number(factValue(f))) : scalar(factValue(f))}`).join(" and ")}; confirm the current team and admin help`,
+      evidenceId: refs[0]!.id, evidenceIds: refs.map(e => e.id), quote: refs.map(e => e.text).join("; ") });
   }
   const low = selected.get("firm.client_total_low"), high = selected.get("firm.client_total_high"), clients = selected.get("firm.client_total");
   if (low && high && factValue(low) !== factValue(high)) {
