@@ -78,6 +78,14 @@ it("imports and reads contacts over MCP, exports the selected person, reruns wit
     via: "browser", text: "Synthetic confirmed contact", passages: ["Synthetic confirmed contact"] });
   await handle.db.insert(records).values({ id: randomUUID(), companyId, type: "leader", naturalKeyHash: "confirmed-fixture",
     data: { name: "JANE Q EXAMPLE", title: "Confirmed President" }, sourceIds: [sourceId], verification: "verified", createdBy: "owner" });
+  const { sourceId: duplicateSource } = await data<{ sourceId: string }>("source_capture", { companyId: f.ids[2], url: "https://example.test/leaders",
+    via: "browser", text: "Synthetic leader evidence", passages: ["Synthetic leader evidence"] });
+  await handle.db.insert(records).values([
+    { id: randomUUID(), companyId: f.ids[2]!, type: "leader", naturalKeyHash: "later-leader", createdAt: new Date("2026-02-01"),
+      data: { name: "Synthetic Founder", title: "Founder (later stored record)" }, sourceIds: [duplicateSource], verification: "verified" as const, createdBy: "owner" },
+    { id: randomUUID(), companyId: f.ids[2]!, type: "leader", naturalKeyHash: "earlier-leader", createdAt: new Date("2026-01-01"),
+      data: { name: "Synthetic Founder", title: "Founder (earlier stored record)" }, sourceIds: [duplicateSource], verification: "verified" as const, createdBy: "owner" },
+  ]);
   await handle.db.insert(apolloContacts).values({ apolloId: "synthetic-person", companyId, name: "JANE Q EXAMPLE", title: "Confirmed President",
     source: "synthetic paid source", pulledAt: new Date("2026-01-01") });
   await handle.db.insert(benchmarkFeeJobs).values({ id: "a2050f8b-2fb9-48bf-bf31-b55c7cd86402", sectorId: f.sectorId,
@@ -114,6 +122,10 @@ it("imports and reads contacts over MCP, exports the selected person, reruns wit
     "Contact source": "SEC Form ADV Schedule A", "Contact filing ID": "11", "Contact filing date": "2024-12-31",
     "Contact ownership range": "75% or more", "Contact control person": "Yes", "Contact verification": "unconfirmed_public_filing",
     "Contact uncertainty": expect.stringContaining("out of date") });
+  expect(csv.find(row => row["Company ID"] === f.ids[2])?.["Contact title"]).toBe("Founder (earlier stored record)");
+  expect(await data("company_contacts_get", { companyId: f.ids[2] })).toMatchObject({
+    bestPerson: { name: "Synthetic Founder", title: "Founder (earlier stored record)" },
+  });
   expect({ jobs: await handle.db.select().from(benchmarkFeeJobs), facts: await handle.db.select().from(facts),
     apollo: await handle.db.select().from(apolloContacts), leaders: await handle.db.select().from(records).where(eq(records.type, "leader")) }).toEqual(before);
   const [filed] = (await handle.db.select().from(records)).filter(r => r.companyId === companyId && r.type === "sec_schedule_a_person");
