@@ -107,6 +107,8 @@ const EXPECTED_TOOLS = [
   "ria_call_briefs_prepare",
   "ria_call_briefs_status",
   "ria_call_briefs_export",
+  "ria_call_brief_attempts",
+  "ria_call_brief_save",
   "sec_adv_monthly_row",
   "ria_classifications",
   "ria_officer_titles_clean",

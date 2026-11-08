@@ -1,8 +1,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import { gunzipSync } from "node:zlib";
 import { join, resolve } from "node:path";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
-import { records, researchRuns, sectorCompanies, sectors, sources } from "../../db/schema.js";
+import { blobs, providerCalls, records, researchRuns, sectorCompanies, sectors, sources } from "../../db/schema.js";
+import { CODEX_MODEL } from "../../harness/codex-config.js";
 import { dockerCodexExtractorCall } from "../../harness/codex-extract.js";
 import { codexHasCapacity, readCodexSnapshot } from "../../harness/codex-status.js";
 import { getOrCreateManualRun } from "../../runs/queue.js";
@@ -23,6 +25,89 @@ interface SavedBrief {
   response: BriefResponse; baseFacts: CitedFact[]; facts: CitedFact[]; evidence: Evidence[];
   fetches: FetchNote[]; gaps: string[]; brochureFound: boolean; websiteRead: boolean;
   sourceCount: number; documentId: string; markdown: string; opener: string; words: number;
+}
+async function persistBrief(db: Db, input: { companyId: string; runId: string; name: string; order: number; callDate: string; owner: string | null;
+  baseFacts: CitedFact[]; evidence: Evidence[]; response: BriefResponse; gaps: string[]; fetches: FetchNote[]; brochureFound: boolean; websiteRead: boolean }): Promise<SavedBrief> {
+  const { companyId, runId, evidence, response, gaps } = input;
+  const rendered = renderBrief({ companyId, name: input.name, order: input.order,
+    callDate: input.callDate, owner: input.owner, baseFacts: input.baseFacts, evidence, response, gaps });
+  const words = rendered.markdown.split("<details>")[0]!.split(/\s+/).filter(Boolean).length;
+  if (words > 360) throw new DomainError("invalid_input", "reviewed brief exceeds 360 words");
+  const sourceIds = [...new Set(evidence.filter(e => rendered.usedEvidence.includes(e.id)).map(e => e.sourceId))];
+  return db.transaction(async tx => {
+    await lockEvidence(tx, "solo-call-brief-record-type");
+    await lockEvidence(tx, `call-brief:${input.callDate}:${companyId}`);
+    const doc = await saveDocument(tx, { companyId, runId, path: `other/call-brief-${input.callDate}.md`,
+      title: `Private call brief ${input.callDate}`, contentMd: rendered.markdown, sourceIds,
+      factIds: [...new Set(evidence.flatMap(e => e.factId ? [e.factId] : []))],
+      recordIds: [...new Set(evidence.flatMap(e => e.recordId ? [e.recordId] : []))], createdBy: BRIEF_TYPE });
+    const selectedEvidence = evidence.filter(e => rendered.usedEvidence.includes(e.id)).map(e => ({ ...e,
+      text: e.kind === "sec" || e.kind === "schedule_a" ? e.text : rendered.facts.filter(f => f.evidenceId === e.id).map(f => f.quote).join("\n") }));
+    const data: SavedBrief = { version: BRIEF_VERSION, call_date: input.callDate, company_id: companyId,
+      company_name: input.name, owner: input.owner, status: "ready", reason: null,
+      response: response!, baseFacts: input.baseFacts, facts: rendered.facts, evidence: selectedEvidence,
+      fetches: input.fetches, gaps, brochureFound: input.brochureFound, websiteRead: input.websiteRead,
+      sourceCount: rendered.sourceCount, documentId: doc.id, markdown: rendered.markdown, opener: rendered.opener,
+      words };
+    const writes = await upsertRecords(tx, { companyId, runId, createdBy: BRIEF_TYPE, records: [{
+      type: BRIEF_TYPE, naturalKey: ["call_date"], sourceIds, data: data as unknown as Record<string, unknown>,
+    }] });
+    const failed = writes.find(w => !w.ok); if (failed && !failed.ok) throw new Error(failed.error);
+    for (const written of writes) if (written.ok) await tx.update(records).set({ verification: "doc_only" }).where(eq(records.id, written.id));
+    return data;
+  });
+}
+
+export async function callBriefAttempts(db: Db, input: { companyId: string; limit?: number; includeContext?: boolean }) {
+  const rows = await db.select({ id: providerCalls.id, runId: providerCalls.runId, model: providerCalls.model,
+    gzip: blobs.gzip, prompt: providerCalls.promptSha256 }).from(providerCalls).innerJoin(researchRuns, eq(providerCalls.runId, researchRuns.id))
+    .innerJoin(blobs, eq(providerCalls.responseSha256, blobs.sha256))
+    .where(and(eq(researchRuns.companyId, input.companyId), eq(providerCalls.model, CODEX_MODEL)))
+    .orderBy(desc(providerCalls.id)).limit(input.limit ?? 2);
+  const attempts = [];
+  for (const row of rows) {
+    let context: unknown;
+    if (input.includeContext && row.prompt) {
+      const [blob] = await db.select().from(blobs).where(eq(blobs.sha256, row.prompt));
+      const prompt = blob ? gunzipSync(blob.gzip).toString("utf8") : "";
+      const start = prompt.indexOf('\n{"callDate"');
+      if (prompt.startsWith("Prepare a concise, honest solo-adviser cold-call brief") && start >= 0) {
+        context = JSON.parse(prompt.slice(start + 1).split("\nRepair the previous invalid response.")[0]!) as unknown;
+      }
+    }
+    attempts.push({ id: row.id, runId: row.runId, model: row.model,
+      response: JSON.parse(gunzipSync(row.gzip).toString("utf8")) as unknown, ...(context ? { context } : {}) });
+  }
+  return { companyId: input.companyId, attempts };
+}
+
+export async function saveCallBriefFromAttempt(db: Db, input: BriefBatch & { companyId: string; attemptId: number; response: unknown }) {
+  await validateBatch(db, input);
+  if (!input.companyIds.includes(input.companyId)) throw new DomainError("invalid_input", "reviewed firm must be in the ordered list");
+  const [call] = await db.select({ runId: providerCalls.runId, prompt: providerCalls.promptSha256 }).from(providerCalls)
+    .innerJoin(researchRuns, eq(providerCalls.runId, researchRuns.id)).where(and(eq(providerCalls.id, input.attemptId),
+      eq(researchRuns.companyId, input.companyId), eq(providerCalls.model, CODEX_MODEL)));
+  if (!call?.prompt || !call.runId) throw new DomainError("not_found", "company-owned Codex attempt not found");
+  const [blob] = await db.select().from(blobs).where(eq(blobs.sha256, call.prompt));
+  const prompt = blob ? gunzipSync(blob.gzip).toString("utf8") : "";
+  const start = prompt.indexOf('\n{"callDate"');
+  if (!prompt.startsWith("Prepare a concise, honest solo-adviser cold-call brief") || start < 0) throw new DomainError("invalid_input", "attempt is not a call-brief extraction");
+  const raw = prompt.slice(start + 1).split("\nRepair the previous invalid response.")[0]!;
+  const context = JSON.parse(raw) as { callDate: string; firm: { name: string }; facts: CitedFact[]; evidence: Evidence[] };
+  if (context.callDate !== input.callDate) throw new DomainError("invalid_input", "attempt belongs to another call date");
+  // New directly verified SEC fields can supplement an older draft without a refetch/model call.
+  const current = await storedBriefEvidence(db, input.companyId, input.callDate);
+  for (const fact of current.baseFacts) if (!context.facts.some(f => f.id === fact.id)) context.facts.push(fact);
+  for (const evidence of current.evidence) if (!context.evidence.some(e => e.id === evidence.id)) context.evidence.push(evidence);
+  const response = groundBrief(input.response, context.evidence, context.facts);
+  const previous = (await savedBriefs(db, input)).get(input.companyId);
+  const owner = context.facts.find(f => f.label === "owner")?.text.split(" — ")[0] ?? null;
+  const data = await persistBrief(db, { companyId: input.companyId, runId: call.runId, name: context.firm.name,
+    order: input.companyIds.indexOf(input.companyId) + 1, callDate: input.callDate, owner,
+    baseFacts: context.facts, evidence: context.evidence, response, gaps: previous?.gaps ?? [], fetches: previous?.fetches ?? [],
+    brochureFound: previous?.brochureFound ?? context.evidence.some(e => e.kind === "brochure"),
+    websiteRead: previous?.websiteRead ?? context.evidence.some(e => e.kind === "website") });
+  return { companyId: input.companyId, documentId: data.documentId, ...await exportCallBriefs(db, input) };
 }
 async function validateBatch(db: Db, input: BriefBatch) {
   if (!isValidDateString(input.callDate)) throw new DomainError("invalid_input", "callDate must be YYYY-MM-DD");
@@ -139,31 +224,10 @@ export async function prepareCallBriefs(db: Db, input: BriefBatch & { offset?: n
             } catch (e) { response = undefined; error = e instanceof Error ? e.message.slice(0, 250) : "invalid brief"; }
           }
           if (!response) throw new Error(`Codex response failed evidence/length checks: ${error}`);
-          const rendered = renderBrief({ companyId, name: stored.company.name ?? companyId, order: input.companyIds.indexOf(companyId) + 1,
-            callDate: input.callDate, owner: stored.owner, baseFacts: stored.baseFacts, evidence, response, gaps });
-          const sourceIds = [...new Set(evidence.filter(e => rendered.usedEvidence.includes(e.id)).map(e => e.sourceId))];
-          const savedData = await db.transaction(async tx => {
-            await lockEvidence(tx, "solo-call-brief-record-type");
-            await lockEvidence(tx, `call-brief:${input.callDate}:${companyId}`);
-            const doc = await saveDocument(tx, { companyId, runId, path: `other/call-brief-${input.callDate}.md`,
-              title: `Private call brief ${input.callDate}`, contentMd: rendered.markdown, sourceIds,
-              factIds: [...new Set(evidence.flatMap(e => e.factId ? [e.factId] : []))],
-              recordIds: [...new Set(evidence.flatMap(e => e.recordId ? [e.recordId] : []))], createdBy: BRIEF_TYPE });
-            const selectedEvidence = evidence.filter(e => rendered.usedEvidence.includes(e.id)).map(e => ({ ...e,
-              text: e.kind === "sec" || e.kind === "schedule_a" ? e.text : rendered.facts.filter(f => f.evidenceId === e.id).map(f => f.quote).join("\n") }));
-            const data: SavedBrief = { version: BRIEF_VERSION, call_date: input.callDate, company_id: companyId,
-              company_name: stored.company.name ?? companyId, owner: stored.owner, status: "ready", reason: null,
-              response: response!, baseFacts: stored.baseFacts, facts: rendered.facts, evidence: selectedEvidence,
-              fetches: web.notes, gaps, brochureFound: web.brochureFound, websiteRead: web.websiteRead,
-              sourceCount: rendered.sourceCount, documentId: doc.id, markdown: rendered.markdown, opener: rendered.opener,
-              words: rendered.markdown.split("<details>")[0]!.split(/\s+/).filter(Boolean).length };
-            const writes = await upsertRecords(tx, { companyId, runId, createdBy: BRIEF_TYPE, records: [{
-              type: BRIEF_TYPE, naturalKey: ["call_date"], sourceIds, data: data as unknown as Record<string, unknown>,
-            }] });
-            const failed = writes.find(w => !w.ok); if (failed && !failed.ok) throw new Error(failed.error);
-            for (const written of writes) if (written.ok) await tx.update(records).set({ verification: "doc_only" }).where(eq(records.id, written.id));
-            return data;
-          });
+          const savedData = await persistBrief(db, { companyId, runId, name: stored.company.name ?? companyId,
+            order: input.companyIds.indexOf(companyId) + 1, callDate: input.callDate, owner: stored.owner,
+            baseFacts: stored.baseFacts, evidence, response, gaps, fetches: web.notes,
+            brochureFound: web.brochureFound, websiteRead: web.websiteRead });
           saved.set(companyId, savedData); prepared++;
           // A completed firm is immediately reviewable; filenames retain call-list order.
           await exportCallBriefs(db, input);
