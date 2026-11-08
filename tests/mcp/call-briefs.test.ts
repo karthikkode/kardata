@@ -110,7 +110,7 @@ it("prepares the first window first, stores dated cited briefs, reads/exports in
   expect(await data("ria_call_brief_attempts", { companyId: f.ids[0], limit: 1 })).toMatchObject({
     attempts: [{ model: "gpt-6.1-terra", response: { facts: [{ id: "x1", label: "services" }] } }],
   });
-  expect(await data("ria_call_briefs_status", f.args)).toMatchObject({ prepared: 1, websitesRead: 1, brochuresFound: 0,
+  expect(await data("ria_call_briefs_status", f.args)).toMatchObject({ prepared: 1, websitesRead: 1, brochuresFound: 0, namesMissing: 1,
     items: [{ companyId: f.ids[0], status: "ready" }, { companyId: f.ids[1], status: "pending" }] });
   const second = await data<{ directory: string; csvPath: string }>("ria_call_briefs_prepare", { ...f.args, offset: 1, limit: 1 });
   outputDirs.add(second.directory);

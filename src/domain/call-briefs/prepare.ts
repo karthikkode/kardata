@@ -180,7 +180,7 @@ export async function callBriefsStatus(db: Db, input: BriefBatch) {
       websiteRead: brief?.websiteRead ?? false, words: brief?.words ?? null,
       detailLevel: brief?.status === "ready" ? brief.detailLevel ?? "detailed" : null,
       validationPassed: brief?.status === "ready" && (brief.validationPassed ?? true),
-      nameMissing: !brief?.owner, flagged: brief?.baseFacts.some(f => f.label === "check") ?? false,
+      nameMissing: brief?.status === "ready" ? !brief.owner : null, flagged: brief?.baseFacts.some(f => f.label === "check") ?? false,
       generationAttempts: brief?.generationAttempts ?? 0, generationError: brief?.generationError ?? null };
   });
   return { total: items.length, prepared: saved.size, brochuresFound: items.filter(i => i.brochureFound).length,
