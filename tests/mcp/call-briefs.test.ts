@@ -1,5 +1,6 @@
-import { randomUUID } from "node:crypto";
-import { readFile, rm } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { parse } from "csv-parse/sync";
@@ -12,12 +13,14 @@ import * as readiness from "../../src/harness/codex-status.js";
 import * as fetcher from "../../src/collect/fetch.js";
 import { CALL_OPENER } from "../../src/domain/call-briefs/brief.js";
 import { storeBlob } from "../../src/domain/research/sources.js";
+import { verifiedMonthlyRow } from "../../src/domain/call-briefs/evidence.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
 
 const handle = getTestDb();
 const client = new Client({ name: "call-brief-test", version: "1" });
 let server: Awaited<ReturnType<typeof startServer>>;
 const outputDirs = new Set<string>();
+const sourceFiles = new Set<string>();
 beforeAll(async () => {
   await ensureMigrated(handle);
   server = await startServer({ host: "127.0.0.1", port: 0, db: handle.db, operatorToken: "brief-test" });
@@ -30,6 +33,7 @@ afterEach(() => vi.restoreAllMocks());
 afterAll(async () => {
   await client.close(); await server.close(); await handle.close();
   for (const dir of outputDirs) await rm(dir, { recursive: true, force: true });
+  for (const path of sourceFiles) await rm(path, { force: true });
 });
 async function data<T = Record<string, unknown>>(name: string, args: Record<string, unknown>) {
   const r = await client.callTool({ name, arguments: args });
@@ -162,4 +166,26 @@ it("reads stored raw HTML for a public-link check without fetching or exposing b
   expect(f.fetched).not.toHaveBeenCalled();
   await data("source_fetch", { companyId: f.ids[0], url: "https://fixture-0.example/", strictRobots: true });
   expect(f.fetched).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ strictRobots: true }));
+});
+
+it("verifies raw registration dates against the canonical stored SEC file by CRD without trusting legacy unverified facts", async () => {
+  const f = await setup();
+  await handle.db.update(facts).set({ verification: "unverified" }).where(eq(facts.createdBy, "collector:sec_import"));
+  const [child] = await handle.db.select().from(sources).where(eq(sources.companyId, f.ids[0]!));
+  const name = `brief-registration-${randomUUID()}.csv`, path = resolve("var/sources/sec", name);
+  sourceFiles.add(path); await mkdir(resolve("var/sources/sec"), { recursive: true });
+  const csv = 'Organization CRD#,Primary Business Name,SEC Status Effective Date,Latest ADV Filing Date\n910001,Different name is not a match key,06/01/2015,07/01/2026\n999999,Synthetic adviser 0,01/01/2001,07/01/2026\n';
+  await writeFile(path, csv);
+  const parentId = randomUUID(), url = `https://www.sec.gov/${name}`;
+  await handle.db.insert(sources).values({ id: parentId, companyId: f.ids[0]!, runId: child!.runId, url, finalUrl: url,
+    collector: "sec_adv_snapshot", status: "ok", details: { digest: createHash("sha256").update(csv).digest("hex") } });
+  await handle.db.update(sources).set({ url, finalUrl: url, details: { fileSourceId: parentId } }).where(eq(sources.id, child!.id));
+  const result = await data<{ directory: string; items: { path?: string }[] }>("ria_call_briefs_prepare", { ...f.args, limit: 1 });
+  outputDirs.add(result.directory);
+  const text = await readFile(result.items[0]!.path!, "utf8");
+  expect(text).toContain("SEC status since 2015-06-01");
+  expect(text).not.toContain("SEC status since 2001-01-01");
+  const current = (await handle.db.select().from(sources).where(eq(sources.id, child!.id)))[0]!;
+  await handle.db.update(sources).set({ details: { digest: "0".repeat(64) } }).where(eq(sources.id, parentId));
+  await expect(verifiedMonthlyRow(handle.db, current, "910001")).rejects.toThrow("digest differs");
 });

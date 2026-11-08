@@ -1,15 +1,19 @@
 import { gunzipSync } from "node:zlib";
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { basename, resolve } from "node:path";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { load } from "cheerio";
 import type { Db } from "../../db/client.js";
 import { blobs, companies, documents, facts, records, sources } from "../../db/schema.js";
 import { fetchUrl, type FetchResult } from "../../collect/fetch.js";
 import { SEC_FIRM_USER_AGENT } from "../../collect/collectors/sec-firm.js";
-import { parseSecDate } from "../../lib/sec/parse.js";
+import { decodeSecCsv, extractSecCsv, parseSecCsv, parseSecDate, type SecCompany } from "../../lib/sec/parse.js";
 import { pdfReviewPages } from "../../lib/sec/pdf-text.js";
 import { bestContact, contactCandidates, FILING_NAMES_STATUS, FILING_PEOPLE } from "../sec-adv/contact-people.js";
 import { brochureKind } from "../ria-steps/brochure.js";
 import { SNAPSHOT_FIELDS } from "../sec-adv/fields.js";
+import { normalizeCrd } from "../sec-adv/snapshot.js";
 import { extractText } from "../research/reads.js";
 import { saveDocument } from "../research/documents.js";
 import { parseBrochureChoice } from "../ria-steps/handlers.js";
@@ -24,6 +28,34 @@ type FactRow = typeof facts.$inferSelect;
 export const factValue = (f: FactRow) => f.valueNum !== null ? Number(f.valueNum) : f.valueText ?? f.valueDate ?? f.valueBool ?? f.valueJson;
 const money = (n: number) => n >= 1e6 ? `$${(n / 1e6).toFixed(2).replace(/\.00$/, "")}m` : `$${n.toLocaleString("en-US")}`;
 const scalar = (value: unknown) => typeof value === "number" ? value.toLocaleString("en-US") : Array.isArray(value) ? value.join(", ") : String(value);
+const monthlyRows = new Map<string, Promise<Map<string, SecCompany>>>();
+
+/** Verify the retained canonical file before using a raw column not represented by a fact. */
+export async function verifiedMonthlyRow(db: Db, source: typeof sources.$inferSelect, crd: string | null) {
+  const fileId = source.details?.fileSourceId;
+  if (source.collector !== "sec_adv_snapshot" || typeof fileId !== "string" || !crd) return null;
+  const [file] = await db.select().from(sources).where(eq(sources.id, fileId));
+  const digest = file?.details?.digest;
+  if (!file || file.url !== source.url || file.collector !== "sec_adv_snapshot" || typeof digest !== "string" || !/^[a-f0-9]{64}$/.test(digest)) return null;
+  const url = new URL(file.url), name = basename(url.pathname);
+  if (url.protocol !== "https:" || !(url.hostname === "sec.gov" || url.hostname.endsWith(".sec.gov")) || !/\.(?:zip|csv)$/i.test(name)) return null;
+  const key = `${fileId}:${digest}`;
+  let pending = monthlyRows.get(key);
+  if (!pending) {
+    pending = (async () => {
+      const body = await readFile(resolve("var/sources/sec", name));
+      if (createHash("sha256").update(body).digest("hex") !== digest) throw new Error("stored SEC file digest differs from source");
+      const parsed = parseSecCsv(/\.zip$/i.test(name) ? extractSecCsv(body).text : decodeSecCsv(body));
+      const rows = new Map(parsed.rows.flatMap(row => normalizeCrd(row.crd) ? [[normalizeCrd(row.crd)!, row] as const] : []));
+      if (parsed.skipped.length || rows.size !== parsed.rows.length) throw new Error("invalid or duplicate CRDs in stored SEC file");
+      return rows;
+    })();
+    if (monthlyRows.size >= 8) monthlyRows.delete(monthlyRows.keys().next().value!);
+    monthlyRows.set(key, pending);
+    pending.catch(() => monthlyRows.delete(key));
+  }
+  return (await pending).get(normalizeCrd(crd)!) ?? null;
+}
 export function changePercent(before: number, after: number): string | null {
   if (!Number.isFinite(before) || !Number.isFinite(after) || before <= 0) return null;
   const n = (after - before) / before * 100;
@@ -65,15 +97,23 @@ export async function storedBriefEvidence(db: Db, companyId: string, callDate: s
       locator: `filing ${owner.filingId}, Schedule A, Full Legal Name: ${String(record?.data.raw_name ?? owner.name)}`,
     });
   } else gaps.push("Schedule A owner name not found in stored contacts");
+  const canonicalSource = currentSnapshot(rows).flatMap(f => f.sourceIds).map(id => sourceMap.get(id)).find(s => s?.collector === "sec_adv_snapshot" && s.details?.fileSourceId);
+  let canonical: SecCompany | null = null;
+  if (canonicalSource) {
+    try { canonical = await verifiedMonthlyRow(db, canonicalSource, company.secCrd); }
+    catch { gaps.push("registration column could not be checked against the stored SEC file"); }
+  }
   const rawSource = rows.find(f => f.createdBy === "collector:sec_import" && f.sourceIds.some(id => sourceMap.has(id)));
-  const registered = parseSecDate(String(company.raw["SEC Status Effective Date"] ?? ""));
-  if (registered && rawSource) {
-    const source = sourceMap.get(rawSource.sourceIds.find(id => sourceMap.has(id))!)!;
+  const raw = canonical?.raw ?? (rawSource ? company.raw : {});
+  const registered = parseSecDate(String(raw["SEC Status Effective Date"] ?? ""));
+  const registrationSource = canonical && canonicalSource ? canonicalSource : rawSource ? sourceMap.get(rawSource.sourceIds.find(id => sourceMap.has(id))!) : null;
+  if (registered && registered <= callDate && registrationSource) {
+    const source = registrationSource;
     add("registration", "registration", `SEC status since ${registered} (${registrationAge(registered, callDate)})`, {
       id: "registration", sourceId: source.id, url: source.url,
-      date: parseSecDate(String(company.raw["Latest ADV Filing Date"] ?? "")) ?? rawSource.asOf ?? source.fetchedAt.toISOString().slice(0, 10),
-      dateKind: "as filed", kind: "sec", text: `SEC Status Effective Date: ${company.raw["SEC Status Effective Date"]}`,
-      locator: `SEC Status Effective Date: ${company.raw["SEC Status Effective Date"]}; earlier state registration not found`,
+      date: parseSecDate(String(raw["Latest ADV Filing Date"] ?? "")) ?? rawSource?.asOf ?? source.fetchedAt.toISOString().slice(0, 10),
+      dateKind: "as filed", kind: "sec", text: `SEC Status Effective Date: ${raw["SEC Status Effective Date"]}`,
+      locator: `SEC Status Effective Date: ${raw["SEC Status Effective Date"]}${canonical ? `, CSV row ${canonical.rowNumber}` : ""}; earlier state registration not found`,
     });
   } else gaps.push("SEC registration effective date not found");
   const usable = rows.filter(f => f.asOf && f.sourceIds.some(id => sourceMap.has(id)));
