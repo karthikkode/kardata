@@ -7,7 +7,7 @@ export const BRIEF_VERSION = "solo-call-v2";
 export const BRIEF_TYPE = "solo_call_brief";
 export const SECTIONS = ["services", "clients", "fees", "custodian", "software", "outsourcing"] as const;
 export interface Evidence {
-  id: string; sourceId: string; url: string; date: string; dateKind: "as filed" | "read";
+  id: string; sourceId: string; url: string; date: string; dateKind: "as filed" | "read" | "stored";
   kind: "sec" | "schedule_a" | "brochure" | "website" | "stored_contact"; text: string; page?: number;
   factId?: string; recordId?: string; locator?: string;
 }
@@ -92,16 +92,29 @@ ${JSON.stringify(input)}`;
 
 export function responseSchema(): string {
   const citation = { type: "object", additionalProperties: false, properties: {
-    text: { type: "string" }, factIds: { type: "array", items: { type: "string" } },
+    text: { type: "string", minLength: 1, maxLength: 150 }, factIds: { type: "array", minItems: 1, maxItems: 12, items: { type: "string" } },
   }, required: ["text", "factIds"] };
   return JSON.stringify({ type: "object", additionalProperties: false, properties: {
-    facts: { type: "array", items: { type: "object", additionalProperties: false, properties: {
-      id: { type: "string", minLength: 1, maxLength: 200 }, label: { type: "string", enum: SECTIONS }, text: { type: "string" },
-      evidenceId: { type: "string" }, quote: { type: "string" },
+    facts: { type: "array", maxItems: 8, items: { type: "object", additionalProperties: false, properties: {
+      id: { type: "string", minLength: 1, maxLength: 200 }, label: { type: "string", enum: SECTIONS }, text: { type: "string", minLength: 1, maxLength: 180 },
+      evidenceId: { type: "string" }, quote: { type: "string", minLength: 5, maxLength: 700 },
     }, required: ["id", "label", "text", "evidenceId", "quote"] } },
-    tasks: { type: "array", items: citation }, guesses: { type: "array", items: citation },
-    questions: { type: "array", items: citation }, avoid: { type: "array", items: citation },
+    tasks: { type: "array", minItems: 1, maxItems: 3, items: citation }, guesses: { type: "array", maxItems: 3, items: citation },
+    questions: { type: "array", minItems: 3, maxItems: 3, items: citation }, avoid: { type: "array", maxItems: 2, items: citation },
   }, required: ["facts", "tasks", "guesses", "questions", "avoid"] });
+}
+
+/** An explicit, useful SEC-only fallback. Never turns a rejected model claim into evidence. */
+export function basicBrief(facts: CitedFact[]): BriefResponse {
+  const planning = facts.find(f => f.label === "services" && /financial planning/i.test(f.text));
+  const account = facts.find(f => f.id === "size-firm.accounts");
+  const support = planning ?? account ?? facts.find(f => f.label === "services") ?? facts[0];
+  if (!support) throw new DomainError("invalid_input", "no cited facts for basic brief");
+  const topic = planning ? "gathering financial planning documents" : account ? "updating account records" : "organizing client review information";
+  return { facts: [], tasks: [{ text: topic, factIds: [support.id] }],
+    guesses: [{ text: planning ? "May coordinate documents before preparing a plan." : "May need to coordinate information for client reviews.", factIds: [support.id] }],
+    questions: [planning ? "What did you need for the last financial plan you prepared?" : "What happened during your last account update?",
+      "How did the information reach you?", "Which part took the most time?"].map(text => ({ text, factIds: [support.id] })), avoid: [] };
 }
 
 export function backupLine(response: BriefResponse) {
@@ -110,7 +123,7 @@ export function backupLine(response: BriefResponse) {
 }
 
 export function renderBrief(input: { companyId: string; name: string; order: number; callDate: string; owner: string | null;
-  baseFacts: CitedFact[]; evidence: Evidence[]; response: BriefResponse; gaps: string[]; failure?: string }) {
+  baseFacts: CitedFact[]; evidence: Evidence[]; response: BriefResponse; gaps: string[]; failure?: string; detailLevel?: "detailed" | "basic" }) {
   const facts: CitedFact[] = [...input.baseFacts, ...input.response.facts];
   const byFact = new Map(facts.map(f => [f.id, f]));
   const used = [...new Set(facts.flatMap(f => f.evidenceIds ?? [f.evidenceId]))];
@@ -122,9 +135,11 @@ export function renderBrief(input: { companyId: string; name: string; order: num
   const cite = (ids: string[]) => [...new Set(ids.flatMap(referenceNumbers))].map(n => `[${n}]`).join("");
   const ref = (id: string) => cite([id]);
   const fact = (f: CitedFact) => `${f.text} ${ref(f.id)}`;
-  const ownerName = input.owner?.split(/\s+/)[0] ?? "[name]";
+  const ownerName = input.owner?.trim().split(/\s+/)[0] ?? "[name]";
   const opener = CALL_OPENER.replace("[name]", ownerName);
   const lines = [`# ${String(input.order).padStart(2, "0")} · ${input.name}`, `Call ${input.callDate}, from 19:30 IST · ${input.companyId}`, "",
+    ...input.baseFacts.filter(f => f.label === "check").map(f => `**Check:** ${fact(f)}.`),
+    ...(input.detailLevel === "basic" ? ["**Brief:** Basic — stored SEC facts; source gaps below."] : []),
     `**Who:** ${input.baseFacts.filter(f => f.label === "owner").map(fact).join("; ") || "owner not found"} · ${input.baseFacts.filter(f => f.label === "registration").map(fact).join("; ") || "registration not found"}.`,
     `**What:** ${["services", "clients", "fees", "custodian", "software"].map(label => {
       const preferred = label === "services" ? input.response.facts.filter(f => f.label === label) : [];
@@ -139,7 +154,7 @@ export function renderBrief(input: { companyId: string; name: string; order: num
     ...references.map((e, i) => {
       const locators = [...new Set(used.map(id => byEvidence.get(id)!).filter(x => referenceKey(x) === referenceKey(e)).map(x => x.locator).filter(Boolean))];
       const quotes = e.kind === "website" ? facts.filter(f => (f.evidenceIds ?? [f.evidenceId]).some(id => referenceKey(byEvidence.get(id)!) === referenceKey(e))).map(f => `“${f.quote.slice(0, 160)}”`).join("; ") : "";
-      return `[${i + 1}] ${e.kind === "schedule_a" ? "SEC Schedule A" : e.kind === "sec" ? "SEC Part 1" : e.kind}: ${e.dateKind} ${e.date}${e.page ? `, PDF p.${e.page}` : ""}${locators.length ? `; ${locators.join("; ")}` : ""}${quotes ? `; ${quotes}` : ""} · ${e.url} · source ${e.sourceId}`;
+      return `[${i + 1}] ${e.kind === "schedule_a" ? "SEC Schedule A" : e.kind === "stored_contact" ? "Stored DB contact (unconfirmed)" : e.kind === "sec" ? "SEC Part 1" : e.kind}: ${e.dateKind} ${e.date}${e.page ? `, PDF p.${e.page}` : ""}${locators.length ? `; ${locators.join("; ")}` : ""}${quotes ? `; ${quotes}` : ""} · ${e.url} · source ${e.sourceId}`;
     }),
   ];
   if (input.gaps.length || input.failure) lines.push("", `**Not found / skipped:** ${[...input.gaps, ...(input.failure ? [input.failure] : [])].join("; ")}.`);

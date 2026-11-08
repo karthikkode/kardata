@@ -1,0 +1,12 @@
+# Call briefs: next batches
+- ID failure cause: model JSON schema allowed arbitrary strings; runtime required a pattern and rejected collisions with existing SEC IDs.
+- Server assigns unique detail IDs and rewrites aliases only after each quote and number passes its original grounding checks (`src/domain/call-briefs/brief.ts`).
+- Repeated aliases cite all checked claims; existing facts are preserved. Bad quotes, numbers and unknown references still fail.
+- Fixed opener/pitch are rendered constants; a validator rejects changed script or claims of prior conversations. Firm-specific backup is separate.
+- Missing Schedule A names use the contacts tool's stored best person, with source/date and an unconfirmed label. No contact, email or contactability update.
+- One-staff firms above $1B AUM or 1,000 accounts carry a cited Check line. Exact boundaries do not flag.
+- MCP status/export distinguish validated Codex detail from an explicit stored-fact fallback, plus name gaps and scale flags.
+- Per-date exports preserve an operator-edited previous-day folder; no Nov 9 operation is needed.
+- Evidence: 17 targeted unit/MCP tests pass, including ID regressions, fixed script, contacts, thresholds, rerun and preservation checks; typecheck/lint pass.
+- Full suite runs in CI before merge/deploy. Live batch counts are read through MCP and reported separately.
+- Input spelling deviation: the owner's campaign CSV uses `call1_day`, corresponding to the requested call-day field.

@@ -5,7 +5,7 @@ import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
 import { blobs, providerCalls, records, researchRuns, sectorCompanies, sectors, sources } from "../../db/schema.js";
 import { CODEX_MODEL } from "../../harness/codex-config.js";
-import { dockerCodexExtractorCall } from "../../harness/codex-extract.js";
+import { CodexCallError, dockerCodexExtractorCall } from "../../harness/codex-extract.js";
 import { codexHasCapacity, readCodexSnapshot } from "../../harness/codex-status.js";
 import { getOrCreateManualRun } from "../../runs/queue.js";
 import type { ExtractorCall } from "../../runs/extract.js";
@@ -16,7 +16,7 @@ import { saveDocument } from "../research/documents.js";
 import { isValidDateString } from "../research/validate.js";
 import { sectorSlug } from "../sectors.js";
 import { lockEvidence } from "../sec-adv/evidence.js";
-import { BRIEF_TYPE, BRIEF_VERSION, briefPrompt, csvCell, groundBrief, renderBrief, responseSchema, type BriefResponse, type CitedFact, type Evidence } from "./brief.js";
+import { BRIEF_TYPE, BRIEF_VERSION, basicBrief, briefPrompt, csvCell, groundBrief, renderBrief, responseSchema, type BriefResponse, type CitedFact, type Evidence } from "./brief.js";
 import { confirmedBrochureEvidence, publicBriefEvidence, storedBriefEvidence, type DeniedHosts, type FetchNote } from "./evidence.js";
 
 export interface BriefBatch { sectorId: string; companyIds: string[]; callDate: string }
@@ -25,12 +25,15 @@ interface SavedBrief {
   response: BriefResponse; baseFacts: CitedFact[]; facts: CitedFact[]; evidence: Evidence[];
   fetches: FetchNote[]; gaps: string[]; brochureFound: boolean; websiteRead: boolean;
   sourceCount: number; documentId: string; markdown: string; opener: string; words: number;
+  detailLevel: "detailed" | "basic"; validationPassed: boolean; generationError: string | null; generationAttempts: number;
 }
 async function persistBrief(db: Db, input: { companyId: string; runId: string; name: string; order: number; callDate: string; owner: string | null;
-  baseFacts: CitedFact[]; evidence: Evidence[]; response: BriefResponse; gaps: string[]; fetches: FetchNote[]; brochureFound: boolean; websiteRead: boolean }): Promise<SavedBrief> {
+  baseFacts: CitedFact[]; evidence: Evidence[]; response: BriefResponse; gaps: string[]; fetches: FetchNote[]; brochureFound: boolean; websiteRead: boolean;
+  detailLevel?: "detailed" | "basic"; generationError?: string | null; generationAttempts?: number }): Promise<SavedBrief> {
   const { companyId, runId, evidence, response, gaps } = input;
   const rendered = renderBrief({ companyId, name: input.name, order: input.order,
-    callDate: input.callDate, owner: input.owner, baseFacts: input.baseFacts, evidence, response, gaps });
+    callDate: input.callDate, owner: input.owner, baseFacts: input.baseFacts, evidence, response, gaps, detailLevel: input.detailLevel,
+    ...(input.generationError ? { failure: input.generationError } : {}) });
   const words = rendered.markdown.split("<details>")[0]!.split(/\s+/).filter(Boolean).length;
   if (words > 360) throw new DomainError("invalid_input", "reviewed brief exceeds 360 words");
   const sourceIds = [...new Set(evidence.filter(e => rendered.usedEvidence.includes(e.id)).map(e => e.sourceId))];
@@ -44,11 +47,12 @@ async function persistBrief(db: Db, input: { companyId: string; runId: string; n
     const selectedEvidence = evidence.filter(e => rendered.usedEvidence.includes(e.id)).map(e => ({ ...e,
       text: e.kind === "sec" || e.kind === "schedule_a" ? e.text : rendered.facts.filter(f => f.evidenceId === e.id).map(f => f.quote).join("\n") }));
     const data: SavedBrief = { version: BRIEF_VERSION, call_date: input.callDate, company_id: companyId,
-      company_name: input.name, owner: input.owner, status: "ready", reason: null,
+      company_name: input.name, owner: input.owner, status: "ready", reason: input.generationError ?? null,
       response: response!, baseFacts: input.baseFacts, facts: rendered.facts, evidence: selectedEvidence,
       fetches: input.fetches, gaps, brochureFound: input.brochureFound, websiteRead: input.websiteRead,
       sourceCount: rendered.sourceCount, documentId: doc.id, markdown: rendered.markdown, opener: rendered.opener,
-      words };
+      words, detailLevel: input.detailLevel ?? "detailed", validationPassed: input.detailLevel !== "basic",
+      generationError: input.generationError ?? null, generationAttempts: input.generationAttempts ?? 1 };
     const writes = await upsertRecords(tx, { companyId, runId, createdBy: BRIEF_TYPE, records: [{
       type: BRIEF_TYPE, naturalKey: ["call_date"], sourceIds, data: data as unknown as Record<string, unknown>,
     }] });
@@ -133,7 +137,7 @@ export async function exportCallBriefs(db: Db, input: BriefBatch) {
   const { dir } = await validateBatch(db, input);
   const saved = await savedBriefs(db, input);
   await mkdir(dir, { recursive: true, mode: 0o700 });
-  const csv = [["company_id", "opener", "question 1", "question 2", "question 3", "top guess", "source count"].map(csvCell).join(",")];
+  const csv = [["company_id", "opener", "question 1", "question 2", "question 3", "top guess", "source count", "backup", "check", "brief type", "name missing"].map(csvCell).join(",")];
   const items = [];
   for (const [index, companyId] of input.companyIds.entries()) {
     const brief = saved.get(companyId);
@@ -141,19 +145,23 @@ export async function exportCallBriefs(db: Db, input: BriefBatch) {
     const file = join(dir, `${String(index + 1).padStart(2, "0")}-${companyId}.md`);
     if (brief.status !== "ready") {
       await writeFile(file, `# ${String(index + 1).padStart(2, "0")} · ${companyId}\n\nBrief not ready: ${brief.reason ?? "preparation failed"}.\n`, { mode: 0o600 });
-      csv.push([companyId, `Brief not ready: ${brief.reason}`, "not found", "not found", "not found", "not found", 0].map(csvCell).join(","));
+      csv.push([companyId, `Brief not ready: ${brief.reason}`, "not found", "not found", "not found", "not found", 0, "not found", "", "failed", "yes"].map(csvCell).join(","));
       items.push({ order: index + 1, companyId, status: brief.status, reason: brief.reason, path: file }); continue;
     }
     const rendered = renderBrief({ companyId, name: brief.company_name, order: index + 1, callDate: input.callDate,
-      owner: brief.owner, baseFacts: brief.baseFacts, evidence: brief.evidence, response: brief.response, gaps: brief.gaps,
+      owner: brief.owner, baseFacts: brief.baseFacts, evidence: brief.evidence, response: brief.response, gaps: brief.gaps, detailLevel: brief.detailLevel,
       ...(brief.reason ? { failure: brief.reason } : {}) });
     await writeFile(file, rendered.markdown, { mode: 0o600 });
-    csv.push([companyId, rendered.opener, ...rendered.questionTexts, rendered.topGuess, rendered.sourceCount].map(csvCell).join(","));
+    csv.push([companyId, rendered.opener, ...rendered.questionTexts, rendered.topGuess, rendered.sourceCount, rendered.backup,
+      brief.baseFacts.filter(f => f.label === "check").map(f => f.text).join("; "), brief.detailLevel ?? "detailed", brief.owner ? "no" : "yes"].map(csvCell).join(","));
     items.push({ order: index + 1, companyId, status: brief.status, reason: brief.reason, path: file, words: brief.words,
-      brochureFound: brief.brochureFound, websiteRead: brief.websiteRead, sourceCount: rendered.sourceCount });
+      brochureFound: brief.brochureFound, websiteRead: brief.websiteRead, sourceCount: rendered.sourceCount,
+      detailLevel: brief.detailLevel ?? "detailed", validationPassed: brief.validationPassed ?? true, nameMissing: !brief.owner,
+      flagged: brief.baseFacts.some(f => f.label === "check") });
   }
   const csvPath = join(dir, "call-briefs.csv"); await writeFile(csvPath, csv.join("\n") + "\n", { mode: 0o600 });
-  return { directory: dir, csvPath, ready: saved.size, total: input.companyIds.length, items };
+  return { directory: dir, csvPath, ready: items.filter(i => i.status === "ready").length, total: input.companyIds.length,
+    detailed: items.filter(i => i.detailLevel === "detailed").length, basic: items.filter(i => i.detailLevel === "basic").length, items };
 }
 
 export async function callBriefsStatus(db: Db, input: BriefBatch) {
@@ -169,10 +177,17 @@ export async function callBriefsStatus(db: Db, input: BriefBatch) {
     }
     return { order: i + 1, companyId, status: brief?.status ?? "pending", reason: brief?.reason ?? null,
       documentId: brief?.documentId ?? null, brochureFound: brief?.brochureFound ?? false,
-      websiteRead: brief?.websiteRead ?? false, words: brief?.words ?? null };
+      websiteRead: brief?.websiteRead ?? false, words: brief?.words ?? null,
+      detailLevel: brief?.status === "ready" ? brief.detailLevel ?? "detailed" : null,
+      validationPassed: brief?.status === "ready" && (brief.validationPassed ?? true),
+      nameMissing: !brief?.owner, flagged: brief?.baseFacts.some(f => f.label === "check") ?? false,
+      generationAttempts: brief?.generationAttempts ?? 0, generationError: brief?.generationError ?? null };
   });
   return { total: items.length, prepared: saved.size, brochuresFound: items.filter(i => i.brochureFound).length,
-    websitesRead: items.filter(i => i.websiteRead).length, skipReasons, items };
+    websitesRead: items.filter(i => i.websiteRead).length, ready: items.filter(i => i.status === "ready").length,
+    detailed: items.filter(i => i.detailLevel === "detailed").length, basic: items.filter(i => i.detailLevel === "basic").length,
+    validationPassed: items.filter(i => i.validationPassed).length,
+    namesMissing: items.filter(i => i.nameMissing).length, flagged: items.filter(i => i.flagged).length, skipReasons, items };
 }
 
 const active = new WeakMap<Db, Set<string>>();
@@ -186,7 +201,7 @@ export async function prepareCallBriefs(db: Db, input: BriefBatch & { offset?: n
   try {
     // Pin this job to Codex. Never read/change the global provider mode or any quota breaker/job.
     const snapshot = await readiness();
-    if (!codexHasCapacity(snapshot)) throw new DomainError("invalid_input", `Codex unavailable: ${snapshot.error ?? "quota"}`);
+    let providerFailure: string | null = codexHasCapacity(snapshot) ? null : `Codex unavailable: ${snapshot.error ?? "quota"}`;
     const saved = await savedBriefs(db, input);
     const offset = input.offset ?? 0;
     const queue = input.companyIds.slice(offset, offset + (input.limit ?? 20));
@@ -210,27 +225,37 @@ export async function prepareCallBriefs(db: Db, input: BriefBatch & { offset?: n
           observed = web;
           const evidence = [...stored.evidence, ...web.evidence], gaps = [...stored.gaps, ...web.gaps];
           const prompt = briefPrompt({ callDate: input.callDate, firm: { name: stored.company.name ?? companyId, crd: stored.company.secCrd }, facts: stored.baseFacts, evidence });
-          let response: BriefResponse | undefined, error = "";
+          let response: BriefResponse | undefined, error = "", attempts = 0;
           for (let attempt = 0; attempt < 2; attempt++) {
+            if (providerFailure) { error = providerFailure; break; }
             const finalPrompt = attempt ? `${prompt}\nRepair the previous invalid response. Validation: ${error}. Return only corrected JSON; keep the body under 340 words.` : prompt;
             const start = Date.now();
-            const result = await call({ runId, area: `call_brief_${input.callDate}`, prompt: finalPrompt, schema: responseSchema() });
-            const [run] = await db.select().from(researchRuns).where(eq(researchRuns.id, runId));
-            if (run) await logExtractorCall(db, run, { seq: attempt, prompt: finalPrompt, json: result.json, raw: result.raw, usage: result.usage, durationMs: Date.now() - start });
             try {
+              attempts++;
+              const result = await call({ runId, area: `call_brief_${input.callDate}`, prompt: finalPrompt, schema: responseSchema() });
+              const [run] = await db.select().from(researchRuns).where(eq(researchRuns.id, runId));
+              if (run) await logExtractorCall(db, run, { seq: attempt, prompt: finalPrompt, json: result.json, raw: result.raw, usage: result.usage, durationMs: Date.now() - start });
               response = groundBrief(result.json, evidence, stored.baseFacts);
               const preview = renderBrief({ companyId, name: stored.company.name ?? companyId, order: input.companyIds.indexOf(companyId) + 1,
                 callDate: input.callDate, owner: stored.owner, baseFacts: stored.baseFacts, evidence, response, gaps });
               const words = preview.markdown.split("<details>")[0]!.split(/\s+/).filter(Boolean).length;
               if (words > 360) throw new Error(`brief body too long: ${words} words`);
               break;
-            } catch (e) { response = undefined; error = e instanceof Error ? e.message.slice(0, 250) : "invalid brief"; }
+            } catch (e) {
+              response = undefined; error = e instanceof Error ? e.message.slice(0, 250) : "invalid brief";
+              if (e instanceof CodexCallError && (e.kind === "auth" || e.kind === "quota")) providerFailure = error;
+            }
           }
-          if (!response) throw new Error(`Codex response failed evidence/length checks: ${error}`);
+          const detailLevel = response ? "detailed" : "basic";
+          const generationError = response ? null : `Detailed read unavailable: ${error}`;
+          if (!response) {
+            errors.push({ companyId, reason: generationError! });
+            response = groundBrief(basicBrief(stored.baseFacts), stored.evidence, stored.baseFacts);
+          }
           const savedData = await persistBrief(db, { companyId, runId, name: stored.company.name ?? companyId,
             order: input.companyIds.indexOf(companyId) + 1, callDate: input.callDate, owner: stored.owner,
             baseFacts: stored.baseFacts, evidence, response, gaps, fetches: web.notes,
-            brochureFound: web.brochureFound, websiteRead: web.websiteRead });
+            brochureFound: web.brochureFound, websiteRead: web.websiteRead, detailLevel, generationError, generationAttempts: attempts });
           saved.set(companyId, savedData); prepared++;
           // A completed firm is immediately reviewable; filenames retain call-list order.
           await exportCallBriefs(db, input);

@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { CALL_OPENER, CALL_PITCH, groundBrief, backupLine, renderBrief, validateCallScript, type BriefResponse, type CitedFact, type Evidence } from "../../src/domain/call-briefs/brief.js";
-import { changePercent, confirmedBrochureEvidence, filedServices, firmBrochureCover, publicLinks, registrationAge } from "../../src/domain/call-briefs/evidence.js";
+import { changePercent, confirmedBrochureEvidence, filedServices, firmBrochureCover, publicLinks, registrationAge, soloSizeCheck } from "../../src/domain/call-briefs/evidence.js";
 
 const evidence: Evidence[] = [{ id: "web", sourceId: "source", url: "https://example.test/services", date: "2026-11-08", dateKind: "read",
   kind: "website", text: "We provide financial planning and charge a flat fee." }];
@@ -90,4 +90,12 @@ it("labels checked SEC services explicitly without inferring services from fee t
   expect(filedServices({ "5G(1)": "Y", "5G(2)": "Y", "5G(6)": "N", "5G(7)": "" })).toEqual([
     { field: "5G(1)", value: "Y", label: "financial planning" }, { field: "5G(2)", value: "Y", label: "individual/small-business portfolios" },
   ]);
+});
+
+it("flags only one-staff firms over the stated AUM or account boundaries", () => {
+  expect(soloSizeCheck(1, 1e9, 1000)).toBe(false);
+  expect(soloSizeCheck(1, 1e9 + 1, 1000)).toBe(true);
+  expect(soloSizeCheck(1, 1e9, 1001)).toBe(true);
+  expect(soloSizeCheck(2, 2e9, 2000)).toBe(false);
+  expect(soloSizeCheck(null, 2e9, 2000)).toBe(false);
 });

@@ -26,10 +26,10 @@ export function registerCallBriefTools(server: McpServer, db: Db, auth: AuthCont
       concurrency: z.number().int().min(1).max(4).optional(), force: z.boolean().optional() },
   }, async input => wrap(async () => {
     const data = await prepareCallBriefs(db, input);
-    return { summary: `${data.prepared} prepared, ${data.reused} reused, ${data.errors.length} errors`, data };
+    return { summary: `${data.ready} ready (${data.detailed} detailed, ${data.basic} basic), ${data.reused} reused`, data };
   }));
   registerTool(server, db, auth, "ria_call_briefs_status", {
-    description: "Read call-list order, stored brief coverage, source-access gaps and word counts without fetching or making model calls.",
+    description: "Read call-list order, ready/detailed/basic and validation-pass counts, missing stored contact names, flagged scale, source-access gaps and word counts without fetching or making model calls.",
     annotations: { readOnlyHint: true }, inputSchema: batch,
   }, async input => wrap(async () => ({ summary: "Private call-brief coverage", data: await callBriefsStatus(db, input) })));
   registerTool(server, db, auth, "ria_call_briefs_export", {
