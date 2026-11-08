@@ -148,3 +148,23 @@ it("allows the server-owned SEC archive without widening operator import directo
     process.env.KARDATA_IMPORT_DIRS = fixtureImportDirs().join(",");
   }
 });
+
+it("applies only explicitly reviewed SEC omissions while preserving the paused fee list and benchmark revision", async () => {
+  const f = await setup();
+  const missingPath = resolve("tests/fixtures/sec-ria-missing.csv");
+  const before = await riaProtectedState(handle.db, f.sectorId);
+  const preview = await call("ria_reclassify", { sectorId: f.sectorId, path: missingPath });
+  expect(preview).toMatchObject({ canApply: false, protectedFailures: [{ companyId: f.accepted, reason: "not_active", registration: { present: false } }] });
+  const invalid = await client.callTool({ name: "ria_reclassify", arguments: { sectorId: f.sectorId, path: missingPath,
+    dryRun: false, acknowledgeNotActiveCompanyIds: [f.hold] } });
+  expect(invalid.isError).toBe(true);
+  expect(await riaProtectedState(handle.db, f.sectorId)).toEqual(before);
+  expect(await call("ria_reclassify", { sectorId: f.sectorId, path: missingPath, dryRun: false,
+    acknowledgeNotActiveCompanyIds: [f.accepted] })).toMatchObject({
+      canApply: true, byDecision: { Accept: 1, Hold: 1, Reject: 3 }, unacknowledgedFailures: [],
+      acknowledgeNotActiveCompanyIds: [f.accepted], protectedState: before,
+    });
+  expect(await call("ria_classifications", { sectorId: f.sectorId, companyIds: [f.accepted] }))
+    .toMatchObject({ total: 1, rows: [{ companyId: f.accepted, decision: "Reject", tier: null, reason: "not_active" }] });
+  expect(await riaProtectedState(handle.db, f.sectorId)).toEqual(before);
+});
